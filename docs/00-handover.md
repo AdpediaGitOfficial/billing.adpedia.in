@@ -1,6 +1,6 @@
 # 00 · Handover — read this first
 
-Adpedia Films Private Limited's internal finance ERP. **567 tests** (314 unit + 253
+Adpedia Films Private Limited's internal finance ERP. **580 tests** (314 unit + 266
 integration), typecheck and lint clean, production build passes.
 
 Everything below is either hard-won or non-obvious. The per-module detail is in `docs/20`
@@ -15,7 +15,7 @@ them — it just cannot produce a right answer until they arrive.
 
 | | Why it blocks |
 |---|---|
-| **PANs for 13 people** (4 employees, 9 freelancers) | Without one, s.206AA forces 20% instead of the section rate, Form 16/16A cannot be issued, and the 4th character is the only reliable source for 194C at 1% vs 2%. Enter at `/tax/pan`. |
+| **PANs for 13 people** (4 employees, 9 freelancers) | Without one, s.206AA forces 20% instead of the section rate, Form 16/16A cannot be issued, and the 4th character is the only reliable source for 194C at 1% vs 2%. Enter at `/tax/pan`, and upload a copy of the card while you are there (`docs/47`). |
 | **Annual tax estimates per employee** | s.192 prorates the CA's estimate across remaining months. Nothing is deducted until it is entered, and under-deduction carries 1% a month. |
 | **FY 2026-27 LUT ARN** | Exports are blocked by design. An export raised zero-rated without a current LUT is simply not zero-rated and the IGST becomes payable. |
 | **CA sign-off on the TDS table** | `docs/32`. The rates are statutory as at 01 Apr 2025, stated to the best of my knowledge, and must be rechecked against the Finance Act 2026. |
@@ -57,6 +57,9 @@ Each was decided for a reason and several were learned from a bug.
 9. **A challan funds the electronic cash ledger; a set-off discharges the liability**
    (`docs/46`). They are separate postings, and the ledgers are derived from journal lines
    head-wise — one account per major head, because the law is head-wise.
+10. 🔴 **PANs are never checked online** (`docs/47`). `panVerified` means *furnished by the
+    payee and format-valid*, which is what s.206AA turns on; `panEvidence` records what
+    stands behind it, and a card copy never changes the rate.
 
 ## 4. 🔴 Compliance subtleties that are easy to get wrong
 
@@ -73,6 +76,8 @@ Each of these is implemented and tested; each was wrong in an obvious first atte
 - **Advance tax percentages are cumulative**, not per instalment.
 - **CGST and SGST are two halves of one tax** — a receipt OCR must add them, not take one.
 - **Profession tax caps at ₹2,500 a year** under Article 276(2).
+- **s.206AA turns on whether the payee FURNISHED a PAN**, not on anyone verifying it. Keying
+  the 20% off a verification step that does not exist over-deducts for good — `docs/47 §1`.
 - **RCM must be paid in cash**, never set off against ITC.
 - **The LUT is due *before* the year it covers.**
 - **GST interest runs to the date the cash ledger is DEBITED** (rule 88B(1)), not to the date
@@ -112,6 +117,9 @@ kept working:
 - **obligations with deadlines nothing tracked** → compliance calendar (`docs/43`)
 - **models that exist but nothing writes to** → GST filing records (`docs/44`), then payments
   (`docs/45`)
+- **a flag nothing could ever set** → PAN cards (`docs/47`), where `panVerified` waited on a
+  portal check this system will never make, and every PAN entered in the register meanwhile
+  left the payee at 20%
 - **what the system simplified away** → the electronic ledgers (`docs/46`), which turned out
   to be hiding a head-wise set-off bug that understated the cash payable, and a period
   position that counted the previous period's payment
@@ -137,5 +145,9 @@ In rough order of value:
   threshold today, and the exceptions want the CA (`docs/46 §7`)
 - **A set-off cannot be reversed** — the docs/40 pattern applies, but a filed return and a
   locked period make the consequences heavier
+- **Nothing chases a missing PAN card** — the register lists them, no one is asked
+  (`docs/47 §7`)
+- **Inoperative PANs** (rule 114AAA, PAN not linked to Aadhaar) attract 20% as if none had
+  been furnished, and nothing available here can detect that (`docs/47 §7`)
 - **S3 storage driver** is deliberately unimplemented (`docs/38 §7`)
 - **Live IRP client** is deliberately unimplemented (`docs/31 §6`)

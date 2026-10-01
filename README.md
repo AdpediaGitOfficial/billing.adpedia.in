@@ -51,8 +51,9 @@ payroll, projects and bank reconciliation on a double-entry ledger.
 | [44 · GST filing records](docs/44-gst-filing-records.md) | Recording a return as filed — which locks the period, and makes the calendar go quiet |
 | [45 · GST payments](docs/45-gst-payments.md) | Challans, CIN vs CPIN, and why s.50(1) interest runs on the cash component |
 | [46 · Electronic ledgers](docs/46-electronic-ledgers.md) | The cash and credit ledgers, head-wise set-off under s.49(5), and the netting that understated the cash |
+| [47 · PAN cards](docs/47-pan-cards.md) | Upload the card, no online verification — and the s.206AA flag that was over-deducting for good |
 
-**567 tests passing** · typecheck and lint clean · production build passes.
+**580 tests passing** · typecheck and lint clean · production build passes.
 
 ```bash
 cp .env.example .env     # set DATABASE_URL and JWT_SECRET

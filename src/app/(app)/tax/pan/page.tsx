@@ -1,5 +1,6 @@
 import { requireContext } from '@/server/context'
 import { panRegister } from '@/server/services/tax/pan-register'
+import { prisma } from '@/server/db'
 import { formatINR } from '@/lib/money'
 import { PageHeader, Card, Alert } from '@/components/ui/kit'
 import { PanForms } from './forms'
@@ -7,6 +8,21 @@ import { PanForms } from './forms'
 export default async function PanPage() {
   const ctx = await requireContext()
   const reg = await panRegister(ctx)
+
+  // one query for every card on the page, rather than one per row
+  const cards = await prisma.attachment.findMany({
+    where: {
+      companyId: ctx.companyId, kind: 'PAN_CARD', detachedAt: null,
+      entityType: { in: ['Employee', 'Vendor'] },
+    },
+    orderBy: { createdAt: 'desc' },
+    select: { id: true, filename: true, entityType: true, entityId: true },
+  })
+  const cardsBy = new Map<string, { id: string; filename: string }[]>()
+  for (const c of cards) {
+    const key = `${c.entityType}:${c.entityId}`
+    cardsBy.set(key, [...(cardsBy.get(key) ?? []), { id: c.id, filename: c.filename }])
+  }
 
   return (
     <div className="max-w-3xl space-y-5">
@@ -32,11 +48,22 @@ export default async function PanPage() {
         </Alert>
       )}
 
-      <Alert tone="info" title="A valid-looking PAN is not a verified PAN">
-        Everything here checks <em>format</em>. Only the Income Tax portal&rsquo;s bulk PAN
-        verification can confirm that a PAN exists and whose it is &mdash; and quoting a wrong but
-        well-formed PAN is worse than quoting none: the deduction is reported against a stranger,
-        the real payee never sees it in their 26AS, and fixing it needs a revised return.
+      {reg.undocumented > 0 && (
+        <Alert tone="warn" title={`${reg.undocumented} have a PAN on file with no copy of the card`}>
+          The rate is already right &mdash; s.206AA turns on whether the payee <em>furnished</em> a PAN, and
+          they have. The card is what the company holds to show it asked, and the only way to catch a
+          digit typed wrong before TRACES does.
+        </Alert>
+      )}
+
+      <Alert tone="info" title="PANs are not checked online, by design">
+        Nothing here contacts the Income Tax portal. A PAN is recorded as the payee gave it, and the
+        evidence behind it is <strong>a copy of the card, uploaded and confirmed by a person</strong>.
+        <br />
+        What that cannot do is prove the PAN exists: a wrong but well-formed number is reported against
+        a stranger, the real payee never sees it in their 26AS, and it surfaces as a short-deduction
+        notice on TRACES after the 26Q is filed. Comparing the card against the number is what catches
+        it first.
       </Alert>
 
       <PanForms rows={reg.rows.map((r) => ({
@@ -47,6 +74,11 @@ export default async function PanPage() {
         paid: r.paidThisFy.toFixed(2),
         excess: r.excessWithheld.toFixed(2),
         issues: r.issues,
+        chases: r.chases,
+        card: {
+          kind: r.kind, id: r.id, evidence: r.evidence,
+          cards: cardsBy.get(`${r.kind === 'EMPLOYEE' ? 'Employee' : 'Vendor'}:${r.id}`) ?? [],
+        },
       }))} />
 
       <Card className="p-4">

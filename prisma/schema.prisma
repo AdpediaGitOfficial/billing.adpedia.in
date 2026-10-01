@@ -661,20 +661,27 @@ model ReceiptAllocation {
 // ─────────────────────────────────────────────────────── PURCHASES / PAYABLES
 
 model Vendor {
-  id            String     @id @default(cuid())
-  companyId     String
-  company       Company    @relation(fields: [companyId], references: [id])
-  name          String
-  vendorType    VendorType
-  contactPerson String?
-  email         String?
-  phone         String?
-  address       Json?
-  country       String     @default("IN")
-  stateCode     String?
-  gstin         String?
-  pan           String?
-  panVerified   Boolean    @default(false) // no PAN ⇒ s.206AA @20%
+  id              String      @id @default(cuid())
+  companyId       String
+  company         Company     @relation(fields: [companyId], references: [id])
+  name            String
+  vendorType      VendorType
+  contactPerson   String?
+  email           String?
+  phone           String?
+  address         Json?
+  country         String      @default("IN")
+  stateCode       String?
+  gstin           String?
+  pan             String?
+  /// 🔴 "furnished", NOT "checked against a portal" — docs/47. s.206AA turns on whether the
+  /// payee gave us a PAN, so a format-valid number on file switches off the 20% rate. What
+  /// stands behind it is `panEvidence`.
+  panVerified     Boolean     @default(false) // no PAN ⇒ s.206AA @20%
+  panEvidence     PanEvidence @default(NONE)
+  panEvidenceAt   DateTime?
+  /// who confirmed the card against the number
+  panEvidenceById String?
 
   // — TDS —
   defaultTdsSection     String? // "194J" | "194C" | "195"
@@ -907,6 +914,11 @@ model Employee {
   email              String?
   phone              String?
   pan                String?
+  /// docs/47 — same meaning as on Vendor. Salary is s.192, where s.206AA sets a 20% FLOOR
+  /// rather than a flat rate, but Form 16 still cannot be issued without the number.
+  panEvidence        PanEvidence         @default(NONE)
+  panEvidenceAt      DateTime?
+  panEvidenceById    String?
   joinedOn           DateTime
   leftOn             DateTime?
   bankDetails        Json?
@@ -923,6 +935,19 @@ model Employee {
 enum TaxRegime {
   OLD
   NEW
+}
+
+/// docs/47 · what stands behind a PAN we hold.
+///
+/// 🔴 This system deliberately does NOT verify PANs online. s.206AA turns on whether the
+/// payee *furnished* a PAN, not on anyone checking it against a portal — so DECLARED is
+/// already enough for the normal rate, and CARD_ON_FILE is the evidence that we asked.
+enum PanEvidence {
+  NONE
+  /// the payee gave us the number — by email, on an invoice, over the phone
+  DECLARED
+  /// a copy of the PAN card is attached, and someone compared the two
+  CARD_ON_FILE
 }
 
 model SalaryStructure {
@@ -1380,6 +1405,8 @@ model Attachment {
 
 enum AttachmentKind {
   RECEIPT
+  /// a copy of the payee's PAN card — docs/47
+  PAN_CARD
   VENDOR_INVOICE
   PAYSLIP
   FORM_26AS

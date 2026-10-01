@@ -101,12 +101,13 @@ export async function resolveTds(args: {
     cumulativeBefore, cumulativeAfter,
   })
 
-  // 1 ── no verified PAN → s.206AA, flat higher rate, no threshold relief
+  // 1 ── no PAN furnished → s.206AA, flat higher rate, no threshold relief. 🔴 "furnished"
+  //      is the statutory test, not "checked against a portal" — docs/47.
   if (!isValidPanFormat(deductee.pan) || !deductee.panVerified) {
     return build(
       new Decimal(rate.rateNoPan.toString()), thisBillBase,
-      `No verified PAN — s.206AA applies`,
-      `Section 206AA: without a verified PAN, TDS is ${rate.rateNoPan}% rather than the normal rate, and the annual threshold gives no relief. Collect the PAN before paying.`,
+      `No PAN on file — s.206AA applies`,
+      `Section 206AA: without a PAN on file, TDS is ${rate.rateNoPan}% rather than the normal rate, and the annual threshold gives no relief. Collect the PAN before paying — the register at /tax/pan takes the number and a copy of the card.`,
     )
   }
 

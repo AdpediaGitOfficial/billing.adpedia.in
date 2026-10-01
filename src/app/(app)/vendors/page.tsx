@@ -45,9 +45,13 @@ export default async function VendorsPage() {
 
       {noPan.length > 0 && (
         <div className="mb-5">
-          <Alert tone="critical" title={`${noPan.length} ${noPan.length === 1 ? 'vendor has' : 'vendors have'} no verified PAN`}>
+          {/* docs/47 — "no PAN on file", not "unverified": s.206AA turns on whether the
+              payee furnished one, and this system does not check PANs online. */}
+          <Alert tone="critical" title={`${noPan.length} ${noPan.length === 1 ? 'vendor has' : 'vendors have'} no PAN on file`}>
             Section 206AA forces TDS at 20% rather than the normal rate, and the annual threshold
             gives no relief. Collect the PAN before the next payment run — {noPan.map((v) => v.name).join(', ')}.
+            Record it in the <Link href="/tax/pan" className="underline underline-offset-2">PAN register</Link>,
+            where the card can be filed with it.
           </Alert>
         </div>
       )}

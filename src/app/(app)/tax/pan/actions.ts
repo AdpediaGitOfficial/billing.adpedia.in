@@ -3,6 +3,8 @@ import { revalidatePath } from 'next/cache'
 import { requireContext } from '@/server/context'
 import { prisma } from '@/server/db'
 import { savePans, parsePanPaste, matchByName, type PartyKind } from '@/server/services/tax/pan-register'
+import { confirmPanCard, unconfirmPanCard } from '@/server/services/tax/pan-card'
+import { AppError } from '@/server/errors'
 
 export async function savePanForm(_prev: unknown, form: FormData) {
   const ctx = await requireContext()
@@ -56,4 +58,33 @@ export async function pastePans(_prev: unknown, form: FormData) {
     parts.push(`Rejected: ${res.rejected.map((r) => `${r.name} — ${r.reason}`).join('; ')}`)
   }
   return { ok: ven.unmatched.length === 0 && res.rejected.length === 0, message: parts.join(' ') }
+}
+
+/**
+ * Confirm the card against the number.
+ *
+ * Deliberately a separate act from uploading it: the file arriving says nothing about
+ * whether the digits were read correctly, and this is the record that a person checked.
+ */
+export async function confirmCardAction(kind: PartyKind, id: string) {
+  const ctx = await requireContext()
+  try {
+    const r = await confirmPanCard(ctx, kind, id)
+    revalidatePath('/tax/pan')
+    revalidatePath('/vendors')
+    return { ok: true, message: `${r.name}'s PAN card is on file and confirmed.` }
+  } catch (e) {
+    return { ok: false, message: e instanceof AppError ? e.message : 'Could not confirm that card' }
+  }
+}
+
+export async function unconfirmCardAction(kind: PartyKind, id: string, reason: string) {
+  const ctx = await requireContext()
+  try {
+    const r = await unconfirmPanCard(ctx, kind, id, reason)
+    revalidatePath('/tax/pan')
+    return { ok: true, message: r.note }
+  } catch (e) {
+    return { ok: false, message: e instanceof AppError ? e.message : 'Could not withdraw that confirmation' }
+  }
 }

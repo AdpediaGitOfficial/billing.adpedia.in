@@ -111,6 +111,8 @@ readable by anyone holding a URL.
 
 ## 8. Still open
 
+- **PAN cards reuse all of this** (`docs/47`) — same magic-byte check, same never-inline
+  serving, plus a company-scoped lookup of the party before an identity document is stored.
 - **Attachments are not yet shown on the expense and bill screens** — upload and download
   work through the API, the UI does not list them.
 - **Payslip and invoice PDFs** are not stored as attachments yet; both are generated on

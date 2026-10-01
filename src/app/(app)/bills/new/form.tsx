@@ -115,7 +115,7 @@ export function BillForm({ vendors, projects, accounts }: {
               {preview.warnings.map((w) => (
                 <Alert key={w} tone={w.includes('206AA') || w.includes('crossing') || w.includes('not just this bill') ? 'critical' : 'warn'}
                   title={w.includes('reverse charge') ? 'Reverse charge applies'
-                    : w.includes('206AA') ? 'No verified PAN'
+                    : w.includes('206AA') ? 'No PAN on file'
                     : w.includes('not just this bill') ? 'Annual threshold crossed'
                     : w.includes('headroom') ? 'Close to the annual threshold'
                     : w.includes('15CA') ? 'Non-resident payment'

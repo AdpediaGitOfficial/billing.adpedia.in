@@ -2,6 +2,7 @@
 import { useActionState, useState } from 'react'
 import { Card, Button, Pill, inputClass, inputStyle } from '@/components/ui/kit'
 import { savePanForm, pastePans } from './actions'
+import { PanCard, type PanCardView } from './pan-card'
 
 export interface PanRow {
   kind: 'EMPLOYEE' | 'VENDOR'
@@ -15,6 +16,10 @@ export interface PanRow {
   paid: string
   excess: string
   issues: string[]
+  /** paperwork still to collect — not a fault, and styled differently */
+  chases: string[]
+  /** docs/47 — the card on file, and whether anyone has confirmed it */
+  card: PanCardView
 }
 
 export function PanForms({ rows }: { rows: PanRow[] }) {
@@ -84,9 +89,12 @@ function Group({ title, rows }: { title: string; rows: PanRow[] }) {
       </div>
       <table className="w-full text-[13px]">
         <tbody>
+          {/* 🔴 Rows stack on a phone. With the card column added, three cells sharing 375px
+              left the PAN box 60px wide — too narrow to type ten characters into, which is
+              the one thing this screen exists for. */}
           {rows.map((r) => (
-            <tr key={r.id} className="border-t align-top" style={{ borderColor: 'var(--rule)' }}>
-              <td className="px-4 py-3">
+            <tr key={r.id} className="flex flex-col border-t align-top sm:table-row" style={{ borderColor: 'var(--rule)' }}>
+              <td className="px-4 pt-3 sm:py-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium">{r.name}</span>
                   {!r.pan
@@ -103,10 +111,13 @@ function Group({ title, rows }: { title: string; rows: PanRow[] }) {
                 )}
 
                 {r.issues.map((i, n) => (
-                  <p key={n} className="mt-1 text-[11.5px]" style={{ color: 'var(--text-muted)' }}>{i}</p>
+                  <p key={n} className="mt-1 text-[11.5px]" style={{ color: 'var(--text-secondary)' }}>{i}</p>
+                ))}
+                {r.chases.map((c, n) => (
+                  <p key={`c${n}`} className="mt-1 text-[11.5px]" style={{ color: 'var(--text-muted)' }}>{c}</p>
                 ))}
               </td>
-              <td className="w-[210px] px-4 py-3">
+              <td className="px-4 py-2 sm:w-[180px] sm:py-3">
                 <input
                   name={`pan:${r.kind}:${r.id}`}
                   defaultValue={r.pan ?? ''}
@@ -117,6 +128,12 @@ function Group({ title, rows }: { title: string; rows: PanRow[] }) {
                   className={`${inputClass} tabular uppercase`}
                   style={inputStyle}
                 />
+              </td>
+              {/* 🔴 Outside the form on purpose. The file goes straight to the upload
+                  endpoint, so attaching a card never risks submitting half-typed PANs in
+                  the row above it. */}
+              <td className="px-4 pb-3 sm:w-[150px] sm:py-3">
+                <PanCard view={r.card} />
               </td>
             </tr>
           ))}

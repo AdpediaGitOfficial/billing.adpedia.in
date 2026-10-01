@@ -2,9 +2,10 @@ import { handler } from '@/app/api/_lib/handler'
 import { requireContext } from '@/server/context'
 import { uploadAttachment, MAX_BYTES } from '@/server/services/storage/attachment'
 import { AppError } from '@/server/errors'
+import { assertParty, PAN_ENTITY } from '@/server/services/tax/pan-card'
 import type { AttachmentKind } from '@prisma/client'
 
-const KINDS = ['RECEIPT', 'VENDOR_INVOICE', 'PAYSLIP', 'FORM_26AS', 'CHALLAN', 'BANK_STATEMENT', 'OTHER']
+const KINDS = ['RECEIPT', 'VENDOR_INVOICE', 'PAYSLIP', 'FORM_26AS', 'CHALLAN', 'BANK_STATEMENT', 'PAN_CARD', 'OTHER']
 
 export async function POST(req: Request) {
   return handler(async () => {
@@ -23,6 +24,17 @@ export async function POST(req: Request) {
     const entityType = String(form.get('entityType') ?? '')
     const entityId = String(form.get('entityId') ?? '')
     if (!entityType || !entityId) throw new AppError('An attachment needs something to attach to')
+
+    // 🔴 A PAN card is somebody's identity document, and the id comes from the browser. The
+    // party is looked up in this company before the file is stored, so a card cannot be
+    // filed against an id that is not ours to hold documents for.
+    if (kind === 'PAN_CARD') {
+      const party = entityType === PAN_ENTITY.EMPLOYEE ? 'EMPLOYEE'
+        : entityType === PAN_ENTITY.VENDOR ? 'VENDOR'
+        : null
+      if (!party) throw new AppError('A PAN card belongs to an employee or a vendor')
+      await assertParty(ctx, party, entityId)
+    }
 
     const row = await uploadAttachment(ctx, {
       kind: kind as AttachmentKind,

@@ -59,7 +59,9 @@ export async function createVendor(ctx: RequestContext, input: VendorInput) {
       country, stateCode: input.stateCode ?? null,
       gstin: input.gstin || null,
       pan: input.pan ? input.pan.trim().toUpperCase() : null,
+      // furnished, not portal-checked — docs/47. `panEvidence` is what says how we got it.
       panVerified: !!input.pan && isValidPanFormat(input.pan),
+      panEvidence: isValidPanFormat(input.pan) ? 'DECLARED' : 'NONE',
       defaultTdsSection: input.defaultTdsSection || null,
       paymentTermDays: input.paymentTermDays ?? 15,
       address: (input.address ?? {}) as never,
@@ -85,7 +87,15 @@ export async function updateVendor(ctx: RequestContext, id: string, input: Vendo
       country, stateCode: input.stateCode ?? null,
       gstin: input.gstin || null,
       pan: input.pan ? input.pan.trim().toUpperCase() : null,
+      // furnished, not portal-checked — docs/47. `panEvidence` says how we came by it, and
+      // 🔴 a card already confirmed is not undone by an edit that leaves the number alone;
+      // changing the number does drop it back, because the card is evidence for the old one.
       panVerified: !!input.pan && isValidPanFormat(input.pan),
+      panEvidence: !isValidPanFormat(input.pan)
+        ? 'NONE'
+        : existing.panEvidence === 'CARD_ON_FILE' && existing.pan === input.pan!.trim().toUpperCase()
+          ? 'CARD_ON_FILE'
+          : 'DECLARED',
       defaultTdsSection: input.defaultTdsSection || null,
       paymentTermDays: input.paymentTermDays ?? existing.paymentTermDays,
       address: (input.address ?? existing.address ?? {}) as never,

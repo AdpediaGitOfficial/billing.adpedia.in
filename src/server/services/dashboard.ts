@@ -38,7 +38,7 @@ export async function complianceAlerts(companyId: string): Promise<ComplianceAle
   if (noPan > 0) {
     out.push({
       id: 'pan', tone: 'warn',
-      title: `${noPan} ${noPan === 1 ? 'vendor has' : 'vendors have'} no verified PAN`,
+      title: `${noPan} ${noPan === 1 ? 'vendor has' : 'vendors have'} no PAN on file`,
       detail: 'Section 206AA forces TDS at 20% instead of the normal rate until a PAN is on file.',
       href: '/vendors',
     })

@@ -22,9 +22,10 @@ describe('PAN format and entity type', () => {
     }
   })
 
-  it('🔴 accepts a well-formed PAN that may not exist — format is not verification', () => {
-    // this is the whole reason panVerified is a separate flag: only the Income Tax portal
-    // can say whether a PAN exists and whose it is
+  it('🔴 accepts a well-formed PAN that may not exist — format is not evidence', () => {
+    // nothing available here can say whether a PAN exists and whose it is, which is why
+    // docs/47 keeps `panEvidence` alongside the number: the card copy is what the company
+    // holds, and a wrong-but-well-formed number surfaces on TRACES, not in this check
     expect(isValidPanFormat('ABCDE1234F')).toBe(true)
   })
 })
