@@ -1,6 +1,6 @@
 # 00 · Handover — read this first
 
-Adpedia Films Private Limited's internal finance ERP. **528 tests** (293 unit + 235
+Adpedia Films Private Limited's internal finance ERP. **567 tests** (314 unit + 253
 integration), typecheck and lint clean, production build passes.
 
 Everything below is either hard-won or non-obvious. The per-module detail is in `docs/20`
@@ -54,6 +54,9 @@ Each was decided for a reason and several were learned from a bug.
    never rewrite an invoice already with the client.
 7. **Tax mode is derived from country and state code.** Displayed, never offered.
 8. **Nothing a user uploaded is ever served inline** (`docs/38`).
+9. **A challan funds the electronic cash ledger; a set-off discharges the liability**
+   (`docs/46`). They are separate postings, and the ledgers are derived from journal lines
+   head-wise — one account per major head, because the law is head-wise.
 
 ## 4. 🔴 Compliance subtleties that are easy to get wrong
 
@@ -72,6 +75,13 @@ Each of these is implemented and tested; each was wrong in an obvious first atte
 - **Profession tax caps at ₹2,500 a year** under Article 276(2).
 - **RCM must be paid in cash**, never set off against ITC.
 - **The LUT is due *before* the year it covers.**
+- **GST interest runs to the date the cash ledger is DEBITED** (rule 88B(1)), not to the date
+  a challan funded it. Money parked in the cash ledger has paid nothing.
+- **Credit is utilised HEAD-WISE.** CGST credit may never discharge SGST, nor SGST discharge
+  CGST (s.49(5)(e) and (f)), and IGST credit must be exhausted before either is touched
+  (rule 88A). Netting total credit against total output tax understates the cash payable.
+- **A period is settled in the FOLLOWING period.** Anything that reads "movement on the tax
+  account during the period" therefore picks up the previous period's payment — `docs/46 §4`.
 
 ## 5. Environment quirks
 
@@ -84,6 +94,10 @@ Each of these is implemented and tested; each was wrong in an obvious first atte
 - Dev credentials live in `.env` (gitignored) and are never repeated in chat.
 - A stale dev server sometimes holds port 3000 and the new one silently starts on 3001 —
   check the log line before assuming a 404 is real.
+- 🔴 **The PWA service worker caches the app shell** (`adpedia-shell-v1`). A UI change can
+  look like it did not take effect in a browser that has visited the app before — the chunk
+  is served from that cache. Unregister the worker and clear the cache before concluding the
+  code is wrong; `rm -rf .next` does not help, because the stale copy is in the browser.
 
 ## 6. How the last several modules were chosen
 
@@ -98,6 +112,9 @@ kept working:
 - **obligations with deadlines nothing tracked** → compliance calendar (`docs/43`)
 - **models that exist but nothing writes to** → GST filing records (`docs/44`), then payments
   (`docs/45`)
+- **what the system simplified away** → the electronic ledgers (`docs/46`), which turned out
+  to be hiding a head-wise set-off bug that understated the cash payable, and a period
+  position that counted the previous period's payment
 
 🔴 **Three times, rendering the output and looking at it found bugs the tests did not** — a
 broken logo, stray IGST rows on a Kerala invoice, a two-page A4 layout. Tests asserted
@@ -107,7 +124,6 @@ figures and HTML substrings; the document was arithmetically perfect and still w
 
 In rough order of value:
 
-- **Electronic cash/credit ledgers** are not modelled (`docs/45`)
 - **Credit-note PDF** — the renderer is invoice-shaped, so this is a template job
 - **Vendor and project edit pages** — services and audit done, pages missing (`docs/41`)
 - **Unmatching a bank line** has a service and no button (`docs/40`)
@@ -115,5 +131,11 @@ In rough order of value:
   they want their own thinking rather than the pattern applied blindly
 - **Debit notes** (s.34(3)), **advance receipts**, **expense attachment panel**, **PDF
   statements**, **journal/ledger export**, **service-item CRUD**
+- **Reconciling either electronic ledger against the portal** — the balances are ours, and
+  nobody has compared them with PMT-05 (`docs/46 §7`)
+- **Rule 86B** (1% in cash above ₹50 lakh monthly turnover) is not implemented — below the
+  threshold today, and the exceptions want the CA (`docs/46 §7`)
+- **A set-off cannot be reversed** — the docs/40 pattern applies, but a filed return and a
+  locked period make the consequences heavier
 - **S3 storage driver** is deliberately unimplemented (`docs/38 §7`)
 - **Live IRP client** is deliberately unimplemented (`docs/31 §6`)

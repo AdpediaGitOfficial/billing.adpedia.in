@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client'
 import { resetDb } from './helpers/db'
 import { createInvoice, sendInvoice } from '@/server/services/invoicing/invoice'
 import { recordGstPayment, previewGstPayment, paidPeriods } from '@/server/services/tax/gst-payment'
+import { recordSetOff } from '@/server/services/tax/gst-setoff'
 import { trialBalance } from '@/server/services/reports/statements'
 import { accountLedger } from '@/server/services/reports/ledger'
 import type { RequestContext } from '@/server/context'
@@ -52,19 +53,29 @@ describe('🔴 recording a payment', () => {
     })).rejects.toThrow(/needs its CIN/)
   })
 
-  it('posts the liability down and the bank down', async () => {
+  it('🔴 funds the cash ledger and the bank down — it does NOT touch the liability', async () => {
     const challan = await recordGstPayment(ctx, {
       periodLabel: '2026-Q1', paidOn: '2026-07-24',
       cin: 'IDIB000M00126072412345', cgst: '9000', sgst: '9000',
     })
     expect(challan.amount.toString()).toBe('18000')
 
+    // docs/46: a challan CREDITS the electronic cash ledger, head-wise. It used to debit
+    // 2110/2120 directly, which made a deposit that had discharged nothing read as settled.
+    expect((await accountLedger(ctx, '1252', { from: FROM, to: TO }))!.account.closing.toString()).toBe('9000')
+    expect((await accountLedger(ctx, '1253', { from: FROM, to: TO }))!.account.closing.toString()).toBe('9000')
+
     const cgst = await accountLedger(ctx, '2110', { from: FROM, to: TO })
-    // the invoice credited it, the payment debits it back to nil
-    expect(cgst!.account.closing.toString()).toBe('0')
+    expect(cgst!.account.closing.toString()).toBe('9000')   // still owed until set off
 
     const bank = await accountLedger(ctx, '1010', { from: FROM, to: TO })
-    expect(bank!.lines.some((l) => l.narration.includes('GST payment'))).toBe(true)
+    expect(bank!.lines.some((l) => l.narration.includes('GST deposit'))).toBe(true)
+  })
+
+  it('clears the liability once the set-off is recorded', async () => {
+    await recordSetOff(ctx, { periodLabel: '2026-Q1', setOffOn: '2026-07-24' })
+    expect((await accountLedger(ctx, '2110', { from: FROM, to: TO }))!.account.closing.toString()).toBe('0')
+    expect((await accountLedger(ctx, '1252', { from: FROM, to: TO }))!.account.closing.toString()).toBe('0')
   })
 
   it('leaves the trial balance square', async () => {
@@ -73,21 +84,26 @@ describe('🔴 recording a payment', () => {
 
   it('🔴 books interest and late fee as COST, not as tax', async () => {
     // nobody can claim them, and burying them in the tax accounts would make the GST
-    // liability look larger than it was
+    // liability look larger than it was. The deposit parks them under the minor head; the
+    // set-off is what turns them into an expense, because that is when they are spent.
     await recordGstPayment(ctx, {
-      periodLabel: '2026-Q2', paidOn: '2026-11-05',
-      cin: 'IDIB000M00126110512345', igst: '5000', interest: '150', lateFee: '100',
+      periodLabel: '2026-Q3', paidOn: '2026-11-05',
+      cin: 'IDIB000M00126110512345', interest: '150', lateFee: '100',
     })
+    expect((await accountLedger(ctx, '1254', { from: FROM, to: TO }))!.account.closing.toString()).toBe('250')
+
+    await recordSetOff(ctx, { periodLabel: '2026-Q3', setOffOn: '2026-11-05' })
     const charges = await accountLedger(ctx, '5600', { from: FROM, to: TO })
     const booked = charges!.lines.filter((l) => (l.lineNarration ?? '').includes('GST interest'))
     expect(booked).toHaveLength(1)
     expect(booked[0].debit.toString()).toBe('250')
+    expect((await accountLedger(ctx, '1254', { from: FROM, to: TO }))!.account.closing.toString()).toBe('0')
   })
 
   it('reports which periods are paid', async () => {
     const paid = await paidPeriods(ctx.companyId)
     expect(paid.has('2026-Q1')).toBe(true)
-    expect(paid.has('2026-Q3')).toBe(false)
+    expect(paid.has('2027-Q4')).toBe(false)   // Jan–Mar, nothing recorded against it
   })
 
   it('counts what has already been paid against the period', async () => {

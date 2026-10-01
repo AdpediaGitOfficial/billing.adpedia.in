@@ -20,6 +20,11 @@ ASSETS
     1220  Input SGST                                [GST_INPUT]
     1230  Input IGST                                [GST_INPUT]
     1240  Input IGST — RCM                          [GST_INPUT]
+  1250  Electronic Cash Ledger                                ← docs/46
+    1251  Cash Ledger — IGST                        [GST_CASH]
+    1252  Cash Ledger — CGST                        [GST_CASH]
+    1253  Cash Ledger — SGST                        [GST_CASH]
+    1254  Cash Ledger — interest, fee & penalty     [GST_CASH]
   1300  TDS Receivable                              [TDS_REC]
     1310  TDS Receivable — 194J
     1320  TDS Receivable — 194C
@@ -180,7 +185,10 @@ DigitalOcean, USD 300 ≈ ₹25,000, no GST on the invoice.
 | 1240 Input IGST — RCM | 4,500.00 | |
 | 2140 IGST Payable — RCM | | 4,500.00 |
 
-**RCM paid in cash:** `Dr 2140 / Cr 1010 Bank 4,500` — 🔴 never set off against existing ITC.
+**RCM paid in cash:** deposited under the IGST major head, then debited at the set-off —
+`Dr 1251 / Cr 1010 Bank 4,500`, then `Dr 2140 / Cr 1251 4,500` (docs/46). 🔴 Never set off
+against existing ITC: tax under reverse charge is not "output tax" (s.2(82)), so s.49(4) does
+not let credit discharge it.
 
 Net cost to the business: ₹25,000. The ₹4,500 goes out and comes back as ITC in the same
 GSTR-3B.

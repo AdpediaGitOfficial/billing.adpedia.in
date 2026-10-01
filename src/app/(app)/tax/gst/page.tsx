@@ -7,19 +7,61 @@ import { PeriodPicker } from './period-picker'
 import { listGstFilings } from '@/server/services/tax/gst-filing'
 import { Filings } from './filings'
 import { Payments } from './payments'
-import { listGstChallans } from '@/server/services/tax/gst-payment'
+import { listGstChallans, previewGstPayment } from '@/server/services/tax/gst-payment'
+import { previewSetOff, listSetOffs } from '@/server/services/tax/gst-setoff'
+import { electronicLedgers } from '@/server/services/tax/gst-electronic-ledgers'
+import { ElectronicLedgers, toLedgerView } from './ledgers'
+import { SetOff } from './setoff'
 
-export default async function GstPage({ searchParams }: { searchParams: Promise<{ period?: string }> }) {
+export default async function GstPage({ searchParams }: { searchParams: Promise<{ period?: string; on?: string }> }) {
   const ctx = await requireContext()
-  const { period } = await searchParams
+  const { period, on } = await searchParams
+  // 🔴 One date for the whole screen. The set-off plan depends on what the ledgers hold on
+  // the day it is posted, so previewing as at today while the form posts another date would
+  // show a shortfall that is not there, or hide one that is.
+  const asAt = on && !Number.isNaN(Date.parse(on)) ? new Date(on) : new Date()
   const g = await gstOverview(ctx, period)
   const filings = await listGstFilings(ctx)
   const challans = await listGstChallans(ctx)
 
   if (!g) return <Card><Empty title="No open financial year" icon="CalendarX" /></Card>
 
-  const net = g.position.net
+  // the ledgers run for the whole year — unused credit and idle cash both carry forward
+  const ledgers = await electronicLedgers(ctx, { from: g.fy.startsOn, to: g.fy.endsOn })
+  const setOffs = await listSetOffs(ctx)
+  const s = await previewSetOff(ctx, g.selected.label, asAt)
+  const toDeposit = await previewGstPayment(ctx, g.selected.label, asAt)
+  const d2 = (v: { toFixed: (n: number) => string }) => v.toFixed(2)
+  const setOffView = {
+    periodLabel: s.periodLabel,
+    dueOn: s.dueOn.toISOString().slice(0, 10),
+    asAt: asAt.toISOString().slice(0, 10),
+    rows: [
+      { head: 'IGST', liability: d2(s.liability.igst), byCredit: d2(s.plan.credit.igstToIgst.plus(s.plan.credit.cgstToIgst).plus(s.plan.credit.sgstToIgst)), inCash: d2(s.plan.cash.igst.minus(s.plan.cashToRcm)), short: d2(s.plan.shortfall.igst.minus(s.liability.rcm.minus(s.plan.cashToRcm))) },
+      { head: 'CGST', liability: d2(s.liability.cgst), byCredit: d2(s.plan.credit.igstToCgst.plus(s.plan.credit.cgstToCgst)), inCash: d2(s.plan.cash.cgst), short: d2(s.plan.shortfall.cgst) },
+      { head: 'SGST', liability: d2(s.liability.sgst), byCredit: d2(s.plan.credit.igstToSgst.plus(s.plan.credit.sgstToSgst)), inCash: d2(s.plan.cash.sgst), short: d2(s.plan.shortfall.sgst) },
+      { head: 'Reverse charge (cash only)', liability: d2(s.liability.rcm), byCredit: '0', inCash: d2(s.plan.cashToRcm), short: d2(s.liability.rcm.minus(s.plan.cashToRcm)) },
+    ],
+    interestRow: s.liability.interest.plus(s.liability.lateFee).gt(0)
+      ? { due: d2(s.liability.interest.plus(s.liability.lateFee)), inCash: d2(s.plan.cash.other), short: d2(s.plan.shortfall.other) }
+      : null,
+    creditUsed: d2(s.plan.credit.total),
+    cashUsed: d2(s.plan.cash.total),
+    shortTotal: d2(s.plan.shortfall.total),
+    interestToDate: { days: s.interestToDate.days, interest: d2(s.interestToDate.interest) },
+    notes: s.plan.notes,
+    warnings: s.warnings,
+    history: setOffs.map((r) => ({
+      id: r.id, periodLabel: r.periodLabel,
+      setOffOn: r.setOffOn.toISOString().slice(0, 10),
+      creditUsed: r.creditUsed.toString(), cashUsed: r.cashUsed.toString(),
+    })),
+  }
+
   const r1 = g.gstr1, r3 = g.gstr3b
+  const cashPayable = r3.payable.inCash.plus(r3.payable.rcmInCash)
+  const strandedTotal = r3.payable.strandedCredit.igst
+    .plus(r3.payable.strandedCredit.cgst).plus(r3.payable.strandedCredit.sgst)
 
   type B2B = (typeof r1.b2b)[number]
   const b2bCols: Column<B2B>[] = [
@@ -69,11 +111,24 @@ export default async function GstPage({ searchParams }: { searchParams: Promise<
 
       <Payments
         periods={g.periods.map((p) => ({ label: p.label }))}
+        deposit={{
+          periodLabel: s.periodLabel, asAt: asAt.toISOString().slice(0, 10),
+          igst: d2(toDeposit.deposit.igst), cgst: d2(toDeposit.deposit.cgst),
+          sgst: d2(toDeposit.deposit.sgst), total: d2(toDeposit.deposit.total),
+        }}
         challans={challans.map((c) => ({
           id: c.id, periodLabel: c.periodLabel, cin: c.cin,
           paidOn: c.paidOn.toISOString().slice(0, 10),
           amount: c.amount.toString(), interest: c.interest.toString(), lateFee: c.lateFee.toString(),
         }))} />
+
+      {/* ── the portal's two ledgers, and the step that debits them ───────── */}
+      <ElectronicLedgers
+        cash={toLedgerView(ledgers.cash)}
+        credit={toLedgerView(ledgers.credit)}
+        fyLabel={g.fy.label} />
+
+      <SetOff view={setOffView} />
 
       {!g.lut && (
         <Alert tone="critical" title={`No LUT on file for FY ${g.fy.label}`}
@@ -91,8 +146,14 @@ export default async function GstPage({ searchParams }: { searchParams: Promise<
           foot={`CGST ${formatINR(g.position.output.cgst, { decimals: false })} · SGST ${formatINR(g.position.output.sgst, { decimals: false })} · IGST ${formatINR(g.position.output.igst, { decimals: false })}`} />
         <StatCard label="Input tax credit" value={formatINR(g.position.input.total, { decimals: false })} icon="ArrowDownLeft"
           foot={g.position.input.total.isZero() ? 'Vendor bills arrive in phase 3' : 'Claimable this period'} />
-        <StatCard label={net.gte(0) ? 'Net payable' : 'Net credit'} value={formatINR(net.abs(), { decimals: false })} icon="Scale"
-          tone="accent" foot={net.gte(0) ? 'Output less ITC' : 'Carries forward'} />
+        {/* 🔴 Not output-less-ITC. That netting is what docs/46 corrected: credit is utilised
+            head-wise, so the cash actually payable can be higher than the difference of the
+            two totals — and the card sat next to table 6.1 contradicting it. */}
+        <StatCard label="Payable in cash" value={formatINR(cashPayable, { decimals: false })} icon="Scale"
+          tone="accent"
+          foot={strandedTotal.gt(0)
+            ? `After head-wise set-off · ${formatINR(strandedTotal, { decimals: false })} of credit carries forward`
+            : 'After head-wise set-off, including reverse charge'} />
         <StatCard label="Reverse charge" value={formatINR(g.position.rcm.payable, { decimals: false })} icon="RefreshCw"
           foot="Payable in cash — never set off against ITC" />
       </div>
@@ -131,7 +192,15 @@ export default async function GstPage({ searchParams }: { searchParams: Promise<
           <TaxRow k="3.1(d) Inward supplies under reverse charge" v={formatINR(r3.t31d.taxable)} tax={formatINR(r3.t31d.igst)} />
           <TaxRow k="4(C) Net ITC available" v="" tax={formatINR(r3.t4c)} />
           <TaxRow k="6.1 Payable through ITC" v="" tax={formatINR(r3.payable.throughItc)} />
-          <TaxRow k="6.1 Payable in cash" v="" tax={formatINR(r3.payable.inCash)} strong />
+          {/* 🔴 head-wise, because credit is utilised head-wise — a single total can say
+              nothing is payable while the portal asks for cash on one head */}
+          <TaxRow k="6.1 — IGST in cash" v={`credit ${formatINR(r3.payable.byHead.igst.byCredit)}`} tax={formatINR(r3.payable.byHead.igst.inCash)} />
+          <TaxRow k="6.1 — CGST in cash" v={`credit ${formatINR(r3.payable.byHead.cgst.byCredit)}`} tax={formatINR(r3.payable.byHead.cgst.inCash)} />
+          <TaxRow k="6.1 — SGST in cash" v={`credit ${formatINR(r3.payable.byHead.sgst.byCredit)}`} tax={formatINR(r3.payable.byHead.sgst.inCash)} />
+          {r3.payable.rcmInCash.gt(0) && (
+            <TaxRow k="6.1 — reverse charge, cash only" v="credit not allowed" tax={formatINR(r3.payable.rcmInCash)} />
+          )}
+          <TaxRow k="6.1 Payable in cash" v="" tax={formatINR(r3.payable.inCash.plus(r3.payable.rcmInCash))} strong />
         </dl>
         {r3.notes.length > 0 && (
           <ul className="mt-4 space-y-1.5">

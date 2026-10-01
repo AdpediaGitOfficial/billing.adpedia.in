@@ -15,6 +15,20 @@ export const GST_ACCOUNTS = {
   inputCgst: '1210', inputSgst: '1220', inputIgst: '1230', rcmItc: '1240',
 } as const
 
+/**
+ * The electronic cash ledger, head-wise — docs/46.
+ *
+ * 🔴 One account per major head, because cash under one head cannot pay another without
+ * Form PMT-09. A single "GST paid in advance" account would balance perfectly and still
+ * tell a filer they could pay an SGST liability with money sitting under CGST.
+ *
+ * `other` is the minor head that carries interest, late fee and penalty — amounts the
+ * credit ledger may never be used for.
+ */
+export const CASH_LEDGER_ACCOUNTS = {
+  igst: '1251', cgst: '1252', sgst: '1253', other: '1254',
+} as const
+
 export interface GstPosition {
   output: { cgst: Decimal; sgst: Decimal; igst: Decimal; total: Decimal }
   input: { cgst: Decimal; sgst: Decimal; igst: Decimal; total: Decimal }
@@ -25,12 +39,29 @@ export interface GstPosition {
   cashPayable: Decimal
 }
 
+/**
+ * 🔴 Settling a period is dated in a LATER period, so settlements are excluded here.
+ *
+ * A Q1 return is paid and offset in July, which falls inside Q2. Counting those postings as
+ * Q2 movement made Q2's output tax read 4,500 instead of 9,000 — the return under-reported
+ * the quarter's own supplies by exactly what the previous quarter had just settled, and the
+ * figure moved every time a payment was recorded. Found by docs/46; the same flaw was there
+ * from docs/45, because a payment debited these accounts directly.
+ *
+ * What a return reports is the tax on the supplies and credit OF THAT PERIOD. The account's
+ * true balance still lives in the trial balance, where it belongs.
+ */
+const SETTLEMENT_SOURCES = ['GST_PAYMENT', 'GST_SET_OFF'] as const
+
 /** Net movement on an account over a window. Credits positive for liabilities, debits positive for assets. */
 async function movement(companyId: string, code: string, from: Date, to: Date, side: 'debit' | 'credit') {
   const rows = await prisma.journalLine.aggregate({
     where: {
       account: { companyId, code },
-      journalEntry: { companyId, date: { gte: from, lte: to } },
+      journalEntry: {
+        companyId, date: { gte: from, lte: to },
+        sourceType: { notIn: [...SETTLEMENT_SOURCES] },
+      },
     },
     _sum: { debit: true, credit: true },
   })

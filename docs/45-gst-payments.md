@@ -69,9 +69,11 @@ running.
 
 ## 6. Still open
 
-- **The electronic cash and credit ledgers are not modelled.** Payment is treated as settling
-  the liability directly, which is correct in substance for a company this size but does not
-  reproduce the portal's two-step ledger.
+- ~~**The electronic cash and credit ledgers are not modelled.**~~ Done in **`docs/46`**,
+  which also changed what §4 above posts: a challan now funds the cash ledger and the
+  separate set-off discharges the liability. Modelling it found that netting total credit
+  against total output tax understated the cash payable, and that interest runs to the date
+  the ledger is **debited** (rule 88B(1)), not to the date it was funded.
 - **Nothing reconciles a challan against the portal.** The CIN is recorded on trust.
 - **Interest is not auto-filled** on the payment form — `previewGstPayment` computes it and
   explains it, but the figure must be entered deliberately, because the portal's own

@@ -10,9 +10,17 @@ export interface ChallanView {
 
 const inr = (v: string) => `₹${Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
-export function Payments({ challans, periods }: {
+export interface DepositHint {
+  /** the period the screen is showing — the form must default to it, not to the first in the list */
+  periodLabel: string
+  asAt: string
+  igst: string; cgst: string; sgst: string; total: string
+}
+
+export function Payments({ challans, periods, deposit }: {
   challans: ChallanView[]
   periods: { label: string }[]
+  deposit: DepositHint
 }) {
   const [state, action, pending] = useActionState(recordPaymentAction, null)
   const [open, setOpen] = useState(false)
@@ -23,8 +31,9 @@ export function Payments({ challans, periods }: {
         <div>
           <p className="text-[14px] font-semibold">Payments</p>
           <p className="mt-0.5 text-[12px]" style={{ color: 'var(--text-muted)' }}>
-            Filing a return and paying the tax are different events. A return recorded as filed
-            with no challan against it is <strong>not settled</strong> &mdash; and the interest keeps running.
+            A challan (PMT-06) <strong>funds the electronic cash ledger</strong>. It does not discharge
+            anything by itself &mdash; the set-off below is what debits the ledger, and under rule 88B(1)
+            the interest runs until it does.
           </p>
         </div>
         <Button variant="ghost" size="sm" onClick={() => setOpen((o) => !o)}>
@@ -36,12 +45,16 @@ export function Payments({ challans, periods }: {
         <form action={action} className="mt-3 space-y-3">
           <div className="grid gap-3 sm:grid-cols-4">
             <Field label="Period">
-              <select name="periodLabel" className={inputClass} style={inputStyle}>
+              {/* 🔴 Defaulted to the period being looked at. The amounts above are that
+                  period's, and a select that opens on a different one invites a challan
+                  raised against the wrong period — which the portal will not move back. */}
+              <select name="periodLabel" defaultValue={deposit.periodLabel} className={inputClass} style={inputStyle}>
                 {periods.map((p) => <option key={p.label} value={p.label}>{p.label}</option>)}
               </select>
             </Field>
             <Field label="Paid on">
-              <input type="date" name="paidOn" required className={inputClass} style={inputStyle} />
+              <input type="date" name="paidOn" required defaultValue={deposit.asAt}
+                className={inputClass} style={inputStyle} />
             </Field>
             <Field label="CPIN" hint="When the challan was generated">
               <input name="cpin" className={inputClass} style={inputStyle} />
@@ -59,6 +72,14 @@ export function Payments({ challans, periods }: {
             <Field label="Interest"><input name="interest" inputMode="decimal" placeholder="0" className={inputClass} style={inputStyle} /></Field>
             <Field label="Late fee"><input name="lateFee" inputMode="decimal" placeholder="0" className={inputClass} style={inputStyle} /></Field>
           </div>
+
+          {Number(deposit.total) > 0 && (
+            <Alert tone="info" title={`To cover ${deposit.periodLabel}, deposit ${inr(deposit.total)}`}>
+              IGST <strong>{inr(deposit.igst)}</strong> · CGST <strong>{inr(deposit.cgst)}</strong> ·
+              SGST <strong>{inr(deposit.sgst)}</strong>. Head-wise, because the portal will not let cash
+              deposited under one major head discharge another &mdash; moving it afterwards needs Form PMT-09.
+            </Alert>
+          )}
 
           <Alert tone="info" title="Interest runs on the cash component only">
             Under the proviso to s.50(1) interest is charged on tax paid through the cash ledger,

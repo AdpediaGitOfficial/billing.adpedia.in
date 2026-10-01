@@ -4,6 +4,7 @@ import type { RequestContext } from '@/server/context'
 import { assertCan } from '@/server/auth/permissions'
 import { filedPeriods } from '@/server/services/tax/gst-filing'
 import { paidPeriods } from '@/server/services/tax/gst-payment'
+import { dischargedPeriods } from '@/server/services/tax/gst-setoff'
 import { periodFor } from '@/server/services/tax/periods'
 import {
   tdsDepositDue, tdsReturnDue, form16aDue, form16Due,
@@ -167,11 +168,13 @@ export async function complianceCalendar(ctx: RequestContext, now = new Date()):
       select: { date: true },
     })
 
-    // what has actually been filed, and separately what has been PAID — a return filed
-    // without the tax paid is a real state, and it is the one that accrues interest
-    const [filed, paid] = await Promise.all([
+    // what has been filed, what has been DEPOSITED, and what has been DISCHARGED — three
+    // different states, and the middle one is the trap: a challan sitting unoffset in the
+    // cash ledger has settled nothing and is still accruing interest
+    const [filed, paid, discharged] = await Promise.all([
       filedPeriods(ctx.companyId),
       paidPeriods(ctx.companyId),
+      dischargedPeriods(ctx.companyId),
     ])
 
     const periods = new Map<string, Date>()
@@ -197,7 +200,8 @@ export async function complianceCalendar(ctx: RequestContext, now = new Date()):
         done: gstr1Filed,
         href: '/tax/gst',
       })
-      const gstPaid = paid.has(periodLabel)
+      const gstFunded = paid.has(periodLabel)
+      const gstDischarged = discharged.has(periodLabel)
       push({
         id: `gstr3b-${periodLabel}`,
         obligation: 'GSTR3B',
@@ -210,14 +214,22 @@ export async function complianceCalendar(ctx: RequestContext, now = new Date()):
       })
       // 🔴 Its own item. A return recorded as filed with no challan against it used to read
       // as settled; the money is the part that stops the interest running.
+      //
+      // 🔴 And done means SET OFF, not deposited (docs/46). A challan lying unoffset in the
+      // cash ledger has discharged nothing, and rule 88B(1) keeps the interest running until
+      // the ledger is actually debited — so treating a deposit as done would hide the cost.
       push({
         id: `gst-payment-${periodLabel}`,
         obligation: 'GSTR3B',
         title: `Pay the GST for ${label}`,
-        detail: gstPaid ? 'Challan recorded' : 'No challan recorded against this period',
+        detail: gstDischarged
+          ? 'Set off against the cash and credit ledgers'
+          : gstFunded
+            ? 'Challan recorded but not set off — the cash ledger is funded and the liability still stands'
+            : 'No challan recorded against this period',
         dueOn: gstr3bDue(end, quarterly, company.stateCode),
         penalty: '18% a year, per day, on the cash component under s.50(1)',
-        done: gstPaid,
+        done: gstDischarged,
         href: '/tax/gst',
       })
     }

@@ -14,6 +14,13 @@ export const CHART: Row[] = [
   { code: '1220', name: 'Input SGST', type: 'ASSET', subType: 'GST_INPUT', parent: '1200' },
   { code: '1230', name: 'Input IGST', type: 'ASSET', subType: 'GST_INPUT', parent: '1200' },
   { code: '1240', name: 'Input IGST — RCM', type: 'ASSET', subType: 'GST_INPUT', parent: '1200' },
+  // docs/46 — the portal's electronic cash ledger, kept head-wise because the law is
+  // head-wise: cash under one major head cannot discharge another without Form PMT-09.
+  { code: '1250', name: 'Electronic Cash Ledger', type: 'ASSET' },
+  { code: '1251', name: 'Cash Ledger — IGST', type: 'ASSET', subType: 'GST_CASH', parent: '1250' },
+  { code: '1252', name: 'Cash Ledger — CGST', type: 'ASSET', subType: 'GST_CASH', parent: '1250' },
+  { code: '1253', name: 'Cash Ledger — SGST', type: 'ASSET', subType: 'GST_CASH', parent: '1250' },
+  { code: '1254', name: 'Cash Ledger — interest, fee & penalty', type: 'ASSET', subType: 'GST_CASH', parent: '1250' },
   { code: '1300', name: 'TDS Receivable', type: 'ASSET' },
   { code: '1310', name: 'TDS Receivable — 194J', type: 'ASSET', subType: 'TDS_REC', parent: '1300' },
   { code: '1320', name: 'TDS Receivable — 194C', type: 'ASSET', subType: 'TDS_REC', parent: '1300' },

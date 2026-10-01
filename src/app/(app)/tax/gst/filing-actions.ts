@@ -3,7 +3,9 @@ import { revalidatePath } from 'next/cache'
 import { requireContext } from '@/server/context'
 import { recordGstFiling, unrecordGstFiling } from '@/server/services/tax/gst-filing'
 import { recordGstPayment } from '@/server/services/tax/gst-payment'
+import { recordSetOff } from '@/server/services/tax/gst-setoff'
 import { AppError } from '@/server/errors'
+import { formatINR } from '@/lib/money'
 import type { GstReturnType } from '@prisma/client'
 
 type Result = { error?: string; ok?: string } | null
@@ -54,8 +56,29 @@ export async function recordPaymentAction(_prev: Result, form: FormData): Promis
     })
     revalidatePath('/tax/gst')
     revalidatePath('/tax/calendar')
-    return { ok: `Challan ${c.cin} recorded — ${c.amount.toString()} posted against ${c.periodLabel}.` }
+    return {
+      ok: `Challan ${c.cin} recorded — ${formatINR(c.amount.toString())} is now in the electronic cash ledger. ` +
+        'Record the set-off to discharge the liability; until then the interest keeps running.',
+    }
   } catch (e) {
     return { error: e instanceof AppError ? e.message : 'Could not record that payment' }
+  }
+}
+
+export async function recordSetOffAction(_prev: Result, form: FormData): Promise<Result> {
+  const ctx = await requireContext()
+  try {
+    const row = await recordSetOff(ctx, {
+      periodLabel: String(form.get('periodLabel') ?? ''),
+      setOffOn: String(form.get('setOffOn') ?? ''),
+    })
+    revalidatePath('/tax/gst')
+    revalidatePath('/tax/calendar')
+    return {
+      ok: `${row.periodLabel} set off — ${formatINR(row.creditUsed.toString())} through the credit ledger and ` +
+        `${formatINR(row.cashUsed.toString())} from the cash ledger.`,
+    }
+  } catch (e) {
+    return { error: e instanceof AppError ? e.message : 'Could not record that set-off' }
   }
 }

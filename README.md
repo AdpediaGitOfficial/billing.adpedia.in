@@ -50,8 +50,9 @@ payroll, projects and bank reconciliation on a double-entry ledger.
 | [43 · Compliance calendar](docs/43-compliance-calendar.md) | What is due and when, derived from the books — and the four dates that are not what they look like |
 | [44 · GST filing records](docs/44-gst-filing-records.md) | Recording a return as filed — which locks the period, and makes the calendar go quiet |
 | [45 · GST payments](docs/45-gst-payments.md) | Challans, CIN vs CPIN, and why s.50(1) interest runs on the cash component |
+| [46 · Electronic ledgers](docs/46-electronic-ledgers.md) | The cash and credit ledgers, head-wise set-off under s.49(5), and the netting that understated the cash |
 
-**528 tests passing** · typecheck and lint clean · production build passes.
+**567 tests passing** · typecheck and lint clean · production build passes.
 
 ```bash
 cp .env.example .env     # set DATABASE_URL and JWT_SECRET

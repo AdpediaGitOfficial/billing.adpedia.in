@@ -74,6 +74,7 @@ model Company {
   journalEntries JournalEntry[]
   attachments    Attachment[]
   gstChallans    GstChallan[]
+  gstSetOffs     GstSetOff[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -328,6 +329,8 @@ enum SourceType {
   PAYROLL
   TDS_CHALLAN
   GST_PAYMENT
+  /// the GSTR-3B table 6.1 entry that debits the electronic cash and credit ledgers — docs/46
+  GST_SET_OFF
   BANK_TXN
   MANUAL
   OPENING_BALANCE
@@ -1408,6 +1411,53 @@ model GstChallan {
   amount          Decimal  @db.Decimal(18, 2)
   bankAccountId   String?
   createdAt       DateTime @default(now())
+
+  @@index([companyId, periodLabel])
+}
+
+/// docs/46 · GSTR-3B table 6.1 — the set-off that actually discharges the liability.
+///
+/// 🔴 A challan funds the electronic cash ledger; this is the separate event that debits
+/// it, together with the electronic credit ledger. Recording it is what distinguishes
+/// "money deposited" from "tax paid" — and under rule 88B(1) interest runs to the date of
+/// THIS entry, not to the date the challan was honoured.
+model GstSetOff {
+  id              String   @id @default(cuid())
+  companyId       String
+  company         Company  @relation(fields: [companyId], references: [id])
+  financialYearId String
+  periodLabel     String
+  setOffOn        DateTime
+
+  /// liability discharged, per major head
+  igst     Decimal @default(0) @db.Decimal(18, 2)
+  cgst     Decimal @default(0) @db.Decimal(18, 2)
+  sgst     Decimal @default(0) @db.Decimal(18, 2)
+  /// reverse charge — cash only, s.2(82) read with s.49(4)
+  rcm      Decimal @default(0) @db.Decimal(18, 2)
+  interest Decimal @default(0) @db.Decimal(18, 2)
+  lateFee  Decimal @default(0) @db.Decimal(18, 2)
+
+  /// credit utilised, source head → target head. 🔴 There is deliberately no cgstToSgst or
+  /// sgstToCgst column: s.49(5)(e) and (f) forbid those, so the schema cannot express them.
+  creditIgstToIgst Decimal @default(0) @db.Decimal(18, 2)
+  creditIgstToCgst Decimal @default(0) @db.Decimal(18, 2)
+  creditIgstToSgst Decimal @default(0) @db.Decimal(18, 2)
+  creditCgstToCgst Decimal @default(0) @db.Decimal(18, 2)
+  creditCgstToIgst Decimal @default(0) @db.Decimal(18, 2)
+  creditSgstToSgst Decimal @default(0) @db.Decimal(18, 2)
+  creditSgstToIgst Decimal @default(0) @db.Decimal(18, 2)
+
+  /// cash ledger debited, per head
+  cashIgst  Decimal @default(0) @db.Decimal(18, 2)
+  cashCgst  Decimal @default(0) @db.Decimal(18, 2)
+  cashSgst  Decimal @default(0) @db.Decimal(18, 2)
+  cashOther Decimal @default(0) @db.Decimal(18, 2)
+
+  creditUsed Decimal @default(0) @db.Decimal(18, 2)
+  cashUsed   Decimal @default(0) @db.Decimal(18, 2)
+
+  createdAt DateTime @default(now())
 
   @@index([companyId, periodLabel])
 }
