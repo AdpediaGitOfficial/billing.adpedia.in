@@ -1,0 +1,442 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tax Invoice — Adpedia Films Private Limited</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* ==========================================================================
+     ADPEDIA — GST INVOICE TEMPLATE
+     Renders to A4 via headless Chromium (Playwright / Puppeteer).
+
+     TAX MODE — set ONE of these classes on .sheet:
+       .mode-intra   Kerala → Kerala          CGST 9% + SGST 9%
+       .mode-inter   Kerala → other state     IGST 18%
+       .mode-export  India  → overseas        Zero-rated, no GST
+
+     TDS MODE — set ONE of these on .sheet (Indian customers only):
+       .tds-194j     10%  professional / technical fees
+       .tds-194c      2%  contract / subcontract work
+       .tds-none          customer does not deduct  (always used with .mode-export)
+
+     SAC COLUMN — add .hide-sac to drop the SAC column and the HSN/SAC summary.
+     NOTE: at Adpedia's turnover a 4-digit SAC is mandatory on B2B invoices
+     (Notification 78/2020-Central Tax). Confirm with the CA before shipping hidden.
+
+     Every dynamic value carries data-bind="path.to.field" — that is the
+     binding contract between this template and the database.
+     ========================================================================== */
+
+  :root{
+    --brand:      #4135AF;            /* from ADPEDIA-logo.svg */
+    --brand-deep: #332A8C;
+    --brand-tint: #EEECF9;
+    --brand-line: #D5D0F0;
+    --ink:        #1A1922;
+    --ink-soft:   #504E5C;
+    --ink-faint:  #85828F;
+    --rule:       #E4E2EC;
+    --row-alt:    #FAFAFD;
+    --warn-bg:    #FFF8E9;
+    --warn-ink:   #7A5A12;
+    --pad: 10mm;
+  }
+
+  @page { size: A4; margin: 0; }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+
+  html{ background:#6E6A7A; }
+  body{
+    font-family:'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color:var(--ink); font-size:10pt; line-height:1.5;
+    -webkit-font-smoothing:antialiased; -webkit-print-color-adjust:exact; print-color-adjust:exact;
+  }
+
+  .sheet{
+    width:210mm; min-height:297mm; margin:0 auto; background:#fff;
+    padding:var(--pad) var(--pad) 0; display:flex; flex-direction:column;
+  }
+
+  /* ---------------- header ---------------- */
+  .head{ display:flex; justify-content:space-between; align-items:flex-start; gap:10mm; }
+  .logo{ height:11mm; width:auto; }
+  .doc-title{ text-align:right; }
+  .doc-title h1{
+    font-size:20pt; font-weight:700; letter-spacing:.18em; color:var(--brand);
+    text-transform:uppercase; line-height:1; white-space:nowrap;
+  }
+  .t-tax, .t-export{ display:none; }
+  .mode-intra .t-tax, .mode-inter .t-tax{ display:inline; }
+  .mode-export .t-export{ display:inline; }
+
+  .copy-mark{
+    display:inline-block; margin-top:3mm; padding:1.2mm 3mm; border:1px solid var(--brand-line);
+    background:var(--brand-tint); color:var(--brand); border-radius:1mm;
+    font-size:7.2pt; font-weight:600; letter-spacing:.10em; text-transform:uppercase;
+  }
+
+  /* ---------------- meta strip ---------------- */
+  .meta{
+    margin-top:7mm; display:grid; grid-template-columns:repeat(4,1fr);
+    border:1px solid var(--rule); border-radius:1.5mm; overflow:hidden;
+  }
+  .meta > div{ padding:3mm 3.4mm; border-right:1px solid var(--rule); }
+  .meta > div:last-child{ border-right:0; }
+  .meta .k{ font-size:7pt; font-weight:600; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-faint); }
+  .meta .v{ font-size:9.6pt; font-weight:600; margin-top:.8mm; line-height:1.25; }
+
+  /* ---------------- parties ---------------- */
+  .parties{ margin-top:3mm; display:grid; grid-template-columns:1fr 1fr; gap:6mm; }
+  .party{ border:1px solid var(--rule); border-radius:1.5mm; padding:2.4mm 3mm; }
+  .party.to{ background:var(--brand-tint); border-color:var(--brand-line); }
+  .party h2{
+    font-size:7.2pt; font-weight:600; letter-spacing:.11em; text-transform:uppercase;
+    color:var(--brand); margin-bottom:1.6mm;
+  }
+  .party .name{ font-size:10pt; font-weight:600; line-height:1.25; }
+  .party address{ font-style:normal; color:var(--ink-soft); font-size:8.4pt; margin-top:1mm; line-height:1.3; }
+  .idlist{ margin-top:1.8mm; font-size:8.2pt; line-height:1.35; }
+  .idlist span{ display:inline-block; margin-right:5mm; }
+  .idlist .lbl{ color:var(--ink-faint); font-weight:500; }
+  .idlist b{ font-weight:600; }
+
+  /* ---------------- project band ---------------- */
+  .project{
+    margin-top:3.5mm; padding:2.2mm 3.4mm; background:var(--brand); color:#fff;
+    border-radius:1.5mm; display:flex; justify-content:space-between; gap:6mm; font-size:8.8pt;
+  }
+  .project .lbl{ opacity:.70; font-weight:400; }
+  .project b{ font-weight:600; }
+
+  /* ---------------- items ---------------- */
+  table{ width:100%; border-collapse:collapse; }
+  .items{ margin-top:3mm; }
+  .items thead th{
+    background:var(--brand); color:#fff; font-size:7.4pt; font-weight:600;
+    letter-spacing:.07em; text-transform:uppercase; padding:2.2mm 2.6mm; text-align:left;
+  }
+  .items th.num, .items td.num{ text-align:right; }
+  .items th.mid, .items td.mid{ text-align:center; }
+  .items tbody td{ padding:1.9mm 2.6mm; border-bottom:1px solid var(--rule); vertical-align:top; font-size:9pt; }
+  .items tbody tr:nth-child(even) td{ background:var(--row-alt); }
+  .items .desc{ font-weight:600; line-height:1.3; }
+  .items .sub{ color:var(--ink-soft); font-size:8pt; font-weight:400; margin-top:.7mm; line-height:1.35; }
+  .items tbody tr{ break-inside:avoid; }
+  thead{ display:table-header-group; }
+
+  /* ---------------- lower grid ---------------- */
+  .foot-grid{ margin-top:3.5mm; display:grid; grid-template-columns:1fr 88mm; gap:7mm; align-items:start; }
+
+  .hsn h3, .words h3{
+    font-size:7pt; font-weight:600; letter-spacing:.10em; text-transform:uppercase;
+    color:var(--ink-faint); margin-bottom:2mm;
+  }
+  .hsn table{ border:1px solid var(--rule); border-radius:1.5mm; overflow:hidden; }
+  .hsn th{ background:var(--row-alt); font-size:7.2pt; font-weight:600; letter-spacing:.05em;
+           text-transform:uppercase; color:var(--ink-soft); padding:2.2mm 2.8mm; text-align:left; }
+  .hsn td{ padding:2.2mm 2.8mm; font-size:9pt; border-top:1px solid var(--rule); }
+  .hsn .num{ text-align:right; }
+  .words{ margin-top:3mm; }
+  .words p{ font-size:9.2pt; font-weight:600; line-height:1.35; }
+
+  .totals{ border:1px solid var(--rule); border-radius:1.5mm; overflow:hidden; }
+  .totals .row{ display:flex; justify-content:space-between; gap:4mm; padding:1.4mm 3mm; font-size:8.8pt; }
+  .totals .row + .row{ border-top:1px solid var(--rule); }
+  .totals .row .k{ color:var(--ink-soft); }
+  .totals .grand{
+    background:var(--brand); color:#fff; padding:2.2mm 3mm;
+    display:flex; justify-content:space-between; align-items:baseline;
+  }
+  .totals .grand .k{ font-size:8.6pt; font-weight:500; letter-spacing:.08em; text-transform:uppercase; opacity:.86; }
+  .totals .grand .v{ font-size:13pt; font-weight:700; }
+  .totals .tds{ background:var(--warn-bg); }
+  .totals .tds .k{ color:var(--warn-ink); }
+  .totals .tds .k small{ display:block; font-size:7.2pt; opacity:.85; line-height:1.25; margin-top:.3mm; }
+  .totals .netpay{ background:var(--brand-tint); font-weight:700; }
+  .totals .zero .k{ color:var(--ink-soft); }
+
+  /* --- tax-mode row visibility ---
+     🔴 !important is load-bearing here, not laziness. `.totals .row{display:flex}` has
+     specificity (0,2,0) and outranks a single-class `.r-igst{display:none}` (0,1,0), so
+     without it EVERY tax row renders on every invoice — a Kerala invoice printing
+     "IGST @ 18% 0.00" and, worse, "GST — Zero rated (export of services)" on a domestic
+     supply. That misstates the nature of the supply on a document issued under Rule 46. */
+  .r-cgst, .r-sgst, .r-igst, .r-zero{ display:none !important; }
+  .mode-intra  .r-cgst, .mode-intra .r-sgst{ display:flex !important; }
+  .mode-inter  .r-igst{ display:flex !important; }
+  .mode-export .r-zero{ display:flex !important; }
+
+  .hide-sac .c-sac{ display:none; }
+  .hide-sac .hsn{ display:none; }
+  .hide-sac .words{ margin-top:0; }
+
+  .c-cgst, .c-sgst, .c-igst{ display:none; }
+  .mode-intra  th.c-cgst, .mode-intra  th.c-sgst,
+  .mode-intra  td.c-cgst, .mode-intra  td.c-sgst{ display:table-cell; }
+  .mode-inter  th.c-igst, .mode-inter  td.c-igst{ display:table-cell; }
+
+  /* --- TDS row visibility --- */
+  .tds, .netpay{ display:none !important; }
+  .tds-194j .tds, .tds-194j .netpay,
+  .tds-194c .tds, .tds-194c .netpay{ display:flex !important; }
+  /* inline, so the section label sits beside "Less: TDS" rather than wrapping onto its
+     own line and making the row 5mm taller */
+  .v-194j, .v-194c{ display:none !important; }
+  .tds-194j .v-194j{ display:inline !important; }
+  .tds-194c .v-194c{ display:inline !important; }
+
+  /* ---------------- pay + sign ---------------- */
+  .payline{ margin-top:3mm; display:grid; grid-template-columns:1fr 58mm; gap:8mm; align-items:start; }
+  .bank h3{
+    font-size:7pt; font-weight:600; letter-spacing:.10em; text-transform:uppercase;
+    color:var(--brand); margin-bottom:2mm;
+  }
+  .bank dl{ display:grid; grid-template-columns:auto 1fr; gap:.4mm 5mm; font-size:8.4pt; }
+  .bank dt{ color:var(--ink-faint); }
+  .bank dd{ font-weight:600; }
+  .sign{ text-align:center; }
+  .sign .for{ font-size:8.8pt; font-weight:600; line-height:1.35; }
+  .sign .space{ height:10mm; display:flex; align-items:flex-end; justify-content:center; }
+  .sign .space img{ max-width:38mm; max-height:9.5mm; width:auto; height:auto; }
+  .sign .line{ border-top:1px solid var(--ink); padding-top:1.8mm; font-size:8.2pt; font-weight:600;
+               letter-spacing:.06em; text-transform:uppercase; }
+
+  /* ---------------- terms ---------------- */
+  .terms{ margin-top:3mm; border-top:1px solid var(--rule); padding-top:2.2mm; }
+  .terms h3{ font-size:7pt; font-weight:600; letter-spacing:.10em; text-transform:uppercase;
+             color:var(--brand); margin-bottom:2mm; }
+  .terms ol{ margin-left:4.2mm; font-size:7.8pt; color:var(--ink-soft); line-height:1.3; }
+  .lut{ display:none; margin-top:2.6mm; padding:2.6mm 3.2mm; background:var(--brand-tint);
+        border:1px solid var(--brand-line); border-radius:1.5mm;
+        font-size:8.6pt; font-weight:600; color:var(--brand); line-height:1.5; }
+  .mode-export .lut{ display:block; }
+  .lut-expired .lut{ background:#FFF1F0; border-color:#F0C2BF; color:#B4231F; }
+  .lut-warn{ display:none; font-weight:700; }
+  .lut-expired .lut-warn{ display:block; margin-top:1.4mm; }
+  .rcm-note{ font-weight:600; }
+  .decl{ margin-top:2mm; font-size:7.8pt; color:var(--ink-soft); font-style:italic; line-height:1.35; }
+
+  /* ---------------- footer band ---------------- */
+  .brandbar{
+    margin:3mm calc(var(--pad) * -1) 0; background:var(--brand); color:#fff;
+    padding:2.6mm var(--pad); display:flex; justify-content:space-between; align-items:center;
+    font-size:7.8pt; letter-spacing:.04em; gap:8mm;
+  }
+  .brandbar img{ height:4.6mm; width:auto; filter:brightness(0) invert(1); }
+  .brandbar .ids{ opacity:.82; text-align:right; }
+  .spacer{ flex:1 1 auto; }
+
+  @media screen{ body{ padding:8mm 0; } .sheet{ box-shadow:0 2mm 8mm rgba(0,0,0,.28); } }
+  @media print{ html{ background:#fff; } .sheet{ box-shadow:none; } }
+</style>
+</head>
+<body>
+
+<!-- ============ set tax mode + TDS mode here ============ -->
+<div class="sheet mode-intra tds-194j hide-sac" data-bind="invoice.taxMode + invoice.tdsMode">
+
+  <header class="head">
+    <img class="logo" src="assets/adpedia-logo.svg" alt="adpedia" data-bind="company.logoUrl">
+    <div class="doc-title">
+      <h1><span class="t-tax">Tax Invoice</span><span class="t-export">Export Invoice</span></h1>
+      <div class="copy-mark" data-bind="doc.copyType">Original for Recipient</div>
+    </div>
+  </header>
+
+  <section class="meta">
+    <div><div class="k">Invoice No.</div>   <div class="v" data-bind="invoice.number">ADP/26-27/0026</div></div>
+    <div><div class="k">Invoice Date</div>  <div class="v" data-bind="invoice.date">30 Sep 2026</div></div>
+    <div><div class="k">Due Date</div>      <div class="v" data-bind="invoice.dueDate">15 Oct 2026</div></div>
+    <div><div class="k">Place of Supply</div><div class="v" data-bind="invoice.placeOfSupply">Kerala (32)</div></div>
+  </section>
+
+  <section class="parties">
+    <div class="party from">
+      <h2>Supplier</h2>
+      <div class="name" data-bind="company.legalName">Adpedia Films Private Limited</div>
+      <address data-bind="company.registeredAddress">
+        VIII/318, Chinnangath House, Thommana,<br>
+        Kaduppassery P.O., Irinjalakuda,<br>
+        Thrissur, Kerala &ndash; 680683, India
+      </address>
+      <div class="idlist">
+        <span><span class="lbl">GSTIN</span> <b data-bind="company.gstin">32AAUCA9985H1ZX</b></span>
+        <span><span class="lbl">PAN</span> <b data-bind="company.pan">AAUCA9985H</b></span><br>
+        <span><span class="lbl">CIN</span> <b data-bind="company.cin">U92190KL2021PTC068241</b></span>
+      </div>
+    </div>
+
+    <div class="party to">
+      <h2>Bill To</h2>
+      <div class="name" data-bind="customer.name">Click AR Business Private Limited</div>
+      <address data-bind="customer.billingAddress">
+        36/3460-A, M G Road,<br>
+        Thrissur, Thrissur District,<br>
+        Kerala &ndash; 680001, India
+      </address>
+      <div class="idlist">
+        <span><span class="lbl">GSTIN</span> <b data-bind="customer.gstinOrNA">32AAKCC9890P1ZS</b></span>
+        <span><span class="lbl">State</span> <b data-bind="customer.stateLabel">Kerala (32)</b></span>
+      </div>
+    </div>
+  </section>
+
+  <section class="project">
+    <div><span class="lbl">Project</span> &nbsp;<b data-bind="project.name">Prime &mdash; Website Development</b></div>
+    <div><span class="lbl">Your Ref / PO</span> &nbsp;<b data-bind="invoice.customerRef">CLICK/PO/2026/14</b></div>
+    <div><span class="lbl">Milestone</span> &nbsp;<b data-bind="invoice.milestone">3 of 4</b></div>
+  </section>
+
+  <table class="items" data-bind="invoice.lines">
+    <thead>
+      <tr>
+        <th style="width:8mm">#</th>
+        <th>Description of Service</th>
+        <th class="mid c-sac" style="width:18mm">SAC</th>
+        <th class="mid" style="width:13mm">Qty</th>
+        <th class="num" style="width:26mm">Rate (₹)</th>
+        <th class="num" style="width:30mm">Taxable Value (₹)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="mid">1</td>
+        <td>
+          <div class="desc">Staff augmentation &mdash; software development resource</div>
+          <div class="sub">Milestone 3: front-end build &amp; CMS integration. Period 01&ndash;30 Sep 2026.</div>
+        </td>
+        <td class="mid c-sac">998314</td>
+        <td class="mid">1</td>
+        <td class="num">70,000.00</td>
+        <td class="num">70,000.00</td>
+      </tr>
+      <tr>
+        <td class="mid">2</td>
+        <td>
+          <div class="desc">UI/UX design revisions</div>
+          <div class="sub">Two additional revision rounds per change request CR-04.</div>
+        </td>
+        <td class="mid c-sac">998391</td>
+        <td class="mid">2</td>
+        <td class="num">7,500.00</td>
+        <td class="num">15,000.00</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <section class="foot-grid">
+    <div>
+      <div class="hsn">
+        <h3>HSN / SAC Summary</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>SAC</th>
+              <th class="num">Taxable Value</th>
+              <th class="num c-cgst">CGST</th>
+              <th class="num c-sgst">SGST</th>
+              <th class="num c-igst">IGST</th>
+              <th class="num">Total</th>
+            </tr>
+          </thead>
+          <tbody data-bind="invoice.sacSummary">
+            <tr>
+              <td>998314</td><td class="num">70,000.00</td>
+              <td class="num c-cgst">6,300.00</td><td class="num c-sgst">6,300.00</td>
+              <td class="num c-igst">12,600.00</td><td class="num">82,600.00</td>
+            </tr>
+            <tr>
+              <td>998391</td><td class="num">15,000.00</td>
+              <td class="num c-cgst">1,350.00</td><td class="num c-sgst">1,350.00</td>
+              <td class="num c-igst">2,700.00</td><td class="num">17,700.00</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="words">
+        <h3>Total Invoice Value (in words)</h3>
+        <p data-bind="invoice.totalInWords">Indian Rupees One Lakh Three Hundred Only</p>
+      </div>
+    </div>
+
+    <div class="totals">
+      <div class="row"><span class="k">Taxable Value</span><span data-bind="invoice.taxableValue">85,000.00</span></div>
+
+      <div class="row r-cgst"><span class="k">CGST @ 9%</span><span data-bind="invoice.cgst">7,650.00</span></div>
+      <div class="row r-sgst"><span class="k">SGST @ 9%</span><span data-bind="invoice.sgst">7,650.00</span></div>
+      <div class="row r-igst"><span class="k">IGST @ 18%</span><span data-bind="invoice.igst">15,300.00</span></div>
+      <div class="row r-zero zero"><span class="k">GST &mdash; Zero rated (export of services)</span><span>0.00</span></div>
+
+      <div class="row"><span class="k">Round Off</span><span data-bind="invoice.roundOff">0.00</span></div>
+
+      <div class="grand">
+        <span class="k">Invoice Total</span>
+        <span class="v" data-bind="invoice.grandTotal">₹ 1,00,300.00</span>
+      </div>
+
+      <div class="row tds">
+        <span class="k">
+          Less: TDS
+          <span class="v-194j">@ 10% u/s 194J</span><span class="v-194c">@ 2% u/s 194C</span>
+          <small>to be deducted by you, on taxable value</small>
+        </span>
+        <span data-bind="invoice.tdsAmount">(8,500.00)</span>
+      </div>
+      <div class="row netpay"><span class="k">Net Amount Payable</span><span data-bind="invoice.netPayable">₹ 91,800.00</span></div>
+    </div>
+  </section>
+
+  <section class="payline">
+    <div class="bank">
+      <h3>Payment Details</h3>
+      <dl>
+        <dt>Account Name</dt><dd data-bind="bank.accountName">Adpedia Films Private Limited</dd>
+        <dt>Account No.</dt><dd data-bind="bank.accountNo">921020015185413</dd>
+        <dt>IFSC</dt>        <dd data-bind="bank.ifsc">UTIB0002174</dd>
+        <dt>Bank</dt>        <dd data-bind="bank.bankBranch">Axis Bank, Chalakudy Branch, Thrissur, Kerala</dd>
+        <dt>SWIFT</dt>       <dd data-bind="bank.swift">AXISINBB&nbsp;<span style="font-weight:400;color:var(--ink-faint)">(for overseas remittance)</span></dd>
+      </dl>
+    </div>
+
+    <div class="sign">
+      <div class="for">For <span data-bind="company.legalName">Adpedia Films Private Limited</span></div>
+      <div class="space"><img src="assets/signature.png" alt="" data-bind="company.signatureImageUrl"></div>
+      <div class="line">Authorised Signatory</div>
+    </div>
+  </section>
+
+  <section class="terms">
+    <h3>Terms &amp; Declarations</h3>
+    <ol data-bind="invoice.terms">
+      <li>Payment due within 15 days of the invoice date. Interest @18% p.a. applies on amounts overdue beyond the due date.</li>
+      <li><span class="rcm-note">Whether tax is payable under reverse charge: No.</span></li>
+      <li>Please quote the invoice number in your payment reference so the receipt can be matched correctly.</li>
+      <li>Any discrepancy must be reported in writing within 7 days of receipt of this invoice.</li>
+    </ol>
+
+    <p class="lut" data-bind="company.lutDeclaration">
+      Supply meant for export of services under Letter of Undertaking without payment of Integrated Tax.<br>
+      LUT ARN <span data-bind="company.lut.arn">AD320324005917B</span>
+      dated <span data-bind="company.lut.filedOn">18/03/2024</span>,
+      valid for <span data-bind="company.lut.fy">FY 2024-25</span>.
+      &nbsp;·&nbsp; Bank realisation certificate (FIRC/BRC) to be obtained on receipt.
+      <span class="lut-warn" data-bind="company.lut.expiredWarning">&#9888; This LUT does not cover the invoice financial year &mdash; do not issue zero-rated until a current LUT is filed.</span>
+    </p>
+
+    <p class="decl">Certified that the particulars given above are true and correct, and that the amount indicated represents the price actually charged.</p>
+  </section>
+
+  <div class="spacer"></div>
+
+  <footer class="brandbar">
+    <img src="assets/adpedia-logo.svg" alt="adpedia">
+    <span class="ids">CIN U92190KL2021PTC068241 &nbsp;·&nbsp; GSTIN 32AAUCA9985H1ZX &nbsp;·&nbsp; PAN AAUCA9985H</span>
+  </footer>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,1413 @@
+// =============================================================================
+// ADPEDIA FINANCE ERP — Prisma schema
+// Postgres 16 · Decimal(18,2) for all money · UTC datetimes, rendered Asia/Kolkata
+//
+// Rules baked in:
+//   · every financial row carries companyId + financialYearId
+//   · nothing is hard-deleted; cancel + reverse
+//   · tax rates are effective-dated rows, never constants
+//   · invoice numbers are allocated by the DB, inside the creating transaction
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────── ORGANISATION
+
+model Company {
+  id           String       @id @default(cuid())
+  legalName    String // ADPEDIA FILMS PRIVATE LIMITED
+  tradeName    String?
+  constitution Constitution @default(PRIVATE_LIMITED)
+
+  cin                 String? // U92190KL2021PTC068241
+  pan                 String // AAUCA9985H
+  tan                 String? // CHNA09808A
+  gstin               String? // 32AAUCA9985H1ZX
+  gstRegistrationType GstRegType @default(REGULAR)
+  gstRegisteredFrom   DateTime?
+  msmeUdyamNo         String?
+  incorporatedOn      DateTime?
+
+  stateCode         String // "32" — drives CGST+SGST vs IGST
+  registeredAddress Json
+  branchAddresses   Json?
+
+  email   String?
+  phone   String?
+  website String?
+
+  logoUrl           String?
+  signatureImageUrl String?
+  stampImageUrl     String?
+  brandPrimaryHex   String? @default("#4135AF")
+  brandFont         String? @default("Poppins")
+
+  currencyDefault    String  @default("INR")
+  fyStartMonth       Int     @default(4) // April
+  invoiceFooterText  String?
+  defaultTerms       String?
+  defaultPaymentDays Int     @default(15)
+  showSacOnInvoice   Boolean @default(false) // 04-expense-categories §7.2
+
+  /// QRMP: turnover under ₹5 crore may file GSTR-1/3B quarterly with monthly tax
+  /// payment. Adpedia qualifies — confirm which option is actually elected.
+  gstFilingFrequency GstFilingFrequency @default(QUARTERLY)
+
+  bankAccounts   CompanyBankAccount[]
+  luts           CompanyLut[]
+  financialYears FinancialYear[]
+  series         DocumentSeries[]
+  accounts       Account[]
+  users          UserCompany[]
+  customers      Customer[]
+  vendors        Vendor[]
+  employees      Employee[]
+  projects       Project[]
+  invoices       Invoice[]
+  journalEntries JournalEntry[]
+  attachments    Attachment[]
+  gstChallans    GstChallan[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([pan, gstin])
+}
+
+enum Constitution {
+  PRIVATE_LIMITED
+  PUBLIC_LIMITED
+  LLP
+  PARTNERSHIP
+  PROPRIETORSHIP
+}
+
+enum GstFilingFrequency {
+  MONTHLY
+  QUARTERLY
+}
+
+enum GstRegType {
+  REGULAR
+  COMPOSITION
+  UNREGISTERED
+}
+
+model CompanyBankAccount {
+  id              String   @id @default(cuid())
+  companyId       String
+  company         Company  @relation(fields: [companyId], references: [id])
+  label           String // "Axis Bank — Current"
+  accountName     String
+  accountNo       String // 921020015185413
+  ifsc            String? // UTIB0002174
+  micr            String?
+  swift           String?
+  bankName        String
+  branch          String?
+  currency        String   @default("INR")
+  upiId           String?
+  ledgerAccountId String? // the GL account this maps to
+  ledgerAccount   Account? @relation(fields: [ledgerAccountId], references: [id])
+  showOnInvoice   Boolean  @default(false)
+  isDefault       Boolean  @default(false)
+  isActive        Boolean  @default(true)
+
+  statements   BankStatementImport[]
+  transactions BankTransaction[]
+
+  @@unique([companyId, accountNo])
+}
+
+/// LUTs are annual and expire silently. Stored as a collection, never a single field.
+model CompanyLut {
+  id        String    @id @default(cuid())
+  companyId String
+  company   Company   @relation(fields: [companyId], references: [id])
+  arn       String // AD320325043063O
+  filedOn   DateTime?
+  fyLabel   String // "2025-26"
+  validFrom DateTime
+  validTo   DateTime
+  invoices  Invoice[]
+
+  @@unique([companyId, fyLabel])
+}
+
+model FinancialYear {
+  id         String    @id @default(cuid())
+  companyId  String
+  company    Company   @relation(fields: [companyId], references: [id])
+  label      String // "2026-27"
+  startsOn   DateTime // 2026-04-01
+  endsOn     DateTime // 2027-03-31
+  status     FyStatus  @default(OPEN)
+  lockedUpTo DateTime? // period lock — see §3.5
+
+  journalEntries JournalEntry[]
+  invoices       Invoice[]
+  series         DocumentSeries[]
+
+  @@unique([companyId, label])
+}
+
+enum FyStatus {
+  OPEN
+  CLOSED
+}
+
+/// Sequence allocation happens here, under SELECT … FOR UPDATE. Never in app code.
+model DocumentSeries {
+  id              String        @id @default(cuid())
+  companyId       String
+  company         Company       @relation(fields: [companyId], references: [id])
+  financialYearId String
+  financialYear   FinancialYear @relation(fields: [financialYearId], references: [id])
+  docType         DocType
+  prefix          String // "ADP"
+  pattern         String // "ADP/{FY}/{SEQ:4}"
+  nextSeq         Int           @default(1) // seeded to 26 for FY 2026-27
+
+  @@unique([companyId, financialYearId, docType])
+}
+
+enum DocType {
+  TAX_INVOICE
+  EXPORT_INVOICE
+  PROFORMA
+  QUOTATION
+  CREDIT_NOTE
+  DEBIT_NOTE
+  RECEIPT
+  SELF_INVOICE
+  PAYMENT_ADVICE
+}
+
+// ─────────────────────────────────────────────────────────── USERS & SECURITY
+
+model User {
+  id            String             @id @default(cuid())
+  email         String             @unique
+  name          String
+  passwordHash  String // argon2id
+  totpSecret    String?
+  isActive      Boolean            @default(true)
+  lastLoginAt   DateTime?
+  tokenVersion  Int                @default(0) // bump to revoke every refresh token
+  companies     UserCompany[]
+  auditLogs     AuditLog[]
+  passkeys      Passkey[]
+  pushSubs      PushSubscription[]
+  refreshTokens RefreshToken[]
+  createdAt     DateTime           @default(now())
+}
+
+/// Refresh tokens are stored hashed and rotated on every use.
+/// Reuse of a rotated token revokes the whole family — theft detection.
+model RefreshToken {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash    String    @unique // sha256 of the opaque token
+  familyId     String // rotation chain
+  issuedAt     DateTime  @default(now())
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  replacedById String?
+  userAgent    String?
+  ip           String?
+
+  @@index([userId, familyId])
+  @@index([expiresAt])
+}
+
+model UserCompany {
+  id        String  @id @default(cuid())
+  userId    String
+  user      User    @relation(fields: [userId], references: [id])
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+  role      Role
+
+  @@unique([userId, companyId])
+}
+
+enum Role {
+  OWNER
+  ACCOUNTANT
+  PROJECT_MANAGER
+  EMPLOYEE
+  AUDITOR
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  companyId String
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  entity    String // "Invoice"
+  entityId  String
+  action    String // CREATE | UPDATE | CANCEL | POST
+  before    Json?
+  after     Json?
+  ip        String?
+  at        DateTime @default(now())
+
+  @@index([companyId, entity, entityId])
+  @@index([companyId, at])
+}
+
+// ───────────────────────────────────────────────────── CHART OF ACCOUNTS / GL
+
+model Account {
+  id        String      @id @default(cuid())
+  companyId String
+  company   Company     @relation(fields: [companyId], references: [id])
+  code      String // "1100"
+  name      String // "Accounts Receivable"
+  type      AccountType
+  subType   String? // BANK | CASH | AR | AP | GST_INPUT …
+  parentId  String?
+  parent    Account?    @relation("Tree", fields: [parentId], references: [id])
+  children  Account[]   @relation("Tree")
+  isSystem  Boolean     @default(false) // seeded, not user-deletable
+  isActive  Boolean     @default(true)
+
+  lines        JournalLine[]
+  bankAccounts CompanyBankAccount[]
+
+  @@unique([companyId, code])
+}
+
+enum AccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  INCOME
+  EXPENSE
+}
+
+model JournalEntry {
+  id              String        @id @default(cuid())
+  companyId       String
+  company         Company       @relation(fields: [companyId], references: [id])
+  financialYearId String
+  financialYear   FinancialYear @relation(fields: [financialYearId], references: [id])
+  entryNo         Int
+  date            DateTime
+  narration       String
+  sourceType      SourceType
+  sourceId        String? // the document that produced it
+  reversalOfId    String?       @unique
+  reversalOf      JournalEntry? @relation("Reversal", fields: [reversalOfId], references: [id])
+  reversedBy      JournalEntry? @relation("Reversal")
+  postedById      String?
+  postedAt        DateTime      @default(now())
+  lines           JournalLine[]
+
+  @@unique([companyId, financialYearId, entryNo])
+  @@index([companyId, date])
+  @@index([sourceType, sourceId])
+}
+
+enum SourceType {
+  INVOICE
+  CREDIT_NOTE
+  RECEIPT
+  VENDOR_BILL
+  BILL_PAYMENT
+  SELF_INVOICE
+  EXPENSE
+  PAYROLL
+  TDS_CHALLAN
+  GST_PAYMENT
+  BANK_TXN
+  MANUAL
+  OPENING_BALANCE
+  /// the year-end entry that sweeps income and expense into retained earnings
+  YEAR_END_CLOSE
+}
+
+model JournalLine {
+  id             String       @id @default(cuid())
+  journalEntryId String
+  journalEntry   JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  accountId      String
+  account        Account      @relation(fields: [accountId], references: [id])
+  debit          Decimal      @default(0) @db.Decimal(18, 2)
+  credit         Decimal      @default(0) @db.Decimal(18, 2)
+  narration      String?
+
+  // analytical dimensions — what makes project/client P&L possible
+  projectId  String?
+  project    Project? @relation(fields: [projectId], references: [id])
+  customerId String?
+  vendorId   String?
+  employeeId String?
+
+  @@index([accountId])
+  @@index([projectId])
+}
+
+// ──────────────────────────────────────────────────────── CUSTOMERS & PROJECTS
+
+model Customer {
+  id              String       @id @default(cuid())
+  companyId       String
+  company         Company      @relation(fields: [companyId], references: [id])
+  name            String // CLICK AR BUSINESS PRIVATE LIMITED
+  contactPerson   String?
+  email           String?
+  phone           String?
+  billingAddress  Json
+  shippingAddress Json?
+  country         String       @default("IN")
+  stateCode       String? // "32" — null for overseas
+  gstin           String?
+  pan             String?
+  /// the customer's TAN — Form 26AS is keyed by deductor TAN, not by name
+  tan             String?
+  customerType    CustomerType @default(B2B)
+  /// 🔴 The billing currency is AGREED with the client, never inferred from their country.
+  /// An Indian exporter commonly invoices a UAE client in USD. Ignored for domestic
+  /// customers, who are always billed in INR.
+  currency        String       @default("USD")
+  paymentTermDays Int          @default(15)
+  creditLimit     Decimal?     @db.Decimal(18, 2)
+  openingBalance  Decimal      @default(0) @db.Decimal(18, 2)
+
+  defaultTdsSection String? // "194J" — clients deduct from us
+  aliases           String[] @default([]) // learned bank-narration aliases
+
+  projects Project[]
+  invoices Invoice[]
+  receipts Receipt[]
+  isActive Boolean   @default(true)
+
+  @@index([companyId, name])
+}
+
+enum CustomerType {
+  B2B
+  B2C
+  SEZ
+  EXPORT
+}
+
+model Project {
+  id            String        @id @default(cuid())
+  companyId     String
+  company       Company       @relation(fields: [companyId], references: [id])
+  customerId    String
+  customer      Customer      @relation(fields: [customerId], references: [id])
+  code          String // "PRIME-WEB"
+  name          String
+  contractValue Decimal?      @db.Decimal(18, 2)
+  currency      String        @default("INR")
+  startsOn      DateTime?
+  expectedEndOn DateTime?
+  status        ProjectStatus @default(ACTIVE)
+  managerId     String?
+
+  invoices     Invoice[]
+  bills        VendorBill[]
+  expenses     Expense[]
+  allocations  StaffAllocation[]
+  journalLines JournalLine[]
+
+  @@unique([companyId, code])
+}
+
+enum ProjectStatus {
+  PROSPECT
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+/// Employee time split across projects — turns salary into project cost.
+model StaffAllocation {
+  id         String   @id @default(cuid())
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+  projectId  String? // null = internal / overhead
+  project    Project? @relation(fields: [projectId], references: [id])
+  periodFrom DateTime
+  periodTo   DateTime
+  percent    Decimal  @db.Decimal(5, 2) // must sum to 100 per employee per period
+
+  @@index([employeeId, periodFrom])
+}
+
+// ──────────────────────────────────────────────────────── SALES / RECEIVABLES
+
+model ServiceItem {
+  id              String        @id @default(cuid())
+  companyId       String
+  name            String // "Staff augmentation"
+  sacCode         String? // ⚠️ 998314 vs 998519 — CA to confirm
+  defaultRate     Decimal?      @db.Decimal(18, 2)
+  gstRatePct      Decimal       @default(18) @db.Decimal(5, 2)
+  incomeAccountId String?
+  isActive        Boolean       @default(true)
+  lines           InvoiceLine[]
+}
+
+model Invoice {
+  id              String        @id @default(cuid())
+  companyId       String
+  company         Company       @relation(fields: [companyId], references: [id])
+  financialYearId String
+  financialYear   FinancialYear @relation(fields: [financialYearId], references: [id])
+  customerId      String
+  customer        Customer      @relation(fields: [customerId], references: [id])
+  projectId       String?
+  project         Project?      @relation(fields: [projectId], references: [id])
+
+  docType     DocType  @default(TAX_INVOICE)
+  number      String // ADP/26-27/0026
+  seq         Int
+  date        DateTime
+  dueDate     DateTime
+  customerRef String? // their PO
+  milestone   String?
+
+  // — tax mode, derived, never typed —
+  taxMode       TaxMode
+  placeOfSupply String // "32" | "27" | "96"
+
+  /// 🔴 The bill-to details AS ISSUED, frozen when the invoice is sent.
+  ///
+  /// Rule 46 makes a tax invoice a fixed document: the copy the customer holds and the copy
+  /// we can reproduce must say the same thing. Rendering from the live Customer row means
+  /// correcting a typo in an address silently rewrites every invoice already issued to that
+  /// customer — and the GSTIN here is what was reported in GSTR-1 for the period, so it
+  /// cannot move either. Null on drafts, which still render live because nothing is issued.
+  billToName      String?
+  billToAddress   Json?
+  billToGstin     String?
+  billToStateCode String?
+  billToCountry   String?
+  lutId           String? // required when taxMode = EXPORT
+  lut             CompanyLut? @relation(fields: [lutId], references: [id])
+
+  currency String  @default("INR")
+  fxRate   Decimal @default(1) @db.Decimal(18, 6)
+
+  taxableValue Decimal @default(0) @db.Decimal(18, 2)
+  cgst         Decimal @default(0) @db.Decimal(18, 2)
+  sgst         Decimal @default(0) @db.Decimal(18, 2)
+  igst         Decimal @default(0) @db.Decimal(18, 2)
+  roundOff     Decimal @default(0) @db.Decimal(18, 2)
+  grandTotal   Decimal @default(0) @db.Decimal(18, 2)
+
+  // — TDS the CUSTOMER is expected to deduct from us —
+  tdsSection String? // "194J" | "194C" | null
+  tdsRatePct Decimal? @db.Decimal(5, 2)
+  tdsAmount  Decimal  @default(0) @db.Decimal(18, 2)
+  netPayable Decimal  @default(0) @db.Decimal(18, 2)
+
+  amountReceived Decimal       @default(0) @db.Decimal(18, 2)
+  tdsCredited    Decimal       @default(0) @db.Decimal(18, 2)
+  status         InvoiceStatus @default(DRAFT)
+
+  // — e-invoicing: hooks only, unimplemented until ₹5 Cr —
+  irn      String?
+  ackNo    String?
+  ackDate  DateTime?
+  signedQr String?
+
+  pdfUrl          String?
+  pdfSha256       String?
+  templateVersion String?
+  sentAt          DateTime?
+  viewedAt        DateTime?
+  cancelledAt     DateTime?
+  cancelReason    String?
+
+  lines          InvoiceLine[]
+  allocations    ReceiptAllocation[]
+  creditNotes    CreditNote[]
+  tdsReceivables TdsReceivable[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, number])
+  @@index([companyId, status, dueDate])
+  @@index([customerId])
+}
+
+enum TaxMode {
+  INTRA
+  INTER
+  EXPORT
+  SEZ_WITH_PAY
+  SEZ_WITHOUT_PAY
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  VIEWED
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+model InvoiceLine {
+  id            String       @id @default(cuid())
+  invoiceId     String
+  invoice       Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  serviceItemId String?
+  serviceItem   ServiceItem? @relation(fields: [serviceItemId], references: [id])
+  position      Int
+  description   String
+  detail        String?
+  sacCode       String?
+  quantity      Decimal      @default(1) @db.Decimal(12, 3)
+  unit          String?      @default("Nos")
+  rate          Decimal      @db.Decimal(18, 2)
+  discountPct   Decimal      @default(0) @db.Decimal(5, 2)
+  taxableValue  Decimal      @db.Decimal(18, 2)
+  gstRatePct    Decimal      @db.Decimal(5, 2)
+  cgst          Decimal      @default(0) @db.Decimal(18, 2)
+  sgst          Decimal      @default(0) @db.Decimal(18, 2)
+  igst          Decimal      @default(0) @db.Decimal(18, 2)
+}
+
+model CreditNote {
+  id              String   @id @default(cuid())
+  companyId       String
+  financialYearId String
+  invoiceId       String?
+  invoice         Invoice? @relation(fields: [invoiceId], references: [id])
+  number          String
+  date            DateTime
+  reason          String
+  taxableValue    Decimal  @db.Decimal(18, 2)
+  cgst            Decimal  @default(0) @db.Decimal(18, 2)
+  sgst            Decimal  @default(0) @db.Decimal(18, 2)
+  igst            Decimal  @default(0) @db.Decimal(18, 2)
+  grandTotal      Decimal  @db.Decimal(18, 2)
+  pdfUrl          String?
+
+  @@unique([companyId, number])
+}
+
+model Receipt {
+  id               String              @id @default(cuid())
+  companyId        String
+  financialYearId  String
+  customerId       String
+  customer         Customer            @relation(fields: [customerId], references: [id])
+  number           String
+  date             DateTime
+  mode             PaymentMode
+  amount           Decimal             @db.Decimal(18, 2) // cash actually received
+  tdsAmount        Decimal             @default(0) @db.Decimal(18, 2)
+  bankChargeAmount Decimal             @default(0) @db.Decimal(18, 2)
+  fxGainLoss       Decimal             @default(0) @db.Decimal(18, 2)
+  reference        String? // UTR — feeds bank matching Tier 0
+  bankAccountId    String?
+  isAdvance        Boolean             @default(false)
+  allocations      ReceiptAllocation[]
+  bankTransaction  BankTransaction?
+
+  /// 🔴 Cancelled, never deleted — the number stays allocated so the series has no gap,
+  /// which is the same rule invoices follow under Rule 46.
+  cancelledAt  DateTime?
+  cancelReason String?
+
+  @@unique([companyId, number])
+}
+
+enum PaymentMode {
+  NEFT
+  RTGS
+  IMPS
+  UPI
+  CHEQUE
+  CASH
+  CARD
+  SWIFT
+  OTHER
+}
+
+model ReceiptAllocation {
+  id        String  @id @default(cuid())
+  receiptId String
+  receipt   Receipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  invoiceId String
+  invoice   Invoice @relation(fields: [invoiceId], references: [id])
+  amount    Decimal @db.Decimal(18, 2)
+  tdsAmount Decimal @default(0) @db.Decimal(18, 2)
+
+  @@unique([receiptId, invoiceId])
+}
+
+// ─────────────────────────────────────────────────────── PURCHASES / PAYABLES
+
+model Vendor {
+  id            String     @id @default(cuid())
+  companyId     String
+  company       Company    @relation(fields: [companyId], references: [id])
+  name          String
+  vendorType    VendorType
+  contactPerson String?
+  email         String?
+  phone         String?
+  address       Json?
+  country       String     @default("IN")
+  stateCode     String?
+  gstin         String?
+  pan           String?
+  panVerified   Boolean    @default(false) // no PAN ⇒ s.206AA @20%
+
+  // — TDS —
+  defaultTdsSection     String? // "194J" | "194C" | "195"
+  lowerDeductionCertNo  String? // s.197
+  lowerDeductionRate    Decimal?  @db.Decimal(5, 2)
+  lowerDeductionValidTo DateTime?
+  lowerDeductionCap     Decimal?  @db.Decimal(18, 2)
+
+  // — GST —
+  isForeignSupplier Boolean @default(false) // ⇒ RCM (DigitalOcean, Afrizon)
+  rcmApplicable     Boolean @default(false)
+
+  bankDetails     Json?
+  paymentTermDays Int            @default(15)
+  aliases         String[]       @default([])
+  bills           VendorBill[]
+  isActive        Boolean        @default(true)
+  tdsDeductions   TdsDeduction[]
+
+  @@index([companyId, name])
+}
+
+enum VendorType {
+  FREELANCER
+  SUBCONTRACTOR
+  AGENCY
+  SUPPLIER
+  UTILITY
+  CLOUD
+  PROFESSIONAL
+  OTHER
+}
+
+model VendorBill {
+  id              String   @id @default(cuid())
+  companyId       String
+  financialYearId String
+  vendorId        String
+  vendor          Vendor   @relation(fields: [vendorId], references: [id])
+  projectId       String?
+  project         Project? @relation(fields: [projectId], references: [id])
+
+  billNumber String // the vendor's own number
+  billDate   DateTime
+  dueDate    DateTime
+  currency   String   @default("INR")
+  fxRate     Decimal  @default(1) @db.Decimal(18, 6)
+
+  taxableValue Decimal @db.Decimal(18, 2)
+  cgst         Decimal @default(0) @db.Decimal(18, 2)
+  sgst         Decimal @default(0) @db.Decimal(18, 2)
+  igst         Decimal @default(0) @db.Decimal(18, 2)
+  grandTotal   Decimal @db.Decimal(18, 2)
+
+  // — reverse charge (foreign suppliers) —
+  isRcm             Boolean @default(false)
+  rcmIgst           Decimal @default(0) @db.Decimal(18, 2)
+  selfInvoiceNo     String?
+  selfInvoicePdfUrl String?
+
+  itcEligible      Boolean @default(true)
+  itcBlockedReason String? // s.17(5) — food, cab, out-of-state hotel
+
+  // — TDS we deduct —
+  tdsSection   String?
+  tdsRatePct   Decimal?    @db.Decimal(5, 2)
+  tdsAmount    Decimal     @default(0) @db.Decimal(18, 2)
+  tdsChallanId String?
+  tdsChallan   TdsChallan? @relation(fields: [tdsChallanId], references: [id])
+
+  amountPaid    Decimal          @default(0) @db.Decimal(18, 2)
+  status        BillStatus       @default(DRAFT)
+  attachmentUrl String?
+  lines         VendorBillLine[]
+  payments      BillPayment[]
+
+  @@unique([companyId, vendorId, billNumber])
+  @@index([companyId, status, dueDate])
+}
+
+enum BillStatus {
+  DRAFT
+  APPROVED
+  PARTIALLY_PAID
+  PAID
+  CANCELLED
+}
+
+model VendorBillLine {
+  id               String     @id @default(cuid())
+  billId           String
+  bill             VendorBill @relation(fields: [billId], references: [id], onDelete: Cascade)
+  description      String
+  sacCode          String?
+  quantity         Decimal    @default(1) @db.Decimal(12, 3)
+  rate             Decimal    @db.Decimal(18, 2)
+  taxableValue     Decimal    @db.Decimal(18, 2)
+  gstRatePct       Decimal    @default(18) @db.Decimal(5, 2)
+  expenseAccountId String?
+}
+
+model BillPayment {
+  id              String           @id @default(cuid())
+  companyId       String
+  billId          String
+  bill            VendorBill       @relation(fields: [billId], references: [id])
+  date            DateTime
+  amount          Decimal          @db.Decimal(18, 2)
+  mode            PaymentMode
+  reference       String?
+  bankAccountId   String?
+  bankTransaction BankTransaction?
+  cancelledAt     DateTime?
+}
+
+// ───────────────────────────────────────────────────────────────── EXPENSES
+
+model ExpenseCategory {
+  id           String       @id @default(cuid())
+  companyId    String
+  code         String // CLOUD | INTERNET | DOMAIN | TRAVEL
+  name         String
+  accountId    String
+  gstTreatment GstTreatment @default(STANDARD_18)
+  itcDefault   ItcDefault   @default(FULL)
+  tdsSection   String?
+  rcmPossible  Boolean      @default(false)
+  isRecurring  Boolean      @default(false)
+  expenses     Expense[]
+
+  @@unique([companyId, code])
+}
+
+enum GstTreatment {
+  STANDARD_18
+  STANDARD_12
+  STANDARD_5
+  EXEMPT
+  NONE
+  CHECK_SUPPLIER
+  MIXED
+}
+
+enum ItcDefault {
+  FULL
+  PARTIAL
+  BLOCKED
+}
+
+model Expense {
+  id               String          @id @default(cuid())
+  companyId        String
+  financialYearId  String
+  categoryId       String
+  category         ExpenseCategory @relation(fields: [categoryId], references: [id])
+  projectId        String?
+  project          Project?        @relation(fields: [projectId], references: [id])
+  vendorId         String?
+  employeeId       String? // reimbursement claimant
+  date             DateTime
+  description      String
+  taxableValue     Decimal         @db.Decimal(18, 2)
+  cgst             Decimal         @default(0) @db.Decimal(18, 2)
+  sgst             Decimal         @default(0) @db.Decimal(18, 2)
+  igst             Decimal         @default(0) @db.Decimal(18, 2)
+  total            Decimal         @db.Decimal(18, 2)
+  itcEligible      Boolean         @default(true)
+  itcBlockedReason String?
+  isRcm            Boolean         @default(false)
+  paidFrom         PaidFrom        @default(BANK)
+  receiptUrl       String? // camera capture
+  /// 🔴 client-generated id for the offline queue. A retry after a timeout the server
+  /// actually honoured would otherwise book the expense twice — and claim its ITC twice.
+  clientKey        String?
+  status           ExpenseStatus   @default(SUBMITTED)
+  cancelledAt      DateTime?
+  cancelReason     String?
+  approvedById     String?
+
+  @@unique([companyId, clientKey])
+  @@index([companyId, date])
+}
+
+enum PaidFrom {
+  BANK
+  CASH
+  CARD
+  PERSONAL_REIMBURSABLE
+}
+
+enum ExpenseStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  REIMBURSED
+}
+
+model RecurringExpense {
+  id           String    @id @default(cuid())
+  companyId    String
+  categoryId   String
+  vendorId     String?
+  description  String
+  amount       Decimal   @db.Decimal(18, 2)
+  frequency    Frequency
+  nextDueOn    DateTime
+  lastPostedOn DateTime?
+  isActive     Boolean   @default(true)
+}
+
+enum Frequency {
+  MONTHLY
+  QUARTERLY
+  HALF_YEARLY
+  ANNUAL
+}
+
+// ──────────────────────────────────────────────────────────────────── PAYROLL
+
+model Employee {
+  id                 String              @id @default(cuid())
+  companyId          String
+  company            Company             @relation(fields: [companyId], references: [id])
+  employeeCode       String
+  name               String
+  designation        String?
+  department         String?
+  isDirector         Boolean             @default(false) // Shinelal
+  email              String?
+  phone              String?
+  pan                String?
+  joinedOn           DateTime
+  leftOn             DateTime?
+  bankDetails        Json?
+  taxRegime          TaxRegime           @default(NEW)
+  structures         SalaryStructure[]
+  payslips           Payslip[]
+  allocations        StaffAllocation[]
+  salaryTaxEstimates SalaryTaxEstimate[]
+  tdsDeductions      TdsDeduction[]
+
+  @@unique([companyId, employeeCode])
+}
+
+enum TaxRegime {
+  OLD
+  NEW
+}
+
+model SalaryStructure {
+  id            String    @id @default(cuid())
+  employeeId    String
+  employee      Employee  @relation(fields: [employeeId], references: [id])
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  components    Json // [{code, name, type: EARNING|DEDUCTION, amount}]
+  grossMonthly  Decimal   @db.Decimal(18, 2)
+}
+
+/// s.192 is not a flat rate. Monthly TDS is 1/12 of the ESTIMATED ANNUAL tax, recomputed
+/// as the picture changes. The estimate comes from the CA — regime, declarations and other
+/// income are theirs to judge, not this system's. It can be revised mid-year.
+model SalaryTaxEstimate {
+  id                 String    @id @default(cuid())
+  companyId          String
+  employeeId         String
+  employee           Employee  @relation(fields: [employeeId], references: [id])
+  financialYearId    String
+  estimatedAnnualTax Decimal   @db.Decimal(18, 2)
+  /// who supplied it and on what basis — an audit trail for a number nobody can derive
+  source             String?
+  note               String?
+  supersededAt       DateTime?
+  createdAt          DateTime  @default(now())
+
+  @@index([companyId, employeeId, financialYearId])
+}
+
+/// Kerala levies profession tax by salary slab, half-yearly, to the local body.
+/// Effective-dated like every other rate — ⚠️ slabs to be confirmed with the CA.
+model ProfessionTaxSlab {
+  id            String    @id @default(cuid())
+  stateCode     String
+  /// half-yearly earnings, inclusive; toAmount null means no upper bound
+  fromAmount    Decimal   @db.Decimal(18, 2)
+  toAmount      Decimal?  @db.Decimal(18, 2)
+  /// payable for the half year
+  amount        Decimal   @db.Decimal(18, 2)
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+
+  @@index([stateCode, effectiveFrom])
+}
+
+model PayrollRun {
+  id              String        @id @default(cuid())
+  companyId       String
+  financialYearId String
+  month           Int
+  year            Int
+  status          PayrollStatus @default(DRAFT)
+  grossTotal      Decimal       @default(0) @db.Decimal(18, 2)
+  tdsTotal        Decimal       @default(0) @db.Decimal(18, 2)
+  netTotal        Decimal       @default(0) @db.Decimal(18, 2)
+  payslips        Payslip[]
+
+  @@unique([companyId, year, month])
+}
+
+enum PayrollStatus {
+  DRAFT
+  APPROVED
+  PAID
+}
+
+model Payslip {
+  id            String     @id @default(cuid())
+  payrollRunId  String
+  payrollRun    PayrollRun @relation(fields: [payrollRunId], references: [id])
+  employeeId    String
+  employee      Employee   @relation(fields: [employeeId], references: [id])
+  gross         Decimal    @db.Decimal(18, 2)
+  deductions    Decimal    @default(0) @db.Decimal(18, 2)
+  professionTax Decimal    @default(0) @db.Decimal(18, 2) // Kerala, half-yearly
+  tds           Decimal    @default(0) @db.Decimal(18, 2) // s.192
+  net           Decimal    @db.Decimal(18, 2)
+  components    Json
+  pdfUrl        String?
+
+  @@unique([payrollRunId, employeeId])
+}
+
+// ────────────────────────────────────────────────────────────── TAX — CONFIG
+
+/// Effective-dated. A rate change is a row, not a deployment.
+model TdsSectionRate {
+  id                String    @id @default(cuid())
+  code              String // "194J"
+  description       String
+  effectiveFrom     DateTime
+  effectiveTo       DateTime?
+  rateCompany       Decimal   @db.Decimal(5, 2)
+  rateIndividualHuf Decimal   @db.Decimal(5, 2)
+  rateNoPan         Decimal   @default(20) @db.Decimal(5, 2)
+  thresholdSingle   Decimal?  @db.Decimal(18, 2)
+  thresholdAnnual   Decimal?  @db.Decimal(18, 2)
+  baseOn            TdsBase   @default(TAXABLE_VALUE) // excl GST — Circular 23/2017
+  returnForm        String // 24Q | 26Q | 27Q
+
+  @@unique([code, effectiveFrom])
+}
+
+enum TdsBase {
+  TAXABLE_VALUE
+  GROSS
+}
+
+model GstRate {
+  id            String    @id @default(cuid())
+  sacCode       String?
+  ratePct       Decimal   @db.Decimal(5, 2)
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+}
+
+// ──────────────────────────────────────────────────────── TAX — TRANSACTIONS
+
+/// TDS deducted BY us from vendors/employees. Grouped into challans, then returns.
+model TdsDeduction {
+  id              String       @id @default(cuid())
+  companyId       String
+  financialYearId String
+  quarter         Int // 1..4
+  sectionCode     String
+  deducteeType    DeducteeType
+  vendorId        String?
+  vendor          Vendor?      @relation(fields: [vendorId], references: [id])
+  employeeId      String?
+  employee        Employee?    @relation(fields: [employeeId], references: [id])
+  deducteePan     String?
+  documentType    SourceType
+  documentId      String
+  deductedOn      DateTime
+  baseAmount      Decimal      @db.Decimal(18, 2)
+  ratePct         Decimal      @db.Decimal(5, 2)
+  tdsAmount       Decimal      @db.Decimal(18, 2)
+  challanId       String?
+  challan         TdsChallan?  @relation(fields: [challanId], references: [id])
+
+  /// Set when the source document is cancelled. The row stays — nothing financial is
+  /// hard-deleted — but it is excluded from challans and the quarterly return.
+  reversedAt DateTime?
+
+  @@index([companyId, financialYearId, quarter, sectionCode])
+}
+
+enum DeducteeType {
+  EMPLOYEE
+  VENDOR
+  NON_RESIDENT
+}
+
+model TdsChallan {
+  id              String         @id @default(cuid())
+  companyId       String
+  financialYearId String
+  quarter         Int
+  sectionCode     String?
+  bsrCode         String
+  challanSerial   String
+  depositedOn     DateTime
+  amount          Decimal        @db.Decimal(18, 2)
+  interest        Decimal        @default(0) @db.Decimal(18, 2)
+  lateFee         Decimal        @default(0) @db.Decimal(18, 2)
+  cin             String?
+  deductions      TdsDeduction[]
+  bills           VendorBill[]
+
+  @@unique([companyId, bsrCode, challanSerial, depositedOn])
+}
+
+/// TDS deducted FROM us by customers. Reconciled against Form 26AS.
+model TdsReceivable {
+  id              String         @id @default(cuid())
+  companyId       String
+  financialYearId String
+  quarter         Int
+  invoiceId       String?
+  invoice         Invoice?       @relation(fields: [invoiceId], references: [id])
+  customerId      String
+  deductorTan     String?
+  sectionCode     String
+  baseAmount      Decimal        @db.Decimal(18, 2)
+  tdsAmount       Decimal        @db.Decimal(18, 2)
+  bookedOn        DateTime
+  status          TdsRecStatus   @default(BOOKED)
+  /// set when the receipt behind it is cancelled. Not deleted: a credit that was once
+  /// claimed has to stay visible, and the no-hard-delete rule applies here too.
+  reversedAt      DateTime?
+  form26asAmount  Decimal?       @db.Decimal(18, 2)
+  form16aReceived Boolean        @default(false)
+  form26asEntry   Form26asEntry?
+
+  @@index([companyId, financialYearId, quarter])
+}
+
+enum TdsRecStatus {
+  BOOKED
+  MATCHED_26AS
+  MISSING_IN_26AS
+  DISPUTED
+  CLAIMED
+}
+
+/// A row imported from Form 26AS. Kept rather than matched-and-discarded, because a row
+/// that matches nothing in the books is itself a finding — usually unrecorded income.
+model Form26asEntry {
+  id                  String         @id @default(cuid())
+  companyId           String
+  financialYearId     String
+  quarter             Int
+  deductorTan         String
+  deductorName        String
+  sectionCode         String
+  amountPaid          Decimal        @db.Decimal(18, 2)
+  tdsDeducted         Decimal        @db.Decimal(18, 2)
+  dateOfDeduction     DateTime?
+  /// as filed by the deductor — 'F' final, 'O' overbooked, 'U' unmatched
+  statusOfBooking     String?
+  importBatch         String
+  importedAt          DateTime       @default(now())
+  matchedReceivableId String?        @unique
+  matchedReceivable   TdsReceivable? @relation(fields: [matchedReceivableId], references: [id])
+
+  @@index([companyId, financialYearId, quarter])
+  @@index([companyId, deductorTan])
+}
+
+model GstReturnPeriod {
+  id              String          @id @default(cuid())
+  companyId       String
+  financialYearId String
+  periodLabel     String // "2026-10" | "2026-Q3"
+  returnType      GstReturnType
+  outputTax       Decimal         @default(0) @db.Decimal(18, 2)
+  inputTax        Decimal         @default(0) @db.Decimal(18, 2)
+  rcmPaid         Decimal         @default(0) @db.Decimal(18, 2)
+  netPayable      Decimal         @default(0) @db.Decimal(18, 2)
+  filedOn         DateTime?
+  arn             String?
+  status          GstReturnStatus @default(OPEN)
+
+  @@unique([companyId, periodLabel, returnType])
+}
+
+enum GstReturnType {
+  GSTR1
+  GSTR3B
+}
+
+enum GstReturnStatus {
+  OPEN
+  PREPARED
+  FILED
+}
+
+// ────────────────────────────────────────────────── BANKING & RECONCILIATION
+
+model BankStatementImport {
+  id             String             @id @default(cuid())
+  companyId      String
+  bankAccountId  String
+  bankAccount    CompanyBankAccount @relation(fields: [bankAccountId], references: [id])
+  fileName       String
+  fileUrl        String?
+  format         StatementFormat
+  periodFrom     DateTime
+  periodTo       DateTime
+  openingBalance Decimal            @db.Decimal(18, 2)
+  closingBalance Decimal            @db.Decimal(18, 2)
+  rowsImported   Int                @default(0)
+  rowsDuplicate  Int                @default(0)
+  balanceCheckOk Boolean            @default(false) // opening ± Σ = closing, else reject
+  importedAt     DateTime           @default(now())
+  transactions   BankTransaction[]
+}
+
+enum StatementFormat {
+  CSV
+  XLS
+  XLSX
+  PDF
+  API
+}
+
+model BankTransaction {
+  id            String               @id @default(cuid())
+  companyId     String
+  bankAccountId String
+  bankAccount   CompanyBankAccount   @relation(fields: [bankAccountId], references: [id])
+  importId      String?
+  import        BankStatementImport? @relation(fields: [importId], references: [id])
+
+  txnDate        DateTime
+  valueDate      DateTime
+  amount         Decimal   @db.Decimal(18, 2)
+  direction      Direction
+  rawNarration   String
+  refNo          String?
+  utr            String? // extracted — Tier 0 match key
+  chequeNo       String?
+  runningBalance Decimal?  @db.Decimal(18, 2)
+  dedupeHash     String    @unique
+
+  status            MatchStatus @default(UNMATCHED)
+  confidence        Decimal?    @db.Decimal(5, 2)
+  matchReason       String?
+  counterpartyGuess String?
+
+  receiptId      String?      @unique
+  receipt        Receipt?     @relation(fields: [receiptId], references: [id])
+  billPaymentId  String?      @unique
+  billPayment    BillPayment? @relation(fields: [billPaymentId], references: [id])
+  journalEntryId String?
+
+  @@index([companyId, bankAccountId, status])
+  @@index([companyId, txnDate])
+}
+
+enum Direction {
+  DEBIT
+  CREDIT
+}
+
+enum MatchStatus {
+  UNMATCHED
+  SUGGESTED
+  PART_MATCHED
+  MATCHED
+  IGNORED
+  EXCLUDED
+}
+
+/// Learned narration → party/account rules. Auto-applies after 2 confirmations.
+model BankRule {
+  id           String     @id @default(cuid())
+  companyId    String
+  matchType    RuleMatch  @default(CONTAINS)
+  pattern      String // "SHINELAL" | "Monthly Service Chrgs"
+  direction    Direction?
+  customerId   String?
+  vendorId     String?
+  employeeId   String?
+  /// a ledger account CODE (e.g. "5600"), not an id — resolved by postJournal
+  accountCode  String?
+  /// what to call this on screen and in the journal narration
+  label        String?
+  confirmCount Int        @default(0)
+  autoApply    Boolean    @default(false)
+
+  @@index([companyId, pattern])
+}
+
+enum RuleMatch {
+  CONTAINS
+  REGEX
+  EXACT
+}
+
+/// Per-bank column mapping, saved on first import. See 02-recon §H2.
+model BankProfile {
+  id          String          @id @default(cuid())
+  companyId   String
+  bankName    String // "Axis Bank"
+  format      StatementFormat
+  headerRow   Int             @default(1)
+  columnMap   Json
+  dateFormat  String          @default("DD/MM/YYYY")
+  amountStyle String          @default("SEPARATE_DR_CR")
+
+  @@unique([companyId, bankName, format])
+}
+
+/// A registered passkey (WebAuthn credential) used to re-authenticate after idle.
+/// It never replaces the password login — it only re-proves the same session's owner.
+model Passkey {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  credentialId String    @unique
+  publicKey    Bytes
+  /// bumped by the authenticator on every use; a value that does not increase means the
+  /// credential was cloned, so the assertion is refused
+  counter      BigInt    @default(0)
+  deviceType   String?
+  backedUp     Boolean   @default(false)
+  transports   String[]
+  label        String?
+  createdAt    DateTime  @default(now())
+  lastUsedAt   DateTime?
+
+  @@index([userId])
+}
+
+/// A one-time WebAuthn challenge. Stored server-side so it cannot be chosen by the client,
+/// and single-use so an intercepted assertion cannot be replayed.
+model WebauthnChallenge {
+  id        String   @id @default(cuid())
+  userId    String
+  challenge String
+  purpose   String // REGISTER | AUTH
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId, purpose])
+}
+
+/// A browser push subscription. One row per device per user.
+model PushSubscription {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String    @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+  createdAt DateTime  @default(now())
+  /// set when the push service reports the subscription is gone (404/410), so a dead
+  /// device stops being retried on every send
+  failedAt  DateTime?
+
+  @@index([userId])
+}
+
+/// A stored file — a receipt photo, a vendor's invoice PDF, a 26AS export, a challan.
+model Attachment {
+  id           String         @id @default(cuid())
+  companyId    String
+  company      Company        @relation(fields: [companyId], references: [id])
+  kind         AttachmentKind
+  /// what it is attached to, e.g. "Expense" + the expense id. Deliberately not a foreign
+  /// key: one table serves every document type, and a file may outlive what it documented.
+  entityType   String
+  entityId     String
+  /// the name the person will see on download — NEVER used to build the storage path
+  filename     String
+  contentType  String
+  sizeBytes    Int
+  /// sha256 of the contents, so the same receipt uploaded twice is stored once
+  sha256       String
+  /// opaque key in the storage driver. Generated, never derived from user input.
+  storageKey   String         @unique
+  uploadedById String?
+  createdAt    DateTime       @default(now())
+  /// 🔴 soft. A receipt is the evidence behind an input-credit claim — destroying the file
+  /// could remove the proof needed to sustain the claim, so detaching hides it and keeps it.
+  detachedAt   DateTime?
+
+  @@index([companyId, entityType, entityId])
+  @@index([companyId, sha256])
+}
+
+enum AttachmentKind {
+  RECEIPT
+  VENDOR_INVOICE
+  PAYSLIP
+  FORM_26AS
+  CHALLAN
+  BANK_STATEMENT
+  OTHER
+}
+
+/// A GST payment — the challan that settles a return's cash liability.
+model GstChallan {
+  id              String   @id @default(cuid())
+  companyId       String
+  company         Company  @relation(fields: [companyId], references: [id])
+  financialYearId String
+  /// the period the payment relates to, e.g. "2026-Q1"
+  periodLabel     String
+  /// CPIN is issued when the challan is generated; CIN comes back once the bank confirms it.
+  /// A challan with a CPIN and no CIN is generated but unpaid.
+  cpin            String?
+  cin             String?
+  paidOn          DateTime
+  /// 🔴 split, because RCM must be paid in CASH and can never be set off against credit
+  igst            Decimal  @default(0) @db.Decimal(18, 2)
+  cgst            Decimal  @default(0) @db.Decimal(18, 2)
+  sgst            Decimal  @default(0) @db.Decimal(18, 2)
+  rcm             Decimal  @default(0) @db.Decimal(18, 2)
+  interest        Decimal  @default(0) @db.Decimal(18, 2)
+  lateFee         Decimal  @default(0) @db.Decimal(18, 2)
+  amount          Decimal  @db.Decimal(18, 2)
+  bankAccountId   String?
+  createdAt       DateTime @default(now())
+
+  @@index([companyId, periodLabel])
+}

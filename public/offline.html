@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Offline — Adpedia Finance</title>
+<style>
+  :root { --ink:#15131f; --muted:#6b6880; --rule:#e7e5ef; --accent:#4135AF; --surface:#faf9fd; }
+  @media (prefers-color-scheme: dark) {
+    :root { --ink:#f4f3f8; --muted:#a3a0b5; --rule:#2a2738; --accent:#8d82ea; --surface:#17151f; }
+    body { background:#100e17; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; min-height:100dvh; display:grid; place-items:center; padding:24px;
+         font-family: Poppins, system-ui, -apple-system, Segoe UI, sans-serif; color:var(--ink); background:#fff; }
+  @media (prefers-color-scheme: dark) { body { background:#100e17; } }
+  .card { max-width:420px; width:100%; border:1px solid var(--rule); border-radius:16px; padding:28px; background:var(--surface); }
+  h1 { font-size:19px; margin:0 0 10px; font-weight:600; }
+  p { font-size:14px; line-height:1.6; color:var(--muted); margin:0 0 14px; }
+  ul { font-size:14px; line-height:1.7; color:var(--muted); margin:0 0 18px; padding-left:18px; }
+  strong { color:var(--ink); font-weight:600; }
+  button { width:100%; border:0; border-radius:10px; padding:12px; font-size:14px; font-weight:600;
+           background:var(--accent); color:#fff; cursor:pointer; font-family:inherit; }
+  .dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:#d9534f; margin-right:7px; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1><span class="dot"></span>No connection</h1>
+    <p>This page needs the network, and figures are never served from a cache &mdash; a stale
+       balance shown as current is worse than no balance at all.</p>
+    <p><strong>What still works offline:</strong></p>
+    <ul>
+      <li>Filing an expense, with its receipt photo</li>
+      <li>Anything already queued stays queued and syncs when you reconnect</li>
+    </ul>
+    <button onclick="location.reload()">Try again</button>
+  </div>
+</body>
+</html>

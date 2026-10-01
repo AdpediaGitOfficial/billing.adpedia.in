@@ -1,0 +1,9 @@
+{
+  "name": "Adpedia Finance",
+  "short_name": "Adpedia",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#4135AF",
+  "icons": [{ "src": "/brand/adpedia-logo.svg", "sizes": "any", "type": "image/svg+xml" }]
+}
