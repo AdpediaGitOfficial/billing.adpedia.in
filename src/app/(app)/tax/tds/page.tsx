@@ -5,6 +5,10 @@ import { buildTdsReturn, type ReturnForm } from '@/server/services/tax/tds-retur
 import { formatINR, Decimal, ZERO } from '@/lib/money'
 import { Card, CardHeader, PageHeader, StatCard, Pill, Alert, Empty, Button, DataTable, type Column } from '@/components/ui/kit'
 import { ChallanForm } from './challan-form'
+import { TdsFilings } from './filings'
+import { ReverseButton } from '@/components/corrections/reverse-button'
+import { cancelChallanAction } from './actions'
+import { listTdsFilings } from '@/server/services/tax/tds-filing'
 import { currentFinancialYear } from '@/server/services/accounting/period'
 
 export default async function TdsPage({ searchParams }: { searchParams: Promise<{ q?: string; form?: string }> }) {
@@ -17,11 +21,13 @@ export default async function TdsPage({ searchParams }: { searchParams: Promise<
   const quarter = (Number(sp.q) || 2) as 1 | 2 | 3 | 4
   const form = (sp.form ?? '26Q') as ReturnForm
 
-  const [outstanding, ret, challans] = await Promise.all([
+  const [outstanding, ret, challans, filings] = await Promise.all([
     outstandingDeductions(ctx),
     buildTdsReturn(ctx, form, fy.label, quarter),
     prisma.tdsChallan.findMany({ where: { companyId: ctx.companyId, financialYearId: fy.id }, orderBy: { depositedOn: 'desc' }, include: { deductions: true } }),
+    listTdsFilings(ctx),
   ])
+  const liveChallans = challans.filter((c) => !c.cancelledAt)
 
   const today = new Date()
   const overdue = outstanding.filter((d) => d.overdueDays > 0)
@@ -83,8 +89,8 @@ export default async function TdsPage({ searchParams }: { searchParams: Promise<
           foot={nextDue ? (nextDue < today ? 'Passed' : `${Math.ceil((nextDue.getTime() - today.getTime()) / 86400000)} days left`) : 'Nothing pending'} />
         <StatCard label="Interest if paid today" value={formatINR(totalInterest, { decimals: false })} icon="TrendingUp"
           foot="s.201(1A), 1.5% a month" />
-        <StatCard label="Challans this year" value={String(challans.length)} icon="Receipt"
-          foot={formatINR(challans.reduce((a, c) => a.plus(c.amount.toString()), ZERO), { decimals: false }) + ' deposited'} />
+        <StatCard label="Challans this year" value={String(liveChallans.length)} icon="Receipt"
+          foot={formatINR(liveChallans.reduce((a, c) => a.plus(c.amount.toString()), ZERO), { decimals: false }) + ' deposited'} />
       </div>
 
       <Card flush className="overflow-hidden">
@@ -101,6 +107,50 @@ export default async function TdsPage({ searchParams }: { searchParams: Promise<
           }))} />
         </Card>
       )}
+
+      {challans.length > 0 && (
+        <Card flush className="overflow-hidden">
+          <CardHeader title="Challans" className="p-5 pb-3"
+            sub="Cancelling one says it was recorded in error — the deductions go back to outstanding, with their interest still running" />
+          <table className="w-full text-[12.5px]">
+            <tbody>
+              {challans.map((c) => (
+                <tr key={c.id} className="border-t" style={{ borderColor: 'var(--rule)' }}>
+                  <td className="px-5 py-2.5"
+                    style={c.cancelledAt ? { textDecoration: 'line-through', color: 'var(--text-muted)' } : undefined}>
+                    <span className="font-medium">{c.cin ?? c.challanSerial}</span>
+                    <span className="block text-[11.5px]" style={{ color: 'var(--text-muted)' }}>
+                      section {c.sectionCode ?? '—'} · Q{c.quarter} · {c.deductions.length} deduction{c.deductions.length === 1 ? '' : 's'}
+                    </span>
+                  </td>
+                  <td className="py-2.5 tabular" style={{ color: 'var(--text-muted)' }}>
+                    {c.depositedOn.toISOString().slice(0, 10)}
+                  </td>
+                  <td className="py-2.5 text-right font-semibold tabular"
+                    style={c.cancelledAt ? { textDecoration: 'line-through', color: 'var(--text-muted)' } : undefined}>
+                    {formatINR(c.amount.toString())}
+                  </td>
+                  <td className="px-5 py-2.5 text-right">
+                    {c.cancelledAt
+                      ? <span className="text-[11.5px]" style={{ color: 'var(--text-muted)' }}>cancelled</span>
+                      : <ReverseButton action={cancelChallanAction} idName="challanId" id={c.id}
+                          prompt={`Why is challan ${c.cin ?? c.challanSerial} being reversed?`} />}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
+      )}
+
+      <TdsFilings
+        quarter={quarter}
+        form={form}
+        filings={filings.map((f) => ({
+          id: f.id, formType: f.formType, quarter: f.quarter,
+          filedOn: f.filedOn.toISOString().slice(0, 10), token: f.token,
+          deducteeCount: f.deducteeCount, tdsDeducted: f.tdsDeducted.toFixed(2),
+        }))} />
 
       {/* ── the return ───────────────────────────────────────────────── */}
       <Card>

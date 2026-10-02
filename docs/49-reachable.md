@@ -96,10 +96,9 @@ the card is evidence for the number it was checked against (docs/47).
 
 ## 6. Still open
 
-- **Payroll runs and TDS challans still cannot be cancelled.** They were left out
-  deliberately: a payroll run has payslips, deductions and a TDS liability hanging off it, and
-  a challan may already be quoted in a filed return. The pattern applies; the consequences
-  want their own thinking.
+- ~~**Payroll runs and TDS challans still cannot be cancelled.**~~ Done in **`docs/50`**,
+  which found that the system could not have decided it: there was no record of a TDS return
+  ever being filed, so nothing could tell a mistake from a reported fact.
 - **A credit note and a set-off cannot be reversed** (docs/46, docs/48).
 - **`registerEInvoice` and `cancelEInvoice` have no caller either** — deliberately, since the
   IRP adapter is gated off (docs/31 §6).

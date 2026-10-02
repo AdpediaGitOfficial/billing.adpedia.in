@@ -133,13 +133,13 @@ export async function previewGstPayment(
   const stranded = r.payable.strandedCredit
   if (stranded.cgst.gt(0) && r.payable.byHead.sgst.inCash.gt(0)) {
     warnings.push(
-      `🔴 ${formatINR(stranded.cgst)} of CGST credit cannot be used for the SGST liability (s.49(5)(e)), so ` +
+      `${formatINR(stranded.cgst)} of CGST credit cannot be used for the SGST liability (s.49(5)(e)), so ` +
       `${formatINR(r.payable.byHead.sgst.inCash)} of SGST has to be funded in cash even though there is credit on hand.`,
     )
   }
   if (stranded.sgst.gt(0) && r.payable.byHead.cgst.inCash.gt(0)) {
     warnings.push(
-      `🔴 ${formatINR(stranded.sgst)} of SGST credit cannot be used for the CGST liability (s.49(5)(f)), so ` +
+      `${formatINR(stranded.sgst)} of SGST credit cannot be used for the CGST liability (s.49(5)(f)), so ` +
       `${formatINR(r.payable.byHead.cgst.inCash)} of CGST has to be funded in cash even though there is credit on hand.`,
     )
   }

@@ -131,7 +131,7 @@ export async function previewSetOff(ctx: RequestContext, periodLabel: string, on
   }
   if (interestToDate.interest.gt(liability.interest.plus(liability.lateFee))) {
     warnings.push(
-      `🔴 Interest to today works out at ${formatINR(interestToDate.interest)} on the cash component, and only ` +
+      `Interest to today works out at ${formatINR(interestToDate.interest)} on the cash component, and only ` +
       `${formatINR(liability.interest.plus(liability.lateFee))} of interest and fee has been deposited. Under rule 88B(1) ` +
       'interest runs until the cash ledger is debited — funding it earlier did not stop the clock.',
     )

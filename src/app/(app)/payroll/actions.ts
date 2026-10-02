@@ -8,6 +8,7 @@ import { setAllocation } from '@/server/services/payroll/allocation'
 import { assertCan } from '@/server/auth/permissions'
 import { AppError } from '@/server/errors'
 import { currentFinancialYear } from '@/server/services/accounting/period'
+import { cancelPayrollRun } from '@/server/services/accounting/corrections'
 
 export async function approvePayrollAction(month: number, year: number) {
   const ctx = await requireContext()
@@ -63,4 +64,22 @@ export async function setAllocationAction(employeeId: string, periodFrom: string
   } catch (e) {
     return { ok: false as const, error: e instanceof AppError ? e.message : 'Could not save the allocation' }
   }
+}
+
+/**
+ * Reverse a payroll run — docs/50.
+ *
+ * 🔴 The refusals live in the service, and they are the point: a run whose TDS is on a challan
+ * or whose quarter has been filed cannot be unsaid here, because the money has left and the
+ * employee is already claiming the credit.
+ */
+export async function cancelRunAction(_prev: { error?: string; ok?: string } | null, form: FormData) {
+  const ctx = await requireContext()
+  try {
+    await cancelPayrollRun(ctx, String(form.get('runId') ?? ''), String(form.get('reason') ?? ''))
+  } catch (e) {
+    return { error: e instanceof AppError ? e.message : 'Could not cancel that payroll run' }
+  }
+  revalidatePath('/payroll/runs'); revalidatePath('/tax/tds'); revalidatePath('/dashboard')
+  return { ok: 'Reversed — the month can be run again' }
 }

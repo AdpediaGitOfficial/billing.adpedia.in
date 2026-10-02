@@ -171,13 +171,13 @@ export function planSetOff(input: SetOffInput): SetOffPlan {
   }
   if (cCgst.gt(0) && shortfall.sgst.gt(0)) {
     notes.push(
-      `🔴 ${formatINR(cCgst)} of CGST credit is sitting unused and cannot be touched for the ` +
+      `${formatINR(cCgst)} of CGST credit is sitting unused and cannot be touched for the ` +
       `${formatINR(shortfall.sgst)} SGST shortfall — s.49(5)(e) forbids it. That shortfall has to be paid in cash.`,
     )
   }
   if (cSgst.gt(0) && shortfall.cgst.gt(0)) {
     notes.push(
-      `🔴 ${formatINR(cSgst)} of SGST credit is sitting unused and cannot be touched for the ` +
+      `${formatINR(cSgst)} of SGST credit is sitting unused and cannot be touched for the ` +
       `${formatINR(shortfall.cgst)} CGST shortfall — s.49(5)(f) forbids it. That shortfall has to be paid in cash.`,
     )
   }
@@ -211,7 +211,7 @@ export function planSetOff(input: SetOffInput): SetOffPlan {
   })
   if (shortfall.total.gt(0) && idle.length > 0) {
     notes.push(
-      '🔴 Cash under one major head cannot pay another. There is money idle under ' +
+      'Cash under one major head cannot pay another. There is money idle under ' +
       `${idle.map((h) => h.toUpperCase()).join(' and ')} while another head is short — moving it needs Form PMT-09.`,
     )
   }

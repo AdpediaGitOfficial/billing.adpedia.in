@@ -6,6 +6,7 @@ import { audit } from '@/server/audit'
 import { AppError, NotFound } from '@/server/errors'
 import { reverseJournal } from './journal'
 import { assertPostable } from './period'
+import { wouldContradictFiling, formForSectionCode } from '@/server/services/tax/tds-filing'
 
 /**
  * Undoing what was posted in error.
@@ -236,4 +237,179 @@ export async function unmatchBankTransaction(ctx: RequestContext, txnId: string,
 
   await audit(ctx, { entity: 'BankTransaction', entityId: txn.id, action: 'CANCEL', after: { reason } })
   return restored
+}
+
+/* ── payroll ─────────────────────────────────────────────────────────────────── */
+
+/**
+ * Cancel a payroll run — docs/50.
+ *
+ * 🔴 Deliberately left out of docs/49, because a payroll run is not one document. Hanging off
+ * it are payslips, a salary-payment entry, a s.192 deduction per employee, the profession tax
+ * for the half-year, and — the part that matters — a TDS liability that may already have been
+ * deposited with the government and reported against the employee's PAN.
+ *
+ * So it refuses in two places, and both refusals are about something that has left the
+ * building:
+ *
+ *   1. **The TDS is on a challan.** The money is with the government. Cancelling the run here
+ *      would leave a deposit with nothing behind it and the employee credited for tax that no
+ *      longer exists in our books.
+ *   2. **The quarter's 24Q is filed.** Each deduction has been reported against that
+ *      employee's PAN and appears in their Form 26AS. They will claim it. Unsaying it here
+ *      produces a mismatch the employee discovers at assessment, not us.
+ *
+ * What it does do: reverse the run's journal, reverse the salary payment if one was posted,
+ * mark every s.192 deduction reversed so it leaves the challan queue and the return, and keep
+ * the run and its payslips on file marked CANCELLED.
+ */
+export async function cancelPayrollRun(ctx: RequestContext, runId: string, reason: string, on = new Date()) {
+  assertCan(ctx.role, 'payroll', 'approve')
+  requireReason(reason)
+  await assertPostable(ctx.companyId, on)
+
+  const run = await prisma.payrollRun.findFirst({
+    where: { id: runId, companyId: ctx.companyId }, include: { payslips: true },
+  })
+  if (!run) throw new NotFound('Payroll run not found')
+  if (run.cancelledAt) throw new AppError('That payroll run is already cancelled')
+  if (run.status === 'DRAFT') throw new AppError('A draft run has posted nothing — there is nothing to reverse')
+
+  const deductions = await prisma.tdsDeduction.findMany({
+    where: { companyId: ctx.companyId, documentType: 'PAYROLL', documentId: run.id, reversedAt: null },
+  })
+
+  const deposited = deductions.filter((d) => d.challanId)
+  if (deposited.length > 0) {
+    throw new AppError(
+      `The s.192 TDS on this run has already been deposited — ${deposited.length} deduction${deposited.length === 1 ? '' : 's'} ` +
+      'sit on a challan. The government has that money and the employees are credited with it. ' +
+      'Cancel the challan first if it was also wrong, and talk to the CA before unwinding a deposit.',
+    )
+  }
+
+  // 🔴 Not "the quarter is filed, so nothing in it may be touched". A July run nobody noticed
+  // until November was in none of the Q2 return's figures, and cancelling it contradicts
+  // nothing. What may not happen is taking the quarter BELOW what was reported.
+  for (const quarter of new Set(deductions.map((d) => d.quarter))) {
+    const removing = deductions
+      .filter((d) => d.quarter === quarter)
+      .reduce((a, d) => a.plus(d.tdsAmount.toString()), ZERO)
+
+    const check = await wouldContradictFiling({
+      companyId: ctx.companyId, quarter, formType: '24Q', removing, side: 'deducted',
+    })
+    if (check.contradicts) {
+      throw new AppError(
+        `24Q for Q${quarter} was filed on ${check.filedOn!.toISOString().slice(0, 10)} reporting ` +
+        `${check.reported!.toFixed(2)} of salary TDS. Reversing this run would leave ${check.after!.toFixed(2)} ` +
+        'in the books against it — and every deduction in that return is reported against the employee’s PAN ' +
+        'and already shows in their Form 26AS. They would be claiming tax this company no longer says it deducted. ' +
+        'That correction is a revised return, not a button.',
+      )
+    }
+  }
+
+  const entries = await prisma.journalEntry.findMany({
+    where: { companyId: ctx.companyId, sourceType: 'PAYROLL', sourceId: run.id, reversalOfId: null },
+    orderBy: { entryNo: 'asc' },
+  })
+
+  return prisma.$transaction(async (tx) => {
+    // 🔴 BOTH entries, where the salaries were also paid. Cancelling the run says the whole
+    // thing was recorded in error; leaving the payment posted would claim money left the bank
+    // for a run that no longer exists. If the money really did move, the bank line comes back
+    // as unmatched in reconciliation — which is exactly where a payment with no document belongs.
+    for (const e of entries) {
+      await reverseJournal(ctx, e.id, on, reason, tx)
+    }
+
+    await tx.tdsDeduction.updateMany({
+      where: { companyId: ctx.companyId, documentType: 'PAYROLL', documentId: run.id, reversedAt: null },
+      data: { reversedAt: on },
+    })
+
+    const cancelled = await tx.payrollRun.update({
+      where: { id: run.id },
+      data: { status: 'CANCELLED', cancelledAt: on, cancelReason: reason.trim() },
+    })
+
+    await audit(ctx, {
+      entity: 'PayrollRun', entityId: run.id, action: 'CANCEL',
+      before: { status: run.status, net: run.netTotal.toString() },
+      after: { reason: reason.trim(), entriesReversed: entries.length, deductionsReversed: deductions.length },
+    }, tx)
+
+    return cancelled
+  })
+}
+
+/* ── TDS challans ────────────────────────────────────────────────────────────── */
+
+/**
+ * Cancel a TDS challan — docs/50.
+ *
+ * 🔴 This does not ask the government for the money back. It says the challan was recorded
+ * here in error — a wrong BSR code, the wrong deductions attached, a duplicate entry. The
+ * deposit itself, if it really happened, is still a bank line waiting to be matched.
+ *
+ * Refused once the quarter's return is filed, because the challan is quoted in it: the
+ * deductees' 26AS entries are backed by that CIN, and withdrawing it leaves their credit
+ * unsupported.
+ */
+export async function cancelTdsChallan(ctx: RequestContext, challanId: string, reason: string, on = new Date()) {
+  assertCan(ctx.role, 'tax', 'write')
+  requireReason(reason)
+  await assertPostable(ctx.companyId, on)
+
+  const challan = await prisma.tdsChallan.findFirst({
+    where: { id: challanId, companyId: ctx.companyId }, include: { deductions: true },
+  })
+  if (!challan) throw new NotFound('Challan not found')
+  if (challan.cancelledAt) throw new AppError('That challan is already cancelled')
+
+  const form = formForSectionCode(challan.sectionCode ?? '194J')
+  const check = await wouldContradictFiling({
+    companyId: ctx.companyId, quarter: challan.quarter, formType: form,
+    removing: new Decimal(challan.amount.toString()), side: 'deposited',
+  })
+  if (check.contradicts) {
+    throw new AppError(
+      `${form} for Q${challan.quarter} was filed on ${check.filedOn!.toISOString().slice(0, 10)} reporting ` +
+      `${check.reported!.toFixed(2)} as deposited. Withdrawing this challan would leave ${check.after!.toFixed(2)} ` +
+      'behind it. The deductees’ credit in their Form 26AS is backed by this CIN — withdrawing it here would ' +
+      'leave that credit unsupported. Correct it through a revised return.',
+    )
+  }
+
+  const entries = await prisma.journalEntry.findMany({
+    where: { companyId: ctx.companyId, sourceType: 'TDS_CHALLAN', sourceId: challan.id, reversalOfId: null },
+  })
+
+  return prisma.$transaction(async (tx) => {
+    for (const e of entries) {
+      await reverseJournal(ctx, e.id, on, reason, tx)
+    }
+
+    // 🔴 The deductions go back to OUTSTANDING, not to reversed. They were real deductions
+    // from real payments; what was wrong is the record of depositing them. They reappear in
+    // the challan queue, with their interest clock still running from the day they were
+    // deducted — which is the true position.
+    await tx.tdsDeduction.updateMany({
+      where: { challanId: challan.id }, data: { challanId: null },
+    })
+
+    const cancelled = await tx.tdsChallan.update({
+      where: { id: challan.id },
+      data: { cancelledAt: on, cancelReason: reason.trim() },
+    })
+
+    await audit(ctx, {
+      entity: 'TdsChallan', entityId: challan.id, action: 'CANCEL',
+      before: { cin: challan.cin, amount: challan.amount.toString(), deductions: challan.deductions.length },
+      after: { reason: reason.trim() },
+    }, tx)
+
+    return cancelled
+  })
 }

@@ -75,6 +75,7 @@ model Company {
   attachments    Attachment[]
   gstChallans    GstChallan[]
   gstSetOffs     GstSetOff[]
+  tdsFilings     TdsReturnFiling[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1014,14 +1015,22 @@ model PayrollRun {
   tdsTotal        Decimal       @default(0) @db.Decimal(18, 2)
   netTotal        Decimal       @default(0) @db.Decimal(18, 2)
   payslips        Payslip[]
+  cancelledAt     DateTime?
+  cancelReason    String?
 
-  @@unique([companyId, year, month])
+  /// 🔴 Not unique on the month — docs/50. A cancelled run keeps its row and its payslips, so
+  /// insisting on one run per month would make a month that was cancelled permanently
+  /// unrunnable. Only one LIVE run per month is allowed, and that is enforced in the service
+  /// where the word "live" can be expressed.
+  @@index([companyId, year, month])
 }
 
 enum PayrollStatus {
   DRAFT
   APPROVED
   PAID
+  /// docs/50 — reversed in the ledger, kept on file with its payslips
+  CANCELLED
 }
 
 model Payslip {
@@ -1126,8 +1135,42 @@ model TdsChallan {
   cin             String?
   deductions      TdsDeduction[]
   bills           VendorBill[]
+  /// docs/50 — reversed in the ledger; the deductions it covered go back to outstanding
+  cancelledAt     DateTime?
+  cancelReason    String?
 
   @@unique([companyId, bsrCode, challanSerial, depositedOn])
+}
+
+/// docs/50 · A TDS return recorded as filed — 24Q, 26Q or 27Q.
+///
+/// 🔴 The GST side got this in docs/44 and the TDS side never did, so nothing knew whether a
+/// quarter had been filed. That is not only a reporting gap: a filed return reports each
+/// deduction against the deductee's PAN and it appears in their 26AS, so it is what makes a
+/// payroll run or a challan impossible to cancel. Without this record the system could not
+/// tell the difference between a mistake and a reported fact.
+model TdsReturnFiling {
+  id              String   @id @default(cuid())
+  companyId       String
+  company         Company  @relation(fields: [companyId], references: [id])
+  financialYearId String
+  quarter         Int
+  /// 24Q salary · 26Q resident · 27Q non-resident
+  formType        String
+  filedOn         DateTime
+  /// the 15-character provisional receipt number from the TIN-FC acknowledgement
+  token           String?
+  /// 🔴 snapshotted at filing — what was reported is a historical fact, and reading it live
+  /// afterwards would make the one question that matters at assessment unanswerable
+  deducteeCount   Int      @default(0)
+  tdsDeducted     Decimal  @default(0) @db.Decimal(18, 2)
+  tdsDeposited    Decimal  @default(0) @db.Decimal(18, 2)
+  interest        Decimal  @default(0) @db.Decimal(18, 2)
+  lateFee         Decimal  @default(0) @db.Decimal(18, 2)
+  createdAt       DateTime @default(now())
+
+  @@unique([companyId, financialYearId, quarter, formType])
+  @@index([companyId, quarter])
 }
 
 /// TDS deducted FROM us by customers. Reconciled against Form 26AS.

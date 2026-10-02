@@ -5,6 +5,7 @@ import { assertCan } from '@/server/auth/permissions'
 import { filedPeriods } from '@/server/services/tax/gst-filing'
 import { paidPeriods } from '@/server/services/tax/gst-payment'
 import { dischargedPeriods } from '@/server/services/tax/gst-setoff'
+import { filedTdsQuarters, formForSectionCode } from '@/server/services/tax/tds-filing'
 import { periodFor } from '@/server/services/tax/periods'
 import { currentFinancialYear } from '@/server/services/accounting/period'
 import {
@@ -75,7 +76,7 @@ export async function complianceCalendar(ctx: RequestContext, now = new Date()):
 
   const deductions = await prisma.tdsDeduction.findMany({
     where: { companyId: ctx.companyId, reversedAt: null, deductedOn: { gte: fy.startsOn, lte: fy.endsOn } },
-    select: { deductedOn: true, tdsAmount: true, challanId: true },
+    select: { deductedOn: true, tdsAmount: true, challanId: true, sectionCode: true },
   })
 
   const byMonth = new Map<string, { month: number; year: number; unpaid: Decimal; total: Decimal }>()
@@ -111,19 +112,35 @@ export async function complianceCalendar(ctx: RequestContext, now = new Date()):
 
   /* ── TDS returns and the certificates that follow ─────────────────────────── */
 
+  // 🔴 Which returns have actually been filed — docs/50. Until a filing record existed this
+  // item could only ever say "due": nothing knew whether the quarter had gone in, so it
+  // nagged forever and the one state that matters — filed, and therefore reported against
+  // every deductee's PAN — was invisible.
+  const tdsFiled = await filedTdsQuarters(ctx.companyId)
+
   for (const q of [1, 2, 3, 4] as const) {
-    const hasAny = deductions.some((d) => quarterOf(d.deductedOn) === q)
+    const inQuarter = deductions.filter((d) => quarterOf(d.deductedOn) === q)
+    const hasAny = inQuarter.length > 0
     const dueOn = tdsReturnDue(q, fyStartYear)
+
+    // the forms this quarter actually needs, from the sections deducted under
+    const forms = [...new Set(inQuarter.map((d) => formForSectionCode(d.sectionCode)))].sort()
+    const outstandingForms = forms.filter((f) => !tdsFiled.has(`${f}:${q}`))
+    const allFiled = hasAny && outstandingForms.length === 0
+
     push({
       id: `tds-return-q${q}`,
       obligation: 'TDS_RETURN',
       title: `File TDS return for Q${q}`,
-      detail: hasAny
-        ? '24Q for salary, 26Q for residents, 27Q for non-residents'
-        : 'Nothing deducted this quarter — a nil return is still good practice',
+      detail: !hasAny
+        ? 'Nothing deducted this quarter — a nil return is still good practice'
+        : allFiled
+          ? `Filed — ${forms.join(', ')}`
+          : `${outstandingForms.join(', ')} still to file · 24Q salary, 26Q residents, 27Q non-residents`,
       dueOn,
       penalty: '₹200 a day under s.234E, capped at the TDS in the return',
       notApplicable: !hasAny,
+      done: allFiled,
       href: '/tax/tds',
     })
     if (hasAny) {

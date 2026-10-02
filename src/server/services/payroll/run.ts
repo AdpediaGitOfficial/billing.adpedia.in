@@ -153,7 +153,11 @@ export async function approvePayroll(ctx: RequestContext, month: number, year: n
   const fy = await assertPostable(ctx.companyId, runDate)
 
   return prisma.$transaction(async (tx) => {
-    const existing = await tx.payrollRun.findFirst({ where: { companyId: ctx.companyId, year, month } })
+    // 🔴 A cancelled run does not block the month — docs/50. It keeps its row and its
+    // payslips as the record of what was reversed, and the month is run again from scratch.
+    const existing = await tx.payrollRun.findFirst({
+      where: { companyId: ctx.companyId, year, month, cancelledAt: null },
+    })
     if (existing && existing.status !== 'DRAFT') throw new AppError(`${preview.label} payroll has already been approved`)
 
     const run = existing

@@ -4,6 +4,8 @@ import { previewPayroll } from '@/server/services/payroll/run'
 import { formatINR } from '@/lib/money'
 import { Card, CardHeader, PageHeader, StatCard, Pill, Alert, Empty } from '@/components/ui/kit'
 import { RunActions } from './actions-client'
+import { ReverseButton } from '@/components/corrections/reverse-button'
+import { cancelRunAction } from '../actions'
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 
@@ -16,7 +18,7 @@ export default async function PayrollRunsPage({ searchParams }: { searchParams: 
 
   const [preview, existing, runs] = await Promise.all([
     previewPayroll(ctx, month, year).catch(() => null),
-    prisma.payrollRun.findFirst({ where: { companyId: ctx.companyId, month, year } }),
+    prisma.payrollRun.findFirst({ where: { companyId: ctx.companyId, month, year, cancelledAt: null } }),
     prisma.payrollRun.findMany({ where: { companyId: ctx.companyId }, orderBy: [{ year: 'desc' }, { month: 'desc' }], take: 12 }),
   ])
 
@@ -92,6 +94,39 @@ export default async function PayrollRunsPage({ searchParams }: { searchParams: 
       </Card>
 
       <RunActions month={month} year={year} runId={existing?.id ?? null} status={existing?.status ?? null} label={preview.label} />
+
+      {existing && existing.status !== 'DRAFT' && (
+        <Card className="p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-[14px] font-semibold">Reverse this run</p>
+              <p className="mt-1 text-[12.5px] leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                Posts a reversal of the salary cost{existing.status === 'PAID' ? ' and of the payment' : ''}, marks the
+                s.192 deductions reversed so they leave the challan queue, and keeps the run and its payslips on file.
+                The month can then be run again.
+                {' '}Refused once the TDS is on a challan or the quarter&rsquo;s 24Q is filed — at that point the
+                employee is already claiming the credit.
+              </p>
+            </div>
+            <ReverseButton action={cancelRunAction} idName="runId" id={existing.id}
+              label="cancel run" confirmLabel="Reverse it"
+              prompt={`Why is ${preview.label} payroll being reversed?`} />
+          </div>
+        </Card>
+      )}
+
+      {runs.some((r) => r.cancelledAt) && (
+        <Card className="p-4">
+          <p className="eyebrow">Reversed runs</p>
+          <ul className="mt-2 space-y-1.5 text-[12.5px]">
+            {runs.filter((r) => r.cancelledAt).map((r) => (
+              <li key={r.id} style={{ color: 'var(--text-muted)' }}>
+                {MONTHS[r.month - 1]} {r.year} · {formatINR(r.netTotal.toString(), { decimals: false })} · {r.cancelReason}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
     </div>
   )
 }
