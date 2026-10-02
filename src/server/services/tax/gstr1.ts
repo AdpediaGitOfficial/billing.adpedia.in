@@ -151,12 +151,12 @@ export async function buildGstr1(companyId: string, from: Date, to: Date, label:
   // deadline is a commercial credit between the parties: it recovers no GST, so reporting it
   // here would claim a reduction the return cannot support.
   const cns = await prisma.creditNote.findMany({
-    where: { companyId, date: { gte: from, lte: to }, gstAdjusted: true },
+    where: { companyId, date: { gte: from, lte: to }, gstAdjusted: true, cancelledAt: null },
     include: { invoice: { select: { number: true } } },
     orderBy: { date: 'asc' },
   })
   const commercial = await prisma.creditNote.count({
-    where: { companyId, date: { gte: from, lte: to }, gstAdjusted: false },
+    where: { companyId, date: { gte: from, lte: to }, gstAdjusted: false, cancelledAt: null },
   })
   const creditNotes = cns.map((c) => ({
     number: c.number, date: c.date, againstInvoice: c.invoice?.number ?? null, reason: c.reason,

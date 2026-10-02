@@ -80,7 +80,8 @@ export interface CreditNotePreview {
 async function loadInvoice(ctx: RequestContext, invoiceId: string) {
   const inv = await prisma.invoice.findFirst({
     where: { id: invoiceId, companyId: ctx.companyId },
-    include: { customer: true, financialYear: true, creditNotes: true },
+    // 🔴 cancelled notes do not use up the invoice — docs/51
+    include: { customer: true, financialYear: true, creditNotes: { where: { cancelledAt: null } } },
   })
   if (!inv) throw new NotFound('Invoice not found')
   if (inv.status === 'DRAFT') throw new AppError('That invoice has not been issued — edit or cancel it instead')

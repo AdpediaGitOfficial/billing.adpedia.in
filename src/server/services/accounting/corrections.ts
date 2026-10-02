@@ -7,6 +7,7 @@ import { AppError, NotFound } from '@/server/errors'
 import { reverseJournal } from './journal'
 import { assertPostable } from './period'
 import { wouldContradictFiling, formForSectionCode } from '@/server/services/tax/tds-filing'
+import { periodFor } from '@/server/services/tax/periods'
 
 /**
  * Undoing what was posted in error.
@@ -407,6 +408,164 @@ export async function cancelTdsChallan(ctx: RequestContext, challanId: string, r
     await audit(ctx, {
       entity: 'TdsChallan', entityId: challan.id, action: 'CANCEL',
       before: { cin: challan.cin, amount: challan.amount.toString(), deductions: challan.deductions.length },
+      after: { reason: reason.trim() },
+    }, tx)
+
+    return cancelled
+  })
+}
+
+/* ── credit notes ────────────────────────────────────────────────────────────── */
+
+/**
+ * The GST return that would have reported a document dated `on`.
+ *
+ * A credit note belongs to the period it was issued in, and that period's return is where it
+ * was declared — GSTR-1 for a credit note, GSTR-3B for a set-off.
+ */
+async function filedReturnFor(companyId: string, on: Date, returnType: 'GSTR1' | 'GSTR3B') {
+  const company = await prisma.company.findUniqueOrThrow({
+    where: { id: companyId }, select: { gstFilingFrequency: true },
+  })
+  const period = periodFor(on, company.gstFilingFrequency)
+  const filed = await prisma.gstReturnPeriod.findFirst({
+    where: { companyId, periodLabel: period.label, returnType, status: 'FILED' },
+  })
+  return { period, filed }
+}
+
+/**
+ * Cancel a credit note — docs/51.
+ *
+ * 🔴 Refused once the GSTR-1 that declared it has been filed. A credit note in table 9B is
+ * not only our record: it has reached the customer's GSTR-2B and reduced the input credit
+ * they may claim. Withdrawing it here would leave them holding a reversal we no longer say we
+ * issued, and they find out at reconciliation.
+ *
+ * A commercial credit note (docs/48) is never in GSTR-1 at all, so nothing reported it and the
+ * filing does not block it.
+ */
+export async function cancelCreditNote(ctx: RequestContext, noteId: string, reason: string, on = new Date()) {
+  assertCan(ctx.role, 'invoices.cancel', 'approve')
+  requireReason(reason)
+  await assertPostable(ctx.companyId, on)
+
+  const note = await prisma.creditNote.findFirst({
+    where: { id: noteId, companyId: ctx.companyId },
+    include: { invoice: true },
+  })
+  if (!note) throw new NotFound('Credit note not found')
+  if (note.cancelledAt) throw new AppError('That credit note is already cancelled')
+
+  if (note.gstAdjusted) {
+    const { period, filed } = await filedReturnFor(ctx.companyId, note.date, 'GSTR1')
+    if (filed) {
+      throw new AppError(
+        `GSTR-1 for ${period.label} was filed on ${filed.filedOn!.toISOString().slice(0, 10)}, declaring ${note.number} ` +
+        'in table 9B. It has reached the customer’s GSTR-2B and reduced the credit they may claim — withdrawing it here ' +
+        'would leave them holding a reversal this company no longer says it issued. Issue a debit note, or amend in a ' +
+        'later return.',
+      )
+    }
+  }
+
+  const entries = await prisma.journalEntry.findMany({
+    where: { companyId: ctx.companyId, sourceType: 'CREDIT_NOTE', sourceId: note.id, reversalOfId: null },
+  })
+
+  return prisma.$transaction(async (tx) => {
+    for (const e of entries) {
+      await reverseJournal(ctx, e.id, on, reason, tx)
+    }
+
+    // 🔴 Put the invoice's status back. Crediting an invoice in full marks it PAID
+    // (docs/42) — leaving that in place would show an invoice as settled by a credit note
+    // that no longer exists, and it would drop out of the ageing that should be chasing it.
+    if (note.invoice) {
+      const inv = note.invoice
+      const otherCredits = await tx.creditNote.aggregate({
+        where: { invoiceId: inv.id, cancelledAt: null, id: { not: note.id } },
+        _sum: { grandTotal: true },
+      })
+      const settled = new Decimal(inv.amountReceived.toString())
+        .plus(inv.tdsCredited.toString())
+        .plus(otherCredits._sum.grandTotal?.toString() ?? '0')
+      const grand = new Decimal(inv.grandTotal.toString())
+
+      const status = settled.gte(grand.minus('0.5'))
+        ? 'PAID' as const
+        : settled.gt(0) ? 'PARTIALLY_PAID' as const : inv.dueDate < on ? 'OVERDUE' as const : 'SENT' as const
+      await tx.invoice.update({ where: { id: inv.id }, data: { status } })
+    }
+
+    const cancelled = await tx.creditNote.update({
+      where: { id: note.id },
+      data: { cancelledAt: on, cancelReason: reason.trim() },
+    })
+
+    await audit(ctx, {
+      entity: 'CreditNote', entityId: note.id, action: 'CANCEL',
+      before: { number: note.number, grandTotal: note.grandTotal.toString(), against: note.invoice?.number ?? null },
+      after: { reason: reason.trim() },
+    }, tx)
+
+    return cancelled
+  })
+}
+
+/* ── GST set-offs ────────────────────────────────────────────────────────────── */
+
+/**
+ * Cancel a GST set-off — docs/51.
+ *
+ * 🔴 Refused once the GSTR-3B it discharged has been filed, because the set-off IS table 6.1
+ * of that return: the credit utilised and the cash debited are what was declared, and the
+ * portal has already debited the real ledgers to match. Reversing it here would leave our
+ * electronic ledgers disagreeing with the portal's — which is the one place in this system
+ * where our figures are supposed to be a mirror of somebody else's.
+ *
+ * Otherwise it puts everything back: the liability returns, the credit ledger is restored,
+ * and the cash ledger goes back to holding the money — which is the true position, because
+ * money that was never debited is still sitting there.
+ */
+export async function cancelGstSetOff(ctx: RequestContext, setOffId: string, reason: string, on = new Date()) {
+  assertCan(ctx.role, 'tax', 'write')
+  requireReason(reason)
+  await assertPostable(ctx.companyId, on)
+
+  const setOff = await prisma.gstSetOff.findFirst({ where: { id: setOffId, companyId: ctx.companyId } })
+  if (!setOff) throw new NotFound('Set-off not found')
+  if (setOff.cancelledAt) throw new AppError('That set-off is already cancelled')
+
+  const filed = await prisma.gstReturnPeriod.findFirst({
+    where: { companyId: ctx.companyId, periodLabel: setOff.periodLabel, returnType: 'GSTR3B', status: 'FILED' },
+  })
+  if (filed) {
+    throw new AppError(
+      `GSTR-3B for ${setOff.periodLabel} was filed on ${filed.filedOn!.toISOString().slice(0, 10)}. ` +
+      'This set-off is table 6.1 of that return — the portal has debited the real electronic ledgers to match it. ' +
+      'Reversing it here would leave this system’s ledgers disagreeing with the portal’s, which is the one place ' +
+      'they are meant to mirror each other.',
+    )
+  }
+
+  const entries = await prisma.journalEntry.findMany({
+    where: { companyId: ctx.companyId, sourceType: 'GST_SET_OFF', sourceId: setOff.id, reversalOfId: null },
+  })
+
+  return prisma.$transaction(async (tx) => {
+    for (const e of entries) {
+      await reverseJournal(ctx, e.id, on, reason, tx)
+    }
+
+    const cancelled = await tx.gstSetOff.update({
+      where: { id: setOff.id },
+      data: { cancelledAt: on, cancelReason: reason.trim() },
+    })
+
+    await audit(ctx, {
+      entity: 'GstSetOff', entityId: setOff.id, action: 'CANCEL',
+      before: { period: setOff.periodLabel, byCredit: setOff.creditUsed.toString(), inCash: setOff.cashUsed.toString() },
       after: { reason: reason.trim() },
     }, tx)
 

@@ -4,6 +4,7 @@ import { requireContext } from '@/server/context'
 import { recordGstFiling, unrecordGstFiling } from '@/server/services/tax/gst-filing'
 import { recordGstPayment } from '@/server/services/tax/gst-payment'
 import { recordSetOff } from '@/server/services/tax/gst-setoff'
+import { cancelGstSetOff } from '@/server/services/accounting/corrections'
 import { AppError } from '@/server/errors'
 import { formatINR } from '@/lib/money'
 import type { GstReturnType } from '@prisma/client'
@@ -80,5 +81,22 @@ export async function recordSetOffAction(_prev: Result, form: FormData): Promise
     }
   } catch (e) {
     return { error: e instanceof AppError ? e.message : 'Could not record that set-off' }
+  }
+}
+
+/**
+ * Reverse a set-off — docs/51.
+ *
+ * Refused once the GSTR-3B it discharged is filed: the set-off is table 6.1 of that return,
+ * and the portal has debited the real ledgers to match it.
+ */
+export async function cancelSetOffAction(_prev: Result, form: FormData): Promise<Result> {
+  const ctx = await requireContext()
+  try {
+    await cancelGstSetOff(ctx, String(form.get('setOffId') ?? ''), String(form.get('reason') ?? ''))
+    revalidatePath('/tax/gst'); revalidatePath('/tax/calendar')
+    return { ok: 'Reversed — the liability and both ledgers are back where they were' }
+  } catch (e) {
+    return { error: e instanceof AppError ? e.message : 'Could not reverse that set-off' }
   }
 }

@@ -590,27 +590,30 @@ model InvoiceLine {
 }
 
 model CreditNote {
-  id              String   @id @default(cuid())
+  id              String    @id @default(cuid())
   companyId       String
   financialYearId String
   invoiceId       String?
-  invoice         Invoice? @relation(fields: [invoiceId], references: [id])
+  invoice         Invoice?  @relation(fields: [invoiceId], references: [id])
   number          String
   date            DateTime
   reason          String
-  taxableValue    Decimal  @db.Decimal(18, 2)
-  cgst            Decimal  @default(0) @db.Decimal(18, 2)
-  sgst            Decimal  @default(0) @db.Decimal(18, 2)
-  igst            Decimal  @default(0) @db.Decimal(18, 2)
-  grandTotal      Decimal  @db.Decimal(18, 2)
+  taxableValue    Decimal   @db.Decimal(18, 2)
+  cgst            Decimal   @default(0) @db.Decimal(18, 2)
+  sgst            Decimal   @default(0) @db.Decimal(18, 2)
+  igst            Decimal   @default(0) @db.Decimal(18, 2)
+  grandTotal      Decimal   @db.Decimal(18, 2)
   /// 🔴 docs/48 · whether this note reduces OUTPUT TAX, which s.34(2) allows only until
   /// 30 November following the financial year of supply. After that the note is still valid
   /// between the parties, but the GST already paid stays paid — so it carries no tax, is not
   /// reported in GSTR-1, and the document says so on its face.
-  gstAdjusted     Boolean  @default(true)
+  gstAdjusted     Boolean   @default(true)
+  /// docs/51 — reversed in the ledger; kept on file with its number and its reason
+  cancelledAt     DateTime?
+  cancelReason    String?
   /// the tax that could not be recovered, where gstAdjusted is false. Kept so the row still
   /// adds up — taxableValue + taxNotAdjusted = grandTotal — and so the cost is visible.
-  taxNotAdjusted  Decimal  @default(0) @db.Decimal(18, 2)
+  taxNotAdjusted  Decimal   @default(0) @db.Decimal(18, 2)
   pdfUrl          String?
 
   @@unique([companyId, number])
@@ -1534,6 +1537,10 @@ model GstSetOff {
 
   creditUsed Decimal @default(0) @db.Decimal(18, 2)
   cashUsed   Decimal @default(0) @db.Decimal(18, 2)
+
+  /// docs/51 — reversed in the ledger; the liability and both ledgers go back where they were
+  cancelledAt  DateTime?
+  cancelReason String?
 
   createdAt DateTime @default(now())
 

@@ -18,7 +18,7 @@ export interface ComplianceAlert {
  */
 export async function complianceAlerts(companyId: string): Promise<ComplianceAlert[]> {
   const out: ComplianceAlert[] = []
-  const fy = await prisma.financialYear.findFirst({ where: { companyId, status: 'OPEN' }, orderBy: { startsOn: 'desc' } })
+  const fy = await currentFinancialYear(companyId)
   if (!fy) return out
 
   // 1. a LUT is needed for the current year before anything can be exported zero-rated

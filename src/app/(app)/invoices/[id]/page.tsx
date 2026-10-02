@@ -8,6 +8,8 @@ import { lutStatus } from '@/server/services/invoicing/lut'
 import { Card, PageHeader, Pill, Button, Alert } from '@/components/ui/kit'
 import { InvoiceActions } from './actions-client'
 import { ShareInvoice } from '@/components/pwa/share-invoice'
+import { ReverseButton } from '@/components/corrections/reverse-button'
+import { cancelCreditNoteAction } from './credit-note/actions'
 
 export default async function InvoiceDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -31,9 +33,9 @@ export default async function InvoiceDetail({ params }: { params: Promise<{ id: 
     include: { lines: { include: { account: true } } },
   })
 
-  const credited = inv.creditNotes.reduce(
-    (a, c) => a.plus(c.grandTotal.toString()), new Decimal(0),
-  )
+  const credited = inv.creditNotes
+    .filter((c) => !c.cancelledAt)
+    .reduce((a, c) => a.plus(c.grandTotal.toString()), new Decimal(0))
 
   const money = (v: unknown) => inv.currency === 'INR'
     ? formatINR(v as string)
@@ -153,24 +155,39 @@ export default async function InvoiceDetail({ params }: { params: Promise<{ id: 
             <tbody>
               {inv.creditNotes.map((c) => (
                 <tr key={c.id} className="border-t" style={{ borderColor: 'var(--rule)' }}>
-                  <td className="py-2 font-medium">{c.number}</td>
+                  <td className="py-2 font-medium"
+                    style={c.cancelledAt ? { textDecoration: 'line-through', color: 'var(--text-muted)' } : undefined}>
+                    {c.number}
+                  </td>
                   <td className="py-2 tabular" style={{ color: 'var(--text-muted)' }}>
                     {c.date.toISOString().slice(0, 10)}
                   </td>
                   <td className="py-2" style={{ color: 'var(--text-secondary)' }}>{c.reason}</td>
                   <td className="py-2">
                     {/* 🔴 A commercial note credits the client without recovering any GST,
-                        and it is not in GSTR-1 — which is worth seeing before the CA asks. */}
-                    {c.gstAdjusted
-                      ? <Pill tone="neutral">GST adjusted</Pill>
-                      : <Pill tone="warn">commercial · no GST</Pill>}
+                        and it is not in GSTR-1 — which is worth seeing before the CA asks.
+                        A cancelled one is neither, so it says nothing about tax at all. */}
+                    {c.cancelledAt
+                      ? null
+                      : c.gstAdjusted
+                        ? <Pill tone="neutral">GST adjusted</Pill>
+                        : <Pill tone="warn">commercial · no GST</Pill>}
                   </td>
-                  <td className="py-2 text-right font-semibold tabular">{money(c.grandTotal.toString())}</td>
+                  <td className="py-2 text-right font-semibold tabular"
+                    style={c.cancelledAt ? { textDecoration: 'line-through', color: 'var(--text-muted)' } : undefined}>
+                    {money(c.grandTotal.toString())}
+                  </td>
                   <td className="py-2 pl-3 text-right">
-                    <a href={`/api/credit-notes/${c.id}/document`} target="_blank" rel="noreferrer"
-                      className="text-[12px] underline underline-offset-2" style={{ color: 'var(--accent)' }}>
-                      Document
-                    </a>
+                    <span className="flex items-center justify-end gap-3">
+                      <a href={`/api/credit-notes/${c.id}/document`} target="_blank" rel="noreferrer"
+                        className="text-[12px] underline underline-offset-2" style={{ color: 'var(--accent)' }}>
+                        Document
+                      </a>
+                      {c.cancelledAt
+                        ? <span className="text-[11.5px]" style={{ color: 'var(--text-muted)' }}>cancelled</span>
+                        : <ReverseButton action={cancelCreditNoteAction} idName="noteId" id={c.id}
+                            prompt={`Why is ${c.number} being reversed?`} />}
+                    </span>
                   </td>
                 </tr>
               ))}

@@ -1,7 +1,8 @@
 'use client'
 import { useActionState, useState } from 'react'
 import { Card, CardHeader, Button, Field, Alert, Pill, inputClass, inputStyle } from '@/components/ui/kit'
-import { recordSetOffAction } from './filing-actions'
+import { recordSetOffAction, cancelSetOffAction } from './filing-actions'
+import { ReverseButton } from '@/components/corrections/reverse-button'
 
 export interface SetOffView {
   periodLabel: string
@@ -16,7 +17,7 @@ export interface SetOffView {
   interestToDate: { days: number; interest: string }
   notes: string[]
   warnings: string[]
-  history: { id: string; periodLabel: string; setOffOn: string; creditUsed: string; cashUsed: string }[]
+  history: { id: string; periodLabel: string; setOffOn: string; creditUsed: string; cashUsed: string; cancelled: boolean }[]
 }
 
 const inr = (v: string) => `₹${Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -152,10 +153,19 @@ export function SetOff({ view }: { view: SetOffView }) {
             <tbody>
               {view.history.map((h) => (
                 <tr key={h.id} className="border-t" style={{ borderColor: 'var(--rule)' }}>
-                  <td className="py-2 font-medium">{h.periodLabel}</td>
+                  <td className="py-2 font-medium"
+                    style={h.cancelled ? { textDecoration: 'line-through', color: 'var(--text-muted)' } : undefined}>
+                    {h.periodLabel}
+                  </td>
                   <td className="py-2 tabular" style={{ color: 'var(--text-muted)' }}>{h.setOffOn}</td>
                   <td className="py-2 text-right tabular">credit {inr(h.creditUsed)}</td>
                   <td className="py-2 text-right tabular font-semibold">cash {inr(h.cashUsed)}</td>
+                  <td className="py-2 pl-3 text-right">
+                    {h.cancelled
+                      ? <span className="text-[11.5px]" style={{ color: 'var(--text-muted)' }}>cancelled</span>
+                      : <ReverseButton action={cancelSetOffAction} idName="setOffId" id={h.id}
+                          prompt={`Why is the ${h.periodLabel} set-off being reversed?`} />}
+                  </td>
                 </tr>
               ))}
             </tbody>

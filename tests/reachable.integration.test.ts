@@ -198,3 +198,29 @@ describe('🔴 the financial year we are standing in', () => {
     })
   })
 })
+
+describe('🔴 nothing asks for "the newest open financial year" any more', () => {
+  it('has no raw lookup left in the source', async () => {
+    // docs/49 swept twenty-five call sites with a regex, and it missed two that used the
+    // `companyId,` shorthand — one of which took the whole GST page down in docs/51 once a
+    // future year existed. A grep is a cheaper guard than another render.
+    const { readFileSync, readdirSync, statSync } = await import('node:fs')
+    const { join } = await import('node:path')
+
+    const walk = (dir: string, out: string[] = []): string[] => {
+      for (const f of readdirSync(dir)) {
+        const p = join(dir, f)
+        if (statSync(p).isDirectory()) walk(p, out)
+        else if (/\.tsx?$/.test(p)) out.push(p)
+      }
+      return out
+    }
+
+    const offenders = walk('src')
+      // period.ts holds the fallback itself; close.ts reopens a year by id
+      .filter((f) => !f.endsWith('accounting/period.ts') && !f.endsWith('accounting/close.ts'))
+      .filter((f) => /financialYear\.findFirst(OrThrow)?\(\{[^}]*status: 'OPEN'/s.test(readFileSync(f, 'utf8')))
+
+    expect(offenders).toEqual([])
+  })
+})

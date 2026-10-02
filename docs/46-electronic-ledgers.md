@@ -148,8 +148,7 @@ this module exists to correct, sitting next to a table 6.1 that disagreed with i
   liability must be paid in cash regardless of credit, subject to exceptions that turn on the
   income tax paid in the previous two years. Below the threshold today; a judgement call for
   the CA if the company crosses it.
-- **A set-off cannot be reversed.** It posts a journal like everything else, so the pattern
-  from docs/40 applies — but the downstream consequences (a filed return, a locked period)
-  want their own thinking.
+- ~~**A set-off cannot be reversed.**~~ Done in **`docs/51`**, refused once the GSTR-3B it
+  discharged is filed — the portal has debited the real ledgers to match it by then.
 - Carried forward: credit-note PDF, debit notes, vendor and project edit pages, the unmatch
   button, payroll and challan cancellation.

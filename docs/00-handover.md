@@ -1,6 +1,6 @@
 # 00 · Handover — read this first
 
-Adpedia Films Private Limited's internal finance ERP. **619 tests** (314 unit + 305
+Adpedia Films Private Limited's internal finance ERP. **630 tests** (314 unit + 316
 integration), typecheck and lint clean, production build passes.
 
 Everything below is either hard-won or non-obvious. The per-module detail is in `docs/20`
@@ -132,6 +132,14 @@ on a phone, a credit note whose legal declaration quoted the wrong invoice numbe
 statutory deadline printed a day late. Tests asserted figures and HTML substrings; the
 document was arithmetically perfect and still wrong.
 
+🔴 **A document may be reversed until somebody outside this company has been told about it**
+(`docs/51 §4`). Filing is the moment that changes — which is why the filing records in
+`docs/44` and `docs/50` had to exist before the reversals could be decided at all.
+
+🔴 **A regex sweep over call sites misses the shorthand.** `docs/49` replaced twenty-five
+"newest open financial year" lookups and missed two written `{ companyId, status: 'OPEN' }`;
+one of them took the whole GST page down. A test now greps for the pattern — `docs/51 §3`.
+
 🔴 **"The quarter is filed, so nothing in it may be touched" is too blunt a guard**
 (`docs/50 §2`). A run created after the return went in was never in its figures. Compare
 against the filing SNAPSHOT: what may not happen is taking the quarter below what was
@@ -154,10 +162,9 @@ binding appearing more than once — `docs/48 §3`.
 
 In rough order of value:
 
-- **A credit note and a set-off cannot be reversed** (`docs/46`, `docs/48`) — the `docs/50 §2`
-  treatment applies to both
-- **Revised TDS returns are not modelled** — every refusal in `docs/50` points at one, and the
-  system has no idea what it is
+- **Revised returns are not modelled** — every refusal in `docs/50` and `docs/51` points at
+  one, and the system has no idea what it is
+- **Debit notes** (s.34(3)) — the honest answer to a credit note that was too large
 - **Debit notes** (s.34(3)), **advance receipts**, **expense attachment panel**, **PDF
   statements**, **journal/ledger export**, **service-item CRUD**
 - **Reconciling either electronic ledger against the portal** — the balances are ours, and

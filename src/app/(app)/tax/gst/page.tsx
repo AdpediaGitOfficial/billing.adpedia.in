@@ -55,6 +55,7 @@ export default async function GstPage({ searchParams }: { searchParams: Promise<
       id: r.id, periodLabel: r.periodLabel,
       setOffOn: r.setOffOn.toISOString().slice(0, 10),
       creditUsed: r.creditUsed.toString(), cashUsed: r.cashUsed.toString(),
+      cancelled: r.cancelledAt !== null,
     })),
   }
 

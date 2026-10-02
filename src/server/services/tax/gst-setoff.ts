@@ -5,7 +5,7 @@ import { assertCan } from '@/server/auth/permissions'
 import { audit } from '@/server/audit'
 import { AppError, NotFound } from '@/server/errors'
 import { postJournal } from '@/server/services/accounting/journal'
-import { assertPostable } from '@/server/services/accounting/period'
+import { assertPostable, currentFinancialYear } from '@/server/services/accounting/period'
 import { GST_ACCOUNTS, CASH_LEDGER_ACCOUNTS, gstPosition } from './gst-ledger'
 import { gstInterest } from './gst-payment'
 import { creditLedgerBalance, cashLedgerBalance } from './gst-electronic-ledgers'
@@ -57,9 +57,7 @@ async function periodOf(companyId: string, periodLabel: string) {
   const company = await prisma.company.findUniqueOrThrow({
     where: { id: companyId }, select: { gstFilingFrequency: true, stateCode: true },
   })
-  const fy = await prisma.financialYear.findFirst({
-    where: { companyId, status: 'OPEN' }, orderBy: { startsOn: 'desc' },
-  })
+  const fy = await currentFinancialYear(companyId)
   if (!fy) throw new NotFound('No open financial year')
   const period = periodsInFy(fy.startsOn, fy.endsOn, company.gstFilingFrequency)
     .find((p) => p.label === periodLabel)
@@ -70,7 +68,7 @@ async function periodOf(companyId: string, periodLabel: string) {
 /** What earlier set-offs for this period already cleared, so a second one cannot double-discharge. */
 export async function alreadyDischarged(companyId: string, periodLabel: string) {
   const rows = await prisma.gstSetOff.aggregate({
-    where: { companyId, periodLabel },
+    where: { companyId, periodLabel, cancelledAt: null },
     _sum: { igst: true, cgst: true, sgst: true, rcm: true, interest: true, lateFee: true },
   })
   const d = (v: unknown) => new Decimal(v?.toString() ?? '0')
@@ -295,6 +293,8 @@ export async function listSetOffs(ctx: RequestContext) {
  * never been debited has settled nothing, and under rule 88B(1) the interest is still running.
  */
 export async function dischargedPeriods(companyId: string): Promise<Set<string>> {
-  const rows = await prisma.gstSetOff.findMany({ where: { companyId }, select: { periodLabel: true } })
+  const rows = await prisma.gstSetOff.findMany({
+    where: { companyId, cancelledAt: null }, select: { periodLabel: true },
+  })
   return new Set(rows.map((r) => r.periodLabel))
 }

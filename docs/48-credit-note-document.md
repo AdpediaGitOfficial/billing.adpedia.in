@@ -103,8 +103,7 @@ away.
   place they belong, but there is no register of them as a series.
 - **The document is not emailed or stored.** It renders on demand; nothing attaches it to the
   note (docs/38 could) or sends it to the client.
-- **A credit note cannot be cancelled.** Same shape as the set-off in docs/46 — it posts a
-  journal, so the docs/40 reversal pattern applies, but a note already sent to a client wants
-  its own thinking.
+- ~~**A credit note cannot be cancelled.**~~ Done in **`docs/51`**, refused once the GSTR-1
+  that declared it is filed — by then it has reached the customer's GSTR-2B.
 - Carried forward: vendor and project edit pages, the unmatch button, payroll and challan
   cancellation.

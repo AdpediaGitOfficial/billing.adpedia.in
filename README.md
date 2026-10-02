@@ -55,8 +55,9 @@ payroll, projects and bank reconciliation on a double-entry ledger.
 | [48 · Credit note document](docs/48-credit-note-document.md) | The credit-note PDF under rule 53(1A) — and the post-deadline note that was recovering GST anyway |
 | [49 · Services nothing could call](docs/49-reachable.md) | Three corrections, a passkey that could not be revoked, vendor and project edits — and the financial year everything thought it was in |
 | [50 · Cancelling with consequences](docs/50-cancelling-payroll-and-challans.md) | Payroll runs and TDS challans — and the filing record that decides whether they may be reversed at all |
+| [51 · Reversible](docs/51-reversible.md) | Credit notes and GST set-offs — the last documents that could not be undone, and the rule behind all of them |
 
-**619 tests passing** · typecheck and lint clean · production build passes.
+**630 tests passing** · typecheck and lint clean · production build passes.
 
 ```bash
 cp .env.example .env     # set DATABASE_URL and JWT_SECRET
