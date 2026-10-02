@@ -61,6 +61,22 @@ export function gstr1ToCsv(r: Gstr1): string {
     }
   }
 
+  if (r.advancesReceived.length > 0) {
+    section('at — Advances received on which tax is payable (table 11A)')
+    out.push(row(['Voucher No.', 'Date', 'Customer', 'Place of Supply', 'Rate', 'Gross Advance', 'Taxable Value', 'CGST', 'SGST', 'IGST']))
+    for (const a of r.advancesReceived) {
+      out.push(row([a.number, a.date, a.customerName, a.placeOfSupply, a.rate, d2(a.grossAdvance), d2(a.taxableValue), d2(a.cgst), d2(a.sgst), d2(a.igst)]))
+    }
+  }
+
+  if (r.advancesAdjusted.length > 0) {
+    section('atadj — Advances adjusted against invoices (table 11B)')
+    out.push(row(['Voucher No.', 'Date', 'Against Invoice', 'Amount Adjusted', 'CGST', 'SGST', 'IGST']))
+    for (const a of r.advancesAdjusted) {
+      out.push(row([a.number, a.date, a.againstInvoice, d2(a.amount), d2(a.cgst), d2(a.sgst), d2(a.igst)]))
+    }
+  }
+
   section('hsn — HSN/SAC summary')
   out.push(row(['HSN/SAC', 'Description', 'UQC', 'Total Quantity', 'Total Taxable Value', 'IGST', 'CGST', 'SGST', 'Cess']))
   for (const h of r.hsn) {

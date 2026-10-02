@@ -5,6 +5,8 @@ import { Decimal, formatINR, ZERO } from '@/lib/money'
 import { arSummary } from '@/server/services/sales/receivables'
 import { Card, PageHeader, StatCard, Pill, Empty, Button, DataTable, type Column } from '@/components/ui/kit'
 import { CancelReceiptButton } from './cancel-button'
+import { AdjustAdvance } from './adjust-advance'
+import { openAdvances } from '@/server/services/sales/advance'
 
 export default async function ReceiptsPage() {
   const ctx = await requireContext()
@@ -20,6 +22,18 @@ export default async function ReceiptsPage() {
     }),
     arSummary(ctx).catch(() => null),
   ])
+
+  // docs/54 — advances with something left to absorb, and the invoices that could absorb them
+  const advances = await openAdvances(ctx)
+  const openInvoices = advances.length === 0 ? [] : await prisma.invoice.findMany({
+    where: {
+      companyId: ctx.companyId,
+      status: { in: ['SENT', 'VIEWED', 'PARTIALLY_PAID', 'OVERDUE'] },
+      customerId: { in: [...new Set(receipts.filter((r) => r.isAdvance).map((r) => r.customerId))] },
+    },
+    select: { id: true, number: true, customerId: true, grandTotal: true, amountReceived: true, tdsCredited: true },
+    orderBy: { date: 'asc' },
+  })
 
   // 🔴 Cancelled receipts stay in the LIST — the number was allocated and the reversal is
   // part of the record — but they must not count towards anything collected.
@@ -43,22 +57,44 @@ export default async function ReceiptsPage() {
         <>
           <span className="block">{r.customer.name}</span>
           <span className="block text-[11.5px]" style={{ color: 'var(--text-muted)' }}>
-            {r.allocations.map((a) => a.invoice.number).join(', ') || 'unallocated'}
+            {r.allocations.map((a) => a.invoice.number).join(', ')
+              || (r.isAdvance ? 'advance — no invoice yet' : 'unallocated')}
           </span>
         </>
       ) },
     { key: 'date', header: 'Date', width: '12%', mobile: false,
       cell: (r) => <span style={{ color: 'var(--text-secondary)' }}>{r.date.toISOString().slice(0, 10)}</span> },
     { key: 'mode', header: 'Mode', width: '11%', align: 'center', mobile: 'tag',
-      cell: (r) => <Pill tone="neutral">{r.mode}</Pill> },
+      cell: (r) => r.isAdvance
+        ? <Pill tone="accent">advance</Pill>
+        : <Pill tone="neutral">{r.mode}</Pill> },
     { key: 'tds', header: 'TDS withheld', width: '14%', align: 'right', mobile: false,
       cell: (r) => new Decimal(r.tdsAmount.toString()).gt(0)
         ? <span className="tabular">{formatINR(r.tdsAmount.toString())}</span>
         : <span style={{ color: 'var(--text-muted)' }}>—</span> },
-    { key: 'cancel', header: '', width: '12%', align: 'right', mobile: false,
-      cell: (r) => r.cancelledAt
-        ? <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>reversed</span>
-        : <CancelReceiptButton receiptId={r.id} number={r.number} /> },
+    { key: 'cancel', header: '', width: '16%', align: 'right', mobile: false,
+      cell: (r) => {
+        if (r.cancelledAt) return <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>reversed</span>
+        const adv = advances.find((a) => a.id === r.id)
+        if (adv) {
+          return (
+            <AdjustAdvance receiptId={r.id} open={adv.open.toFixed(2)}
+              invoices={openInvoices
+                .filter((i) => i.customerId === r.customerId)
+                .map((i) => ({
+                  id: i.id, number: i.number,
+                  outstanding: new Decimal(i.grandTotal.toString())
+                    .minus(i.amountReceived.toString()).minus(i.tdsCredited.toString()),
+                }))
+                // 🔴 An invoice with nothing open cannot absorb anything — the service refuses
+                // it, so offering it is offering a button that can only fail. Status alone is
+                // not enough: an invoice settled by a receipt may still read PARTIALLY_PAID.
+                .filter((i) => i.outstanding.gt('0.5'))
+                .map((i) => ({ id: i.id, number: i.number, outstanding: formatINR(i.outstanding) }))} />
+          )
+        }
+        return <CancelReceiptButton receiptId={r.id} number={r.number} />
+      } },
     { key: 'amount', header: 'Received', width: '15%', align: 'right', mobile: 'value',
       cell: (r) => <span className="font-semibold tabular"
         style={r.cancelledAt ? { textDecoration: 'line-through', color: 'var(--text-muted)' } : undefined}>
@@ -69,7 +105,12 @@ export default async function ReceiptsPage() {
   return (
     <div className="space-y-5">
       <PageHeader title="Receipts" sub="Money actually received, and the TDS clients withheld on the way."
-        action={<Link href="/receipts/new"><Button>Record a receipt</Button></Link>} />
+        action={
+          <>
+            <Link href="/receipts/advance"><Button variant="ghost">Advance received</Button></Link>
+            <Link href="/receipts/new"><Button>Record a receipt</Button></Link>
+          </>
+        } />
 
       <div className="grid gap-4 sm:grid-cols-3">
         <StatCard label="Collected" value={formatINR(collected, { decimals: false })}

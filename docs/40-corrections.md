@@ -93,7 +93,8 @@ marked as the reversal of the other.
 - **Unmatching a bank line has a service but no button.** `unmatchBankTransaction` works and
   is the path a wrong match should take; the reconcile screen only lists unmatched lines, so
   there is nowhere to click it yet.
-- **Advance receipts** — money in before an invoice exists — still have no manual path.
+- ~~**Advance receipts** — money in before an invoice exists — still have no manual path.~~
+  Done in **`docs/54`**.
 
 ---
 

@@ -70,6 +70,8 @@ invoice you hold.
   receipt through the mobile capture flow, which already uploads.
 - **Receipts cannot be cancelled or reversed from the UI.** A wrongly recorded receipt
   currently needs a correcting entry; `createReceipt` has no `cancelReceipt` sibling.
-- **Advance receipts** — money received before an invoice exists — still have no path. The
+- ~~**Advance receipts** — money received before an invoice exists — still have no path.~~ Done
+  in **`docs/54`**, where the interesting part turned out to be that GST falls due on an
+  advance for services the moment it arrives. (Original note: The
   bank matcher can post one to 2400 Advance from customer; the manual form cannot, because it
   allocates against invoices only.

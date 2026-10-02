@@ -1,6 +1,6 @@
 # 00 · Handover — read this first
 
-Adpedia Films Private Limited's internal finance ERP. **661 tests** (314 unit + 347
+Adpedia Films Private Limited's internal finance ERP. **675 tests** (314 unit + 361
 integration), typecheck and lint clean, production build passes.
 
 Everything below is either hard-won or non-obvious. The per-module detail is in `docs/20`
@@ -71,6 +71,11 @@ Each of these is implemented and tested; each was wrong in an obvious first atte
   TDS rule to a one-day GST delay overstates it ~30×.
 - **GST interest runs on the cash component**, not the gross — the proviso to s.50(1).
 - **Kerala files quarterly GSTR-3B on the 24th**, not the 22nd.
+- 🔴 **GST is payable on an advance for SERVICES.** s.13(2); the relief in Notification
+  66/2017 covers goods only. The money arrives tax-INCLUSIVE (rule 50), the advance is a
+  liability in `2400` rather than revenue, and absorbing it into the invoice reverses the tax
+  it paid — head by head, as posted, because rule 50 may have charged IGST where the invoice
+  charges CGST+SGST. `docs/54`.
 - 🔴 **A debit note has NO deadline, and a credit note does.** s.34(2) time-bars credit notes
   only, because they reduce the government's tax. The debit note's tax falls in the month it
   is issued (s.34(4), so no interest for the gap), and the recipient's credit runs from the
@@ -174,27 +179,27 @@ docs/51 had already closed. Grouped by the module each would be, largest value f
 
 ### Worth a module each
 
-1. **Advance receipts.** Money in before an invoice exists has no path (`docs/39`, `docs/40`).
-   It needs the receipt voucher under s.31(3)(d) and the GST that falls due on the advance.
-2. **Certificates: Form 16 and 16A.** The calendar asks for them and nothing issues or tracks
+1. **Certificates: Form 16 and 16A.** The calendar asks for them and nothing issues or tracks
    them. 🔴 Form 16A must be *downloaded from TRACES* to be valid, so this is a register and
    a chase, not a generator.
-3. **Portal reconciliation.** Our electronic cash and credit ledgers (`docs/46 §7`) and every
+2. **Portal reconciliation.** Our electronic cash and credit ledgers (`docs/46 §7`) and every
    challan CIN (`docs/45 §6`) are recorded on trust and have never been compared with the
    portal.
-4. **Payslip documents.** `htmlToPdf` is waiting; there is no payslip template (`docs/33`),
+3. **Payslip documents.** `htmlToPdf` is waiting; there is no payslip template (`docs/33`),
    and payslips are the one document an employee actually asks for.
-5. **Statement PDFs and ledger export.** P&L and balance sheet as PDFs, and a download on the
+4. **Statement PDFs and ledger export.** P&L and balance sheet as PDFs, and a download on the
    journal and account-ledger drill-throughs (`docs/36 §7`).
-6. **Attachments where the documents are.** The expense screens have no panel (`docs/38`,
+5. **Attachments where the documents are.** The expense screens have no panel (`docs/38`,
    `docs/39`), and invoice and payslip PDFs are generated per request rather than stored.
-7. **The mobile tail** (`docs/30 §7`): receipt images are queued offline but never uploaded,
+6. **The mobile tail** (`docs/30 §7`): receipt images are queued offline but never uploaded,
    swipe gestures are unwired, push is never scheduled, and the performance budget from
    `docs/13` has not been measured.
-8. **Chases that nobody sends.**
-9. **Note amendments (table 9C)** — the same shape as `docs/52`'s 9A, against a credit or
-   debit note rather than an invoice The PAN register lists who is missing a card and nothing
-    asks them (`docs/47 §7`); the compliance calendar is read, never delivered.
+7. **Chases that nobody sends.** The PAN register lists who is missing a card and nothing
+   asks them (`docs/47 §7`); the compliance calendar is read, never delivered.
+8. **Note amendments (table 9C)** — the same shape as `docs/52`'s 9A, against a credit or
+   debit note rather than an invoice.
+9. **Refund vouchers** (s.31(3)(e)) — where an advance is returned and no supply is made
+   (`docs/54 §7`).
 
 ### Smaller, and mostly one screen each
 

@@ -1,6 +1,7 @@
 import { prisma } from '@/server/db'
 import { Decimal, ZERO } from '@/lib/money'
 import { amendmentsForPeriod } from './gst-amendment'
+import { advanceTaxPosted } from '@/server/services/sales/advance'
 
 /**
  * GSTR-1 — outward supplies.
@@ -71,6 +72,15 @@ export interface Gstr1 {
     gstin: string | null; placeOfSupply: string; reason: string
     taxableValue: Decimal; cgst: Decimal; sgst: Decimal; igst: Decimal; invoiceValue: Decimal
   }[]
+  /**
+   * 11A — advances received on which tax is payable, and 11B — advances adjusted against
+   * invoices raised in this period. docs/54.
+   *
+   * 🔴 The pair is what stops the same supply being taxed twice: 11A declares the tax when
+   * the money arrives, 11B takes it back when the invoice declares its own.
+   */
+  advancesReceived: { number: string; date: Date; customerName: string; placeOfSupply: string; rate: number; grossAdvance: Decimal; taxableValue: Decimal; cgst: Decimal; sgst: Decimal; igst: Decimal }[]
+  advancesAdjusted: { number: string; date: Date; customerName: string; againstInvoice: string; amount: Decimal; cgst: Decimal; sgst: Decimal; igst: Decimal }[]
   hsn: HsnRow[]
   docs: { type: string; from: string; to: string; total: number; cancelled: number }[]
   totals: { taxableValue: Decimal; cgst: Decimal; sgst: Decimal; igst: Decimal; invoiceValue: Decimal }
@@ -180,6 +190,58 @@ export async function buildGstr1(companyId: string, from: Date, to: Date, label:
     cgst: new Decimal(c.cgst.toString()), sgst: new Decimal(c.sgst.toString()), igst: new Decimal(c.igst.toString()),
   }))
 
+  // ── Tables 11A and 11B: advances ────────────────────────────────────────────
+  const advanceRows = await prisma.receipt.findMany({
+    where: { companyId, isAdvance: true, cancelledAt: null, date: { gte: from, lte: to } },
+    include: { customer: { select: { name: true, stateCode: true } } },
+    orderBy: { date: 'asc' },
+  })
+
+  const advancesReceived = []
+  for (const a of advanceRows) {
+    const tax = await advanceTaxPosted(companyId, a.id)
+    const gross = new Decimal(a.amount.toString()).plus(a.tdsAmount.toString())
+    const total = tax.cgst.plus(tax.sgst).plus(tax.igst)
+    const taxable = gross.minus(total)
+    advancesReceived.push({
+      number: a.number, date: a.date, customerName: a.customer.name,
+      placeOfSupply: a.customer.stateCode ?? '—',
+      // the rate it was actually charged at, derived rather than assumed
+      rate: taxable.gt(0) ? Number(total.div(taxable).mul(100).toDecimalPlaces(0)) : 0,
+      grossAdvance: gross, taxableValue: taxable,
+      cgst: tax.cgst, sgst: tax.sgst, igst: tax.igst,
+    })
+  }
+
+  // 11B reads the adjustment postings, which is where the reversal actually lives
+  const adjustments = await prisma.journalEntry.findMany({
+    where: {
+      companyId, sourceType: 'RECEIPT', date: { gte: from, lte: to },
+      narration: { contains: 'adjusted against' },
+    },
+    include: { lines: { include: { account: true } } },
+    orderBy: { date: 'asc' },
+  })
+  const advancesAdjusted = adjustments.map((e) => {
+    const net = (code: string) => e.lines
+      .filter((l) => l.account.code === code)
+      .reduce((a, l) => a.plus(l.debit.toString()).minus(l.credit.toString()), ZERO)
+    const [, number = '', against = ''] = /^Advance (\S+) adjusted against (\S+)$/.exec(e.narration) ?? []
+    return {
+      number, date: e.date, customerName: '', againstInvoice: against,
+      amount: e.lines.filter((l) => l.account.code === '1100').reduce((a, l) => a.plus(l.credit.toString()), ZERO),
+      cgst: net('2110'), sgst: net('2120'), igst: net('2130'),
+    }
+  })
+
+  if (advancesReceived.length > 0) {
+    warnings.push(
+      `${advancesReceived.length} advance${advancesReceived.length === 1 ? '' : 's'} in table 11A — GST on an ` +
+      'advance for SERVICES is payable when the money arrives (s.13(2)). The relief in Notification 66/2017 ' +
+      'covers goods only.',
+    )
+  }
+
   // ── Table 9A: amendments to invoices filed earlier ──────────────────────────
   const amendments = await amendmentsForPeriod(companyId, from, to)
   const amendedInvoices = amendments.map((a) => ({
@@ -246,6 +308,7 @@ export async function buildGstr1(companyId: string, from: Date, to: Date, label:
     period: { label, from, to },
     gstin: company.gstin ?? '',
     b2b, b2cs: [...b2csMap.values()], exports, creditNotes, amendedInvoices,
+    advancesReceived, advancesAdjusted,
     hsn: [...hsnMap.values()].sort((a, b) => a.sac.localeCompare(b.sac)),
     docs, totals, warnings,
   }
