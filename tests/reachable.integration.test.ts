@@ -219,7 +219,7 @@ describe('🔴 nothing asks for "the newest open financial year" any more', () =
     const offenders = walk('src')
       // period.ts holds the fallback itself; close.ts reopens a year by id
       .filter((f) => !f.endsWith('accounting/period.ts') && !f.endsWith('accounting/close.ts'))
-      .filter((f) => /financialYear\.findFirst(OrThrow)?\(\{[^}]*status: 'OPEN'/s.test(readFileSync(f, 'utf8')))
+      .filter((f) => /financialYear\.findFirst(OrThrow)?\(\{[\s\S]*?status: 'OPEN'/.test(readFileSync(f, 'utf8')))
 
     expect(offenders).toEqual([])
   })

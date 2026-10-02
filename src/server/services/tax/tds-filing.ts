@@ -1,5 +1,5 @@
 import { prisma } from '@/server/db'
-import { Decimal } from '@/lib/money'
+import { Decimal, round2 } from '@/lib/money'
 import type { RequestContext } from '@/server/context'
 import { assertCan } from '@/server/auth/permissions'
 import { audit } from '@/server/audit'
@@ -129,6 +129,7 @@ export interface TdsFilingRow {
   token: string | null
   deducteeCount: number
   tdsDeducted: Decimal
+  tdsDeposited: Decimal
 }
 
 export async function listTdsFilings(ctx: RequestContext): Promise<TdsFilingRow[]> {
@@ -139,7 +140,9 @@ export async function listTdsFilings(ctx: RequestContext): Promise<TdsFilingRow[
   })
   return rows.map((r) => ({
     id: r.id, formType: r.formType, quarter: r.quarter, filedOn: r.filedOn, token: r.token,
-    deducteeCount: r.deducteeCount, tdsDeducted: new Decimal(r.tdsDeducted.toString()),
+    deducteeCount: r.deducteeCount,
+    tdsDeducted: new Decimal(r.tdsDeducted.toString()),
+    tdsDeposited: new Decimal(r.tdsDeposited.toString()),
   }))
 }
 
@@ -218,4 +221,125 @@ export function formForSectionCode(sectionCode: string): ReturnForm {
   if (sectionCode === '192') return '24Q'
   if (sectionCode === '195') return '27Q'
   return '26Q'
+}
+
+/* ── correction statements ───────────────────────────────────────────────────── */
+
+/**
+ * A correction statement against a return already filed — docs/52.
+ *
+ * 🔴 This is what every refusal in docs/50 points at, and recording it is what makes those
+ * refusals stop refusing — correctly, and only as far as the correction actually goes.
+ *
+ * The guards compare the live books against **what was reported**. A correction statement
+ * changes what was reported. So rather than adding an override, the correction simply
+ * replaces the snapshot: a C3 that removes a deductee lowers `tdsDeducted`, and the payroll
+ * run behind it becomes reversible because the return no longer claims it. Nothing else
+ * becomes reversible, which is the property an override would have lost.
+ *
+ * The categories are NSDL's own:
+ *   C1 deductor details · C2 challan details · C3 deductee details · C4 salary (24Q annexure II)
+ *   C5 PAN correction · C9 add a challan
+ */
+export const CORRECTION_CATEGORIES = ['C1', 'C2', 'C3', 'C4', 'C5', 'C9'] as const
+export type CorrectionCategory = (typeof CORRECTION_CATEGORIES)[number]
+
+const CATEGORY_LABEL: Record<CorrectionCategory, string> = {
+  C1: 'C1 — deductor details',
+  C2: 'C2 — challan details',
+  C3: 'C3 — deductee details added, updated or deleted',
+  C4: 'C4 — salary details (24Q annexure II)',
+  C5: 'C5 — PAN correction',
+  C9: 'C9 — a challan added',
+}
+
+export function correctionLabel(category: string): string {
+  return CATEGORY_LABEL[category as CorrectionCategory] ?? category
+}
+
+export interface RecordCorrectionInput {
+  filingId: string
+  category: CorrectionCategory
+  filedOn: string
+  token?: string
+  reason: string
+  /** what the return reports AFTER the correction */
+  tdsDeducted: string
+  tdsDeposited: string
+}
+
+export async function recordTdsCorrection(ctx: RequestContext, input: RecordCorrectionInput) {
+  assertCan(ctx.role, 'tax', 'write')
+
+  if (input.reason.trim().length < 5) {
+    throw new AppError('A correction statement needs a reason — it is the record of what was wrong')
+  }
+  if (!CORRECTION_CATEGORIES.includes(input.category)) {
+    throw new AppError(`"${input.category}" is not a correction category — C1, C2, C3, C4, C5 or C9`)
+  }
+  const filedOn = new Date(input.filedOn)
+  if (Number.isNaN(filedOn.getTime())) throw new AppError('That is not a valid filing date')
+
+  const token = input.token?.trim()
+  if (token && !TOKEN_RE.test(token)) {
+    throw new AppError(`"${input.token}" does not look like a provisional receipt number — 15 digits`)
+  }
+
+  const filing = await prisma.tdsReturnFiling.findFirst({
+    where: { id: input.filingId, companyId: ctx.companyId },
+  })
+  if (!filing) throw new NotFound('Filing record not found')
+  if (filedOn < filing.filedOn) {
+    throw new AppError(
+      `A correction cannot be filed before the return it corrects — ${filing.formType} Q${filing.quarter} went in on ` +
+      `${filing.filedOn.toISOString().slice(0, 10)}.`,
+    )
+  }
+
+  const deducted = round2(new Decimal(input.tdsDeducted || '0'))
+  const deposited = round2(new Decimal(input.tdsDeposited || '0'))
+  if (deducted.isNegative() || deposited.isNegative()) {
+    throw new AppError('A corrected figure cannot be negative')
+  }
+
+  const row = await prisma.$transaction(async (tx) => {
+    const correction = await tx.tdsCorrection.create({
+      data: {
+        companyId: ctx.companyId, filingId: filing.id, category: input.category,
+        filedOn, token: token ?? null, reason: input.reason.trim(),
+        tdsDeducted: deducted.toFixed(2), tdsDeposited: deposited.toFixed(2),
+      },
+    })
+
+    // 🔴 The snapshot becomes what the correction says. The original figures are not lost —
+    // they are on the correction row above, and every correction keeps its own — but the
+    // figure the cancellation guards read has to be the CURRENT state of the return, because
+    // that is what the deductees' 26AS now shows.
+    await tx.tdsReturnFiling.update({
+      where: { id: filing.id },
+      data: { tdsDeducted: deducted.toFixed(2), tdsDeposited: deposited.toFixed(2) },
+    })
+
+    await audit(ctx, {
+      entity: 'TdsReturnFiling', entityId: filing.id, action: 'UPDATE',
+      before: { tdsDeducted: filing.tdsDeducted.toString(), tdsDeposited: filing.tdsDeposited.toString() },
+      after: {
+        correction: input.category, filedOn: filedOn.toISOString().slice(0, 10),
+        tdsDeducted: deducted.toFixed(2), tdsDeposited: deposited.toFixed(2), reason: input.reason.trim(),
+      },
+    }, tx)
+
+    return correction
+  })
+
+  return row
+}
+
+export async function listTdsCorrections(ctx: RequestContext, filingId?: string) {
+  assertCan(ctx.role, 'tax', 'read')
+  return prisma.tdsCorrection.findMany({
+    where: { companyId: ctx.companyId, ...(filingId ? { filingId } : {}) },
+    include: { filing: { select: { formType: true, quarter: true, filedOn: true } } },
+    orderBy: { filedOn: 'desc' },
+  })
 }

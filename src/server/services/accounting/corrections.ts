@@ -306,7 +306,8 @@ export async function cancelPayrollRun(ctx: RequestContext, runId: string, reaso
         `${check.reported!.toFixed(2)} of salary TDS. Reversing this run would leave ${check.after!.toFixed(2)} ` +
         'in the books against it — and every deduction in that return is reported against the employee’s PAN ' +
         'and already shows in their Form 26AS. They would be claiming tax this company no longer says it deducted. ' +
-        'That correction is a revised return, not a button.',
+        'The correction is a C3 statement against that return — record it on the TDS screen and this becomes ' +
+        'reversible, because the return will no longer claim it.',
       )
     }
   }
@@ -379,7 +380,8 @@ export async function cancelTdsChallan(ctx: RequestContext, challanId: string, r
       `${form} for Q${challan.quarter} was filed on ${check.filedOn!.toISOString().slice(0, 10)} reporting ` +
       `${check.reported!.toFixed(2)} as deposited. Withdrawing this challan would leave ${check.after!.toFixed(2)} ` +
       'behind it. The deductees’ credit in their Form 26AS is backed by this CIN — withdrawing it here would ' +
-      'leave that credit unsupported. Correct it through a revised return.',
+      'leave that credit unsupported. Record a C2 or C9 correction statement against that return first — ' +
+      'this becomes reversible once the return no longer reports the deposit.',
     )
   }
 
@@ -463,8 +465,8 @@ export async function cancelCreditNote(ctx: RequestContext, noteId: string, reas
       throw new AppError(
         `GSTR-1 for ${period.label} was filed on ${filed.filedOn!.toISOString().slice(0, 10)}, declaring ${note.number} ` +
         'in table 9B. It has reached the customer’s GSTR-2B and reduced the credit they may claim — withdrawing it here ' +
-        'would leave them holding a reversal this company no longer says it issued. Issue a debit note, or amend in a ' +
-        'later return.',
+        'would leave them holding a reversal this company no longer says it issued. Amend the invoice in a later ' +
+        'return instead (docs/52), or issue a debit note.',
       )
     }
   }

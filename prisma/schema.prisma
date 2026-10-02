@@ -76,6 +76,8 @@ model Company {
   gstChallans    GstChallan[]
   gstSetOffs     GstSetOff[]
   tdsFilings     TdsReturnFiling[]
+  tdsCorrections TdsCorrection[]
+  gstAmendments  GstAmendment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -332,6 +334,8 @@ enum SourceType {
   GST_PAYMENT
   /// the GSTR-3B table 6.1 entry that debits the electronic cash and credit ledgers — docs/46
   GST_SET_OFF
+  /// a GSTR-1 table 9A amendment to an invoice already filed — docs/52
+  GST_AMENDMENT
   BANK_TXN
   MANUAL
   OPENING_BALANCE
@@ -542,8 +546,9 @@ model Invoice {
   creditNotes    CreditNote[]
   tdsReceivables TdsReceivable[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  gstAmendments GstAmendment[]
 
   @@unique([companyId, number])
   @@index([companyId, status, dueDate])
@@ -1145,6 +1150,75 @@ model TdsChallan {
   @@unique([companyId, bsrCode, challanSerial, depositedOn])
 }
 
+/// docs/52 · An amendment to an invoice already reported in a filed GSTR-1 (table 9A).
+///
+/// 🔴 A filed invoice is never edited. s.37(3) corrects it by reporting the REVISED
+/// particulars in a later return, against the original number and date — so the amendment is
+/// its own document, in its own period, and the original stays exactly as it was filed.
+///
+/// The ledger moves by the DIFFERENCE only, dated in the amendment period, because the
+/// period the invoice sits in is locked by the filing that reported it.
+model GstAmendment {
+  id              String   @id @default(cuid())
+  companyId       String
+  company         Company  @relation(fields: [companyId], references: [id])
+  financialYearId String
+  invoiceId       String
+  invoice         Invoice  @relation(fields: [invoiceId], references: [id])
+  /// the period the original was filed in — what table 9A quotes
+  originalPeriod  String
+  /// the period this amendment is reported in
+  periodLabel     String
+  date            DateTime
+  reason          String
+
+  /// revised particulars, as they should have been reported
+  revisedGstin         String?
+  revisedPlaceOfSupply String
+  revisedTaxMode       TaxMode
+  revisedTaxableValue  Decimal @db.Decimal(18, 2)
+  revisedCgst          Decimal @default(0) @db.Decimal(18, 2)
+  revisedSgst          Decimal @default(0) @db.Decimal(18, 2)
+  revisedIgst          Decimal @default(0) @db.Decimal(18, 2)
+  revisedGrandTotal    Decimal @db.Decimal(18, 2)
+
+  /// what was originally reported, kept so the pair can be read without re-deriving it
+  originalTaxableValue Decimal @db.Decimal(18, 2)
+  originalCgst         Decimal @default(0) @db.Decimal(18, 2)
+  originalSgst         Decimal @default(0) @db.Decimal(18, 2)
+  originalIgst         Decimal @default(0) @db.Decimal(18, 2)
+
+  createdAt DateTime @default(now())
+
+  @@index([companyId, periodLabel])
+  @@index([companyId, invoiceId])
+}
+
+/// docs/52 · A correction statement filed against a TDS return already filed.
+///
+/// 🔴 This is what every refusal in docs/50 points at. Recording it REPLACES the snapshot the
+/// guards read, so the deduction that may now be removed becomes removable — and nothing
+/// else does.
+model TdsCorrection {
+  id           String          @id @default(cuid())
+  companyId    String
+  company      Company         @relation(fields: [companyId], references: [id])
+  filingId     String
+  filing       TdsReturnFiling @relation(fields: [filingId], references: [id])
+  /// C1 deductor · C2 challan · C3 deductee · C4 salary · C5 PAN · C9 add a challan
+  category     String
+  filedOn      DateTime
+  /// the provisional receipt number of the CORRECTION, not of the original
+  token        String?
+  reason       String
+  /// what the return reports after the correction — this replaces the original snapshot
+  tdsDeducted  Decimal         @db.Decimal(18, 2)
+  tdsDeposited Decimal         @db.Decimal(18, 2)
+  createdAt    DateTime        @default(now())
+
+  @@index([companyId, filingId])
+}
+
 /// docs/50 · A TDS return recorded as filed — 24Q, 26Q or 27Q.
 ///
 /// 🔴 The GST side got this in docs/44 and the TDS side never did, so nothing knew whether a
@@ -1153,9 +1227,9 @@ model TdsChallan {
 /// payroll run or a challan impossible to cancel. Without this record the system could not
 /// tell the difference between a mistake and a reported fact.
 model TdsReturnFiling {
-  id              String   @id @default(cuid())
+  id              String          @id @default(cuid())
   companyId       String
-  company         Company  @relation(fields: [companyId], references: [id])
+  company         Company         @relation(fields: [companyId], references: [id])
   financialYearId String
   quarter         Int
   /// 24Q salary · 26Q resident · 27Q non-resident
@@ -1165,12 +1239,13 @@ model TdsReturnFiling {
   token           String?
   /// 🔴 snapshotted at filing — what was reported is a historical fact, and reading it live
   /// afterwards would make the one question that matters at assessment unanswerable
-  deducteeCount   Int      @default(0)
-  tdsDeducted     Decimal  @default(0) @db.Decimal(18, 2)
-  tdsDeposited    Decimal  @default(0) @db.Decimal(18, 2)
-  interest        Decimal  @default(0) @db.Decimal(18, 2)
-  lateFee         Decimal  @default(0) @db.Decimal(18, 2)
-  createdAt       DateTime @default(now())
+  deducteeCount   Int             @default(0)
+  tdsDeducted     Decimal         @default(0) @db.Decimal(18, 2)
+  tdsDeposited    Decimal         @default(0) @db.Decimal(18, 2)
+  interest        Decimal         @default(0) @db.Decimal(18, 2)
+  lateFee         Decimal         @default(0) @db.Decimal(18, 2)
+  corrections     TdsCorrection[]
+  createdAt       DateTime        @default(now())
 
   @@unique([companyId, financialYearId, quarter, formType])
   @@index([companyId, quarter])

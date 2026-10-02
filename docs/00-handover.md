@@ -1,6 +1,6 @@
 # 00 · Handover — read this first
 
-Adpedia Films Private Limited's internal finance ERP. **630 tests** (314 unit + 316
+Adpedia Films Private Limited's internal finance ERP. **650 tests** (314 unit + 336
 integration), typecheck and lint clean, production build passes.
 
 Everything below is either hard-won or non-obvious. The per-module detail is in `docs/20`
@@ -132,6 +132,11 @@ on a phone, a credit note whose legal declaration quoted the wrong invoice numbe
 statutory deadline printed a day late. Tests asserted figures and HTML substrings; the
 document was arithmetically perfect and still wrong.
 
+🔴 **A filed document is superseded, never edited** (`docs/52`). GST reports the revised
+particulars in a later return (table 9A); TDS files a correction statement that replaces what
+the return says. Recording either is what makes the `docs/50` and `docs/51` refusals stop
+refusing — and only as far as the correction actually goes.
+
 🔴 **A document may be reversed until somebody outside this company has been told about it**
 (`docs/51 §4`). Filing is the moment that changes — which is why the filing records in
 `docs/44` and `docs/50` had to exist before the reversals could be decided at all.
@@ -165,29 +170,28 @@ docs/51 had already closed. Grouped by the module each would be, largest value f
 
 ### Worth a module each
 
-1. **Revised returns and amendments.** Every refusal in `docs/50` and `docs/51` ends by
-   pointing at one — a GST amendment in a later period, or a TDS correction statement — and
-   the system has no idea what either is. The biggest single gap.
-2. **Debit notes** (s.34(3)) — the mirror of `docs/48`, and the honest answer to a credit note
+1. **Debit notes** (s.34(3)) — the mirror of `docs/48`, and the honest answer to a credit note
    that was too large. Document included.
-3. **Advance receipts.** Money in before an invoice exists has no path (`docs/39`, `docs/40`).
+2. **Advance receipts.** Money in before an invoice exists has no path (`docs/39`, `docs/40`).
    It needs the receipt voucher under s.31(3)(d) and the GST that falls due on the advance.
-4. **Certificates: Form 16 and 16A.** The calendar asks for them and nothing issues or tracks
+3. **Certificates: Form 16 and 16A.** The calendar asks for them and nothing issues or tracks
    them. 🔴 Form 16A must be *downloaded from TRACES* to be valid, so this is a register and
    a chase, not a generator.
-5. **Portal reconciliation.** Our electronic cash and credit ledgers (`docs/46 §7`) and every
+4. **Portal reconciliation.** Our electronic cash and credit ledgers (`docs/46 §7`) and every
    challan CIN (`docs/45 §6`) are recorded on trust and have never been compared with the
    portal.
-6. **Payslip documents.** `htmlToPdf` is waiting; there is no payslip template (`docs/33`),
+5. **Payslip documents.** `htmlToPdf` is waiting; there is no payslip template (`docs/33`),
    and payslips are the one document an employee actually asks for.
-7. **Statement PDFs and ledger export.** P&L and balance sheet as PDFs, and a download on the
+6. **Statement PDFs and ledger export.** P&L and balance sheet as PDFs, and a download on the
    journal and account-ledger drill-throughs (`docs/36 §7`).
-8. **Attachments where the documents are.** The expense screens have no panel (`docs/38`,
+7. **Attachments where the documents are.** The expense screens have no panel (`docs/38`,
    `docs/39`), and invoice and payslip PDFs are generated per request rather than stored.
-9. **The mobile tail** (`docs/30 §7`): receipt images are queued offline but never uploaded,
+8. **The mobile tail** (`docs/30 §7`): receipt images are queued offline but never uploaded,
    swipe gestures are unwired, push is never scheduled, and the performance budget from
    `docs/13` has not been measured.
-10. **Chases that nobody sends.** The PAN register lists who is missing a card and nothing
+9. **Chases that nobody sends.**
+10. **Credit-note amendments (table 9C)** — the same shape as `docs/52`'s 9A, against a credit
+    note rather than an invoice The PAN register lists who is missing a card and nothing
     asks them (`docs/47 §7`); the compliance calendar is read, never delivered.
 
 ### Smaller, and mostly one screen each

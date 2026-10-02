@@ -44,6 +44,19 @@ export function gstr1ToCsv(r: Gstr1): string {
     out.push(row([c.number, c.date, c.againstInvoice, c.reason, d2(c.taxableValue), d2(c.cgst), d2(c.sgst), d2(c.igst)]))
   }
 
+  // 🔴 docs/52 — the amendment tables. The CA imports these into the RPU alongside the rest;
+  // leaving them out of the export would mean an amendment recorded here is never filed.
+  if (r.amendedInvoices.length > 0) {
+    section('b2ba — Amended B2B invoices (table 9A)')
+    out.push(row(['Original Invoice No.', 'Original Date', 'Originally Filed In', 'Revised GSTIN', 'Revised Place of Supply', 'Reason', 'Revised Taxable Value', 'CGST', 'SGST', 'IGST', 'Revised Invoice Value']))
+    for (const a of r.amendedInvoices) {
+      out.push(row([
+        a.originalNumber, a.originalDate, a.originalPeriod, a.gstin, a.placeOfSupply, a.reason,
+        d2(a.taxableValue), d2(a.cgst), d2(a.sgst), d2(a.igst), d2(a.invoiceValue),
+      ]))
+    }
+  }
+
   section('hsn — HSN/SAC summary')
   out.push(row(['HSN/SAC', 'Description', 'UQC', 'Total Quantity', 'Total Taxable Value', 'IGST', 'CGST', 'SGST', 'Cess']))
   for (const h of r.hsn) {

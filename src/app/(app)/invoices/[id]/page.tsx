@@ -22,6 +22,8 @@ export default async function InvoiceDetail({ params }: { params: Promise<{ id: 
       financialYear: true, lut: true,
       // docs/48 — raised credit notes were reachable from nowhere once issued
       creditNotes: { orderBy: { date: 'asc' } },
+      // docs/52 — what was reported about this invoice after it was filed
+      gstAmendments: { orderBy: { date: 'asc' } },
     },
   })
   if (!inv) notFound()
@@ -57,6 +59,9 @@ export default async function InvoiceDetail({ params }: { params: Promise<{ id: 
             )}
             {!isDraft && inv.status !== 'CANCELLED' && (
               <Link href={`/invoices/${inv.id}/credit-note`}><Button variant="ghost">Credit note</Button></Link>
+            )}
+            {!isDraft && inv.status !== 'CANCELLED' && (
+              <Link href={`/invoices/${inv.id}/amend`}><Button variant="ghost">Amend</Button></Link>
             )}
             <Link href="/invoices"><Button variant="ghost">Back</Button></Link>
           </div>
@@ -189,6 +194,32 @@ export default async function InvoiceDetail({ params }: { params: Promise<{ id: 
                             prompt={`Why is ${c.number} being reversed?`} />}
                     </span>
                   </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
+      )}
+
+      {inv.gstAmendments.length > 0 && (
+        <Card className="mt-4 p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.1em]" style={{ color: 'var(--text-muted)' }}>
+            Amendments reported
+          </p>
+          <p className="mt-1 text-[11.5px]" style={{ color: 'var(--text-muted)' }}>
+            {inv.number} itself is unchanged — these were reported in table 9A of a later return.
+          </p>
+          <table className="mt-2 w-full text-[12.5px]">
+            <tbody>
+              {inv.gstAmendments.map((a) => (
+                <tr key={a.id} className="border-t" style={{ borderColor: 'var(--rule)' }}>
+                  <td className="py-2 tabular" style={{ color: 'var(--text-muted)' }}>{a.periodLabel}</td>
+                  <td className="py-2">{a.reason}</td>
+                  <td className="py-2 text-right tabular">
+                    {a.revisedTaxMode === 'INTRA' ? 'CGST + SGST' : a.revisedTaxMode === 'INTER' ? 'IGST' : a.revisedTaxMode}
+                    {' · '}POS {a.revisedPlaceOfSupply}
+                  </td>
+                  <td className="py-2 text-right font-semibold tabular">{money(a.revisedGrandTotal.toString())}</td>
                 </tr>
               ))}
             </tbody>

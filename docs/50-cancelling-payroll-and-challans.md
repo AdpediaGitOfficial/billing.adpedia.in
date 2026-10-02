@@ -98,9 +98,9 @@ than emphasis. Removed from rendered text; it stays in comments and in these doc
 - **A credit note and a set-off still cannot be reversed** (docs/46, docs/48). Both post
   journals, so the pattern applies; a note already sent to a client and a set-off behind a
   filed return each want the §2 treatment.
-- **Revised returns are not modelled.** Every refusal here ends by pointing at one, and the
-  system has no idea what it is. A correction statement against a filed quarter is the honest
-  next step, and it is a bigger piece of work than it sounds.
+- ~~**Revised returns are not modelled.**~~ Done in **`docs/52`**: a correction statement
+  replaces the snapshot these guards read, so recording one re-opens exactly what it corrects
+  and nothing else.
 - **Form 16/16A are still not issued**, so a cancelled run cannot invalidate a certificate
   that was never produced.
 - Carried forward: debit notes, advance receipts, PDF statements, journal export,

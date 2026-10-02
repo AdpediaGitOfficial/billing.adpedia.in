@@ -56,8 +56,9 @@ payroll, projects and bank reconciliation on a double-entry ledger.
 | [49 · Services nothing could call](docs/49-reachable.md) | Three corrections, a passkey that could not be revoked, vendor and project edits — and the financial year everything thought it was in |
 | [50 · Cancelling with consequences](docs/50-cancelling-payroll-and-challans.md) | Payroll runs and TDS challans — and the filing record that decides whether they may be reversed at all |
 | [51 · Reversible](docs/51-reversible.md) | Credit notes and GST set-offs — the last documents that could not be undone, and the rule behind all of them |
+| [52 · Amendments](docs/52-amendments.md) | GSTR-1 table 9A and TDS correction statements — what every refusal was pointing at |
 
-**630 tests passing** · typecheck and lint clean · production build passes.
+**650 tests passing** · typecheck and lint clean · production build passes.
 
 ```bash
 cp .env.example .env     # set DATABASE_URL and JWT_SECRET

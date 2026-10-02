@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { requireContext } from '@/server/context'
 import { createChallan } from '@/server/services/tax/tds-challan'
 import { cancelTdsChallan } from '@/server/services/accounting/corrections'
-import { recordTdsFiling } from '@/server/services/tax/tds-filing'
+import { recordTdsFiling, recordTdsCorrection, type CorrectionCategory } from '@/server/services/tax/tds-filing'
 import type { ReturnForm } from '@/server/services/tax/tds-return'
 import { AppError } from '@/server/errors'
 
@@ -66,4 +66,29 @@ export async function cancelChallanAction(_prev: { error?: string; ok?: string }
   }
   revalidatePath('/tax/tds'); revalidatePath('/tax/calendar'); revalidatePath('/dashboard')
   return { ok: 'Cancelled — the deductions are outstanding again' }
+}
+
+/**
+ * Record a correction statement — docs/52.
+ *
+ * 🔴 It replaces the snapshot the cancellation guards read, so recording one makes exactly
+ * what it corrects reversible and nothing else.
+ */
+export async function recordCorrectionAction(_prev: { error?: string; ok?: string } | null, form: FormData) {
+  const ctx = await requireContext()
+  try {
+    await recordTdsCorrection(ctx, {
+      filingId: String(form.get('filingId') ?? ''),
+      category: String(form.get('category') ?? 'C3') as CorrectionCategory,
+      filedOn: String(form.get('filedOn') ?? ''),
+      token: String(form.get('token') ?? '') || undefined,
+      reason: String(form.get('reason') ?? ''),
+      tdsDeducted: String(form.get('tdsDeducted') ?? '0'),
+      tdsDeposited: String(form.get('tdsDeposited') ?? '0'),
+    })
+  } catch (e) {
+    return { error: e instanceof AppError ? e.message : 'Could not record that correction' }
+  }
+  revalidatePath('/tax/tds'); revalidatePath('/tax/calendar'); revalidatePath('/payroll/runs')
+  return { ok: 'Correction recorded — the return now reports the corrected figures' }
 }

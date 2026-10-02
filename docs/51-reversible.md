@@ -75,7 +75,7 @@ that changes, which is why docs/44 and docs/50 had to exist before docs/51 could
 
 ## 5. Still open
 
-- **Revised returns are still not modelled** — every refusal above ends by pointing at one.
+- ~~**Revised returns are still not modelled**~~ — done in **`docs/52`**, for both taxes.
 - **A reversal cannot itself be reversed.** Re-record the document; the pair stays in the
   journal either way.
 - **Debit notes** (s.34(3)) remain the honest answer to "the credit note was too large", and

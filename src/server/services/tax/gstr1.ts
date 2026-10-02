@@ -1,5 +1,6 @@
 import { prisma } from '@/server/db'
 import { Decimal, ZERO } from '@/lib/money'
+import { amendmentsForPeriod } from './gst-amendment'
 
 /**
  * GSTR-1 — outward supplies.
@@ -57,6 +58,18 @@ export interface Gstr1 {
   b2cs: { placeOfSupply: string; rate: number; taxableValue: Decimal; cgst: Decimal; sgst: Decimal; igst: Decimal }[]
   exports: ExportRow[]
   creditNotes: { number: string; date: Date; againstInvoice: string | null; reason: string; taxableValue: Decimal; cgst: Decimal; sgst: Decimal; igst: Decimal }[]
+  /**
+   * Table 9A — amendments to invoices filed in an earlier period (docs/52).
+   *
+   * 🔴 The original row stays in the return that carried it. 9A reports the REVISED
+   * particulars against the original number and date, which is how the portal supersedes one
+   * with the other.
+   */
+  amendedInvoices: {
+    originalNumber: string; originalDate: Date; originalPeriod: string
+    gstin: string | null; placeOfSupply: string; reason: string
+    taxableValue: Decimal; cgst: Decimal; sgst: Decimal; igst: Decimal; invoiceValue: Decimal
+  }[]
   hsn: HsnRow[]
   docs: { type: string; from: string; to: string; total: number; cancelled: number }[]
   totals: { taxableValue: Decimal; cgst: Decimal; sgst: Decimal; igst: Decimal; invoiceValue: Decimal }
@@ -164,6 +177,28 @@ export async function buildGstr1(companyId: string, from: Date, to: Date, label:
     cgst: new Decimal(c.cgst.toString()), sgst: new Decimal(c.sgst.toString()), igst: new Decimal(c.igst.toString()),
   }))
 
+  // ── Table 9A: amendments to invoices filed earlier ──────────────────────────
+  const amendments = await amendmentsForPeriod(companyId, from, to)
+  const amendedInvoices = amendments.map((a) => ({
+    originalNumber: a.invoice.number,
+    originalDate: a.invoice.date,
+    originalPeriod: a.originalPeriod,
+    gstin: a.revisedGstin,
+    placeOfSupply: a.revisedPlaceOfSupply,
+    reason: a.reason,
+    taxableValue: new Decimal(a.revisedTaxableValue.toString()),
+    cgst: new Decimal(a.revisedCgst.toString()),
+    sgst: new Decimal(a.revisedSgst.toString()),
+    igst: new Decimal(a.revisedIgst.toString()),
+    invoiceValue: new Decimal(a.revisedGrandTotal.toString()),
+  }))
+  if (amendedInvoices.length > 0) {
+    warnings.push(
+      `${amendedInvoices.length} invoice${amendedInvoices.length === 1 ? '' : 's'} amended in table 9A. ` +
+      'The original rows stay in the returns that carried them — 9A supersedes them against the same number and date.',
+    )
+  }
+
   // ── HSN / SAC summary ───────────────────────────────────────────────────────
   const hsnMap = new Map<string, HsnRow>()
   for (const inv of live) {
@@ -207,7 +242,7 @@ export async function buildGstr1(companyId: string, from: Date, to: Date, label:
   return {
     period: { label, from, to },
     gstin: company.gstin ?? '',
-    b2b, b2cs: [...b2csMap.values()], exports, creditNotes,
+    b2b, b2cs: [...b2csMap.values()], exports, creditNotes, amendedInvoices,
     hsn: [...hsnMap.values()].sort((a, b) => a.sac.localeCompare(b.sac)),
     docs, totals, warnings,
   }

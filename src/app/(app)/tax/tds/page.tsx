@@ -8,7 +8,7 @@ import { ChallanForm } from './challan-form'
 import { TdsFilings } from './filings'
 import { ReverseButton } from '@/components/corrections/reverse-button'
 import { cancelChallanAction } from './actions'
-import { listTdsFilings } from '@/server/services/tax/tds-filing'
+import { listTdsFilings, listTdsCorrections, correctionLabel } from '@/server/services/tax/tds-filing'
 import { currentFinancialYear } from '@/server/services/accounting/period'
 
 export default async function TdsPage({ searchParams }: { searchParams: Promise<{ q?: string; form?: string }> }) {
@@ -21,11 +21,12 @@ export default async function TdsPage({ searchParams }: { searchParams: Promise<
   const quarter = (Number(sp.q) || 2) as 1 | 2 | 3 | 4
   const form = (sp.form ?? '26Q') as ReturnForm
 
-  const [outstanding, ret, challans, filings] = await Promise.all([
+  const [outstanding, ret, challans, filings, corrections] = await Promise.all([
     outstandingDeductions(ctx),
     buildTdsReturn(ctx, form, fy.label, quarter),
     prisma.tdsChallan.findMany({ where: { companyId: ctx.companyId, financialYearId: fy.id }, orderBy: { depositedOn: 'desc' }, include: { deductions: true } }),
     listTdsFilings(ctx),
+    listTdsCorrections(ctx),
   ])
   const liveChallans = challans.filter((c) => !c.cancelledAt)
 
@@ -150,6 +151,11 @@ export default async function TdsPage({ searchParams }: { searchParams: Promise<
           id: f.id, formType: f.formType, quarter: f.quarter,
           filedOn: f.filedOn.toISOString().slice(0, 10), token: f.token,
           deducteeCount: f.deducteeCount, tdsDeducted: f.tdsDeducted.toFixed(2),
+          tdsDeposited: f.tdsDeposited.toFixed(2),
+          corrections: corrections.filter((c) => c.filingId === f.id).map((c) => ({
+            id: c.id, category: c.category, label: correctionLabel(c.category),
+            filedOn: c.filedOn.toISOString().slice(0, 10), reason: c.reason,
+          })),
         }))} />
 
       {/* ── the return ───────────────────────────────────────────────── */}
