@@ -2,6 +2,7 @@ import { prisma } from '@/server/db'
 import { Decimal, ZERO } from '@/lib/money'
 import type { RequestContext } from '@/server/context'
 import { assertCan } from '@/server/auth/permissions'
+import { currentFinancialYear } from '@/server/services/accounting/period'
 
 /**
  * Is e-invoicing applicable to this company yet?
@@ -84,9 +85,7 @@ export async function eInvoiceApplicability(ctx: RequestContext): Promise<Applic
   assertCan(ctx.role, 'reports', 'read')
 
   const years = await turnoverByYear(ctx.companyId)
-  const openFy = await prisma.financialYear.findFirst({
-    where: { companyId: ctx.companyId, status: 'OPEN' }, orderBy: { startsOn: 'desc' },
-  })
+  const openFy = await currentFinancialYear(ctx.companyId)
 
   const peak = years.reduce<YearTurnover | null>(
     (best, y) => (!best || y.turnover.gt(best.turnover) ? y : best), null)

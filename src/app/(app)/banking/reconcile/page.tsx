@@ -5,16 +5,30 @@ import { reconciliationQueue, bankReconciliationStatement } from '@/server/servi
 import { formatINR, ZERO } from '@/lib/money'
 import { Card, CardHeader, PageHeader, StatCard, Button, Empty, Alert } from '@/components/ui/kit'
 import { ReconcileQueue } from './queue'
+import { MatchedLines } from './matched'
 
 export default async function ReconcilePage() {
   const ctx = await requireContext()
   const bank = await prisma.companyBankAccount.findFirst({ where: { companyId: ctx.companyId, isDefault: true } })
   if (!bank) return <Card><Empty icon="Landmark" title="No bank account" hint="Add one in Settings before importing a statement." /></Card>
 
-  const [queue, brs, matchedCount] = await Promise.all([
+  const [queue, brs, matchedCount, matched] = await Promise.all([
     reconciliationQueue(ctx, bank.id),
     bankReconciliationStatement(ctx, bank.id),
     prisma.bankTransaction.count({ where: { companyId: ctx.companyId, bankAccountId: bank.id, status: 'MATCHED' } }),
+    // docs/49 — the matched lines themselves, so a wrong match can be found and undone
+    prisma.bankTransaction.findMany({
+      where: {
+        companyId: ctx.companyId, bankAccountId: bank.id,
+        status: { in: ['MATCHED', 'EXCLUDED'] },
+      },
+      include: {
+        receipt: { select: { number: true } },
+        billPayment: { select: { reference: true, bill: { select: { billNumber: true, vendor: { select: { name: true } } } } } },
+      },
+      orderBy: { valueDate: 'desc' },
+      take: 25,
+    }),
   ])
 
   const total = queue.length + matchedCount
@@ -44,6 +58,25 @@ export default async function ReconcilePage() {
           They agree once the {brs.unmatchedCount} remaining line{brs.unmatchedCount === 1 ? '' : 's'} are matched.
         </Alert>
       )}
+
+      <MatchedLines
+        total={matchedCount}
+        rows={matched.map((m) => ({
+          id: m.id,
+          date: m.valueDate.toISOString().slice(0, 10),
+          narration: m.rawNarration,
+          amount: m.amount.toFixed(2),
+          direction: m.direction,
+          matchedTo: m.receipt
+            ? `Receipt ${m.receipt.number}`
+            : m.billPayment
+              ? `Payment to ${m.billPayment.bill.vendor.name} against ${m.billPayment.bill.billNumber}`
+              : m.journalEntryId
+                ? 'Posted as a journal entry'
+                : 'Excluded from reconciliation',
+          reason: m.matchReason,
+          excluded: m.status === 'EXCLUDED',
+        }))} />
 
       {queue.length === 0 ? (
         <Card>

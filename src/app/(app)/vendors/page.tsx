@@ -36,6 +36,11 @@ export default async function VendorsPage() {
         : r.gstin ? <Pill tone="neutral">Registered</Pill> : <Pill tone="neutral">Unregistered</Pill> },
     { key: 'bills', header: 'Bills', width: '8%', align: 'right', mobile: 'value',
       cell: (r) => <span className="tabular">{r._count.bills}</span> },
+    { key: 'edit', header: '', width: '8%', align: 'right', mobile: false,
+      cell: (r) => (
+        <Link href={`/vendors/${r.id}/edit`} className="text-[12px] underline underline-offset-2"
+          style={{ color: 'var(--accent)' }}>edit</Link>
+      ) },
   ]
 
   return (

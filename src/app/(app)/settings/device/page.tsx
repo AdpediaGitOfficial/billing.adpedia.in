@@ -1,12 +1,13 @@
 import { requireContext } from '@/server/context'
-import { prisma } from '@/server/db'
+import { listPasskeys } from '@/server/services/auth/webauthn'
 import { PageHeader, Card } from '@/components/ui/kit'
 import { NotificationSetup } from '@/components/pwa/notification-setup'
 import { InstallPrompt } from '@/components/pwa/install-prompt'
+import { Passkeys } from './passkeys'
 
 export default async function DevicePage() {
   const ctx = await requireContext()
-  const passkeyCount = await prisma.passkey.count({ where: { userId: ctx.userId } })
+  const passkeys = await listPasskeys(ctx)
 
   return (
     <div className="max-w-xl space-y-5">
@@ -14,7 +15,14 @@ export default async function DevicePage() {
         sub="Notifications, biometric unlock and offline behaviour — all per device, not per account." />
 
       <InstallPrompt />
-      <NotificationSetup publicKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? ''} passkeyCount={passkeyCount} />
+      <NotificationSetup publicKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? ''} passkeyCount={passkeys.length} />
+
+      <Passkeys rows={passkeys.map((p) => ({
+        id: p.id, label: p.label,
+        createdAt: p.createdAt.toISOString().slice(0, 10),
+        lastUsedAt: p.lastUsedAt ? p.lastUsedAt.toISOString().slice(0, 10) : null,
+        backedUp: p.backedUp,
+      }))} />
 
       <Card className="p-4">
         <p className="text-[14px] font-semibold">Working offline</p>

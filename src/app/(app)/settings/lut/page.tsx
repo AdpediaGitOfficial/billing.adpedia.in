@@ -3,12 +3,13 @@ import { prisma } from '@/server/db'
 import { listLuts } from '@/server/services/invoicing/lut'
 import { Card, CardHeader, PageHeader, Pill, Alert, Empty } from '@/components/ui/kit'
 import { LutForm } from './form'
+import { currentFinancialYear } from '@/server/services/accounting/period'
 
 export default async function LutPage() {
   const ctx = await requireContext()
   const [luts, fy, exportCustomers] = await Promise.all([
     listLuts(ctx),
-    prisma.financialYear.findFirst({ where: { companyId: ctx.companyId, status: 'OPEN' }, orderBy: { startsOn: 'desc' } }),
+    currentFinancialYear(ctx.companyId),
     prisma.customer.count({ where: { companyId: ctx.companyId, country: { not: 'IN' }, isActive: true } }),
   ])
   const current = luts.find((l) => l.fyLabel === fy?.label)

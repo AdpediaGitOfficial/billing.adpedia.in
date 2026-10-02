@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { requireContext } from '@/server/context'
-import { createVendor } from '@/server/services/purchases/vendor'
+import { createVendor, updateVendor } from '@/server/services/purchases/vendor'
 import { AppError } from '@/server/errors'
 
 const Schema = z.object({
@@ -37,5 +37,35 @@ export async function createVendorAction(_prev: { error?: string } | null, formD
     return { error: e instanceof AppError ? e.message : 'Could not save the vendor' }
   }
   revalidatePath('/vendors')
+  redirect('/vendors')
+}
+
+/**
+ * Save an edit — docs/49.
+ *
+ * Same schema and the same derived warnings as creating one; the service records before and
+ * after in the audit log, because the PAN and the foreign-supplier flag decide how every
+ * future bill is taxed.
+ */
+export async function updateVendorAction(_prev: { error?: string } | null, formData: FormData) {
+  const ctx = await requireContext()
+  const id = String(formData.get('id') ?? '')
+  const parsed = Schema.safeParse(Object.fromEntries(formData))
+  if (!parsed.success) return { error: parsed.error.issues[0].message }
+  const d = parsed.data
+  try {
+    await updateVendor(ctx, id, {
+      ...d,
+      email: d.email || undefined,
+      stateCode: d.stateCode || null,
+      gstin: d.gstin || null,
+      pan: d.pan || null,
+      defaultTdsSection: d.defaultTdsSection || null,
+    })
+  } catch (e) {
+    return { error: e instanceof AppError ? e.message : 'Could not save the vendor' }
+  }
+  revalidatePath('/vendors')
+  revalidatePath(`/vendors/${id}/edit`)
   redirect('/vendors')
 }

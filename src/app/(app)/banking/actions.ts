@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { requireContext } from '@/server/context'
 import { importStatement } from '@/server/services/banking/import'
 import { applyMatch, reconciliationQueue } from '@/server/services/banking/reconcile'
+import { unmatchBankTransaction } from '@/server/services/accounting/corrections'
 import { prisma } from '@/server/db'
 import { AppError } from '@/server/errors'
 
@@ -58,4 +59,27 @@ export async function skipTxnAction(txnId: string) {
   })
   revalidatePath('/banking/reconcile')
   return { ok: true as const }
+}
+
+/**
+ * Put a matched bank line back in the queue — docs/49.
+ *
+ * 🔴 Not a flag change. The line was matched by POSTING something — a receipt, a bill
+ * payment, a journal — so unmatching reverses that posting and then frees the line. The
+ * service has done this since docs/40; there was simply no way to ask for it, which made a
+ * wrong match permanent in the one screen whose whole job is deciding what a line is.
+ */
+export async function unmatchBankAction(_prev: { error?: string; ok?: string } | null, form: FormData) {
+  const ctx = await requireContext()
+  const id = String(form.get('txnId') ?? '')
+  const reason = String(form.get('reason') ?? '')
+  try {
+    await unmatchBankTransaction(ctx, id, reason)
+  } catch (e) {
+    return { error: e instanceof AppError ? e.message : 'Could not unmatch that line' }
+  }
+  revalidatePath('/banking/reconcile')
+  revalidatePath('/receipts')
+  revalidatePath('/bills')
+  return { ok: 'Unmatched and reversed' }
 }

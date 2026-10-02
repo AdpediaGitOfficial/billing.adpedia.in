@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { requireContext } from '@/server/context'
 import { createExpense, BLOCKED_REASONS } from '@/server/services/purchases/expense'
+import { cancelExpense } from '@/server/services/accounting/corrections'
 import { AppError } from '@/server/errors'
 
 const Schema = z.object({
@@ -36,4 +37,24 @@ export async function createExpenseAction(_prev: { error?: string } | null, form
   }
   revalidatePath('/expenses'); revalidatePath('/tax/gst')
   redirect('/expenses')
+}
+
+/**
+ * Reverse an expense — docs/49.
+ *
+ * 🔴 Also puts back the input credit it claimed. An expense captured twice from a phone was,
+ * until now, uncorrectable: the claim stood in the GST position with nothing able to undo it.
+ */
+export async function cancelExpenseAction(_prev: { error?: string; ok?: string } | null, form: FormData) {
+  const ctx = await requireContext()
+  const id = String(form.get('expenseId') ?? '')
+  const reason = String(form.get('reason') ?? '')
+  try {
+    await cancelExpense(ctx, id, reason)
+  } catch (e) {
+    return { error: e instanceof AppError ? e.message : 'Could not cancel that expense' }
+  }
+  revalidatePath('/expenses')
+  revalidatePath('/tax/gst')
+  return { ok: 'Cancelled and reversed' }
 }

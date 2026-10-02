@@ -5,6 +5,8 @@ import { prisma } from '@/server/db'
 import { formatINR, Decimal } from '@/lib/money'
 import { Card, CardHeader, PageHeader, Pill, Button, Alert } from '@/components/ui/kit'
 import { BillActions } from './actions-client'
+import { ReverseButton } from '@/components/corrections/reverse-button'
+import { cancelBillPaymentAction } from '../actions'
 import { listAttachments } from '@/server/services/storage/attachment'
 import { AttachmentPanel } from '@/components/attachments/attachment-panel'
 
@@ -99,9 +101,19 @@ export default async function BillDetail({ params }: { params: Promise<{ id: str
         <Card>
           <CardHeader title="Payments" />
           {bill.payments.map((p) => (
-            <div key={p.id} className="flex justify-between border-t py-2 text-[13px]" style={{ borderColor: 'var(--rule)' }}>
-              <span>{p.date.toISOString().slice(0, 10)} · {p.mode}{p.reference ? ` · ${p.reference}` : ''}</span>
-              <span className="tabular font-semibold">{formatINR(p.amount.toString())}</span>
+            <div key={p.id} className="flex flex-wrap items-center justify-between gap-2 border-t py-2 text-[13px]" style={{ borderColor: 'var(--rule)' }}>
+              <span style={p.cancelledAt ? { textDecoration: 'line-through', color: 'var(--text-muted)' } : undefined}>
+                {p.date.toISOString().slice(0, 10)} · {p.mode}{p.reference ? ` · ${p.reference}` : ''}
+              </span>
+              <span className="flex items-center gap-3">
+                {p.cancelledAt
+                  ? <span className="text-[11.5px]" style={{ color: 'var(--text-muted)' }}>cancelled</span>
+                  : <ReverseButton action={cancelBillPaymentAction} idName="paymentId" id={p.id}
+                      prompt={`Why is this ${formatINR(p.amount.toString())} payment being reversed?`} />}
+                <span className="tabular font-semibold" style={p.cancelledAt ? { textDecoration: 'line-through', color: 'var(--text-muted)' } : undefined}>
+                  {formatINR(p.amount.toString())}
+                </span>
+              </span>
             </div>
           ))}
         </Card>

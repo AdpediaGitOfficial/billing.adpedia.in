@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { requireContext } from '@/server/context'
 import { createBill, approveBill, payBill, cancelBill } from '@/server/services/purchases/bill'
+import { cancelBillPayment } from '@/server/services/accounting/corrections'
 import { AppError } from '@/server/errors'
 
 const LineSchema = z.object({
@@ -77,4 +78,24 @@ export async function cancelBillAction(billId: string, reason: string) {
   } catch (e) {
     return { ok: false as const, error: e instanceof AppError ? e.message : 'Could not cancel the bill' }
   }
+}
+
+/**
+ * Reverse a payment made against a bill — docs/49.
+ *
+ * The service has existed since docs/40 and nothing could call it: a payment entered twice,
+ * or against the wrong bill, could be corrected only in the database.
+ */
+export async function cancelBillPaymentAction(_prev: { error?: string; ok?: string } | null, form: FormData) {
+  const ctx = await requireContext()
+  const id = String(form.get('paymentId') ?? '')
+  const reason = String(form.get('reason') ?? '')
+  try {
+    await cancelBillPayment(ctx, id, reason)
+  } catch (e) {
+    return { error: e instanceof AppError ? e.message : 'Could not cancel that payment' }
+  }
+  revalidatePath('/bills')
+  revalidatePath('/banking/reconcile')
+  return { ok: 'Cancelled and reversed' }
 }

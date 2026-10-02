@@ -5,12 +5,13 @@ import { buildTdsReturn, type ReturnForm } from '@/server/services/tax/tds-retur
 import { formatINR, Decimal, ZERO } from '@/lib/money'
 import { Card, CardHeader, PageHeader, StatCard, Pill, Alert, Empty, Button, DataTable, type Column } from '@/components/ui/kit'
 import { ChallanForm } from './challan-form'
+import { currentFinancialYear } from '@/server/services/accounting/period'
 
 export default async function TdsPage({ searchParams }: { searchParams: Promise<{ q?: string; form?: string }> }) {
   const ctx = await requireContext()
   const sp = await searchParams
 
-  const fy = await prisma.financialYear.findFirst({ where: { companyId: ctx.companyId, status: 'OPEN' }, orderBy: { startsOn: 'desc' } })
+  const fy = await currentFinancialYear(ctx.companyId)
   if (!fy) return <Card><Empty title="No open financial year" icon="CalendarX" /></Card>
 
   const quarter = (Number(sp.q) || 2) as 1 | 2 | 3 | 4

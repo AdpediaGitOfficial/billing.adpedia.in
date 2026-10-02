@@ -11,6 +11,7 @@ import { periodsInFy } from './periods'
 import { CASH_LEDGER_ACCOUNTS } from './gst-ledger'
 import { cashLedgerBalance } from './gst-electronic-ledgers'
 import { gstr3bDue } from '@/server/services/compliance/deadlines'
+import { currentFinancialYear } from '@/server/services/accounting/period'
 
 /**
  * Funding the electronic cash ledger — Form PMT-06.
@@ -90,9 +91,7 @@ export async function previewGstPayment(
   const company = await prisma.company.findUniqueOrThrow({
     where: { id: ctx.companyId }, select: { gstFilingFrequency: true, stateCode: true },
   })
-  const fy = await prisma.financialYear.findFirst({
-    where: { companyId: ctx.companyId, status: 'OPEN' }, orderBy: { startsOn: 'desc' },
-  })
+  const fy = await currentFinancialYear(ctx.companyId)
   if (!fy) throw new NotFound('No open financial year')
 
   const period = periodsInFy(fy.startsOn, fy.endsOn, company.gstFilingFrequency)

@@ -7,6 +7,7 @@ import { AppError } from '@/server/errors'
 import { isValidPanFormat, panEntity, panEntityLabel, isCompanyOrFirm, PAN_RE } from './pan'
 import { rateAsOf } from './tds-resolver'
 import { panCardCounts } from './pan-card'
+import { currentFinancialYear } from '@/server/services/accounting/period'
 
 /**
  * The PAN register.
@@ -80,9 +81,7 @@ export interface PanRegister {
 export async function panRegister(ctx: RequestContext): Promise<PanRegister> {
   assertCan(ctx.role, 'tax', 'read')
 
-  const fy = await prisma.financialYear.findFirst({
-    where: { companyId: ctx.companyId, status: 'OPEN' }, orderBy: { startsOn: 'desc' },
-  })
+  const fy = await currentFinancialYear(ctx.companyId)
   const onDate = fy?.startsOn ?? new Date()
 
   const [employees, vendors] = await Promise.all([

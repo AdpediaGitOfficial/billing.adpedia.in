@@ -3,6 +3,7 @@ import { Decimal, ZERO, formatINR } from '@/lib/money'
 import type { RequestContext } from '@/server/context'
 import { assertCan } from '@/server/auth/permissions'
 import { certificateDueDate } from './tds-challan'
+import { currentFinancialYearOrThrow } from '@/server/services/accounting/period'
 
 export interface ReceivableRow {
   id: string
@@ -35,7 +36,7 @@ export async function receivableAgeing(ctx: RequestContext, financialYearId?: st
 
   const fy = financialYearId
     ? await prisma.financialYear.findUniqueOrThrow({ where: { id: financialYearId } })
-    : await prisma.financialYear.findFirstOrThrow({ where: { companyId: ctx.companyId, status: 'OPEN' }, orderBy: { startsOn: 'desc' } })
+    : await currentFinancialYearOrThrow(ctx.companyId)
 
   const rows = await prisma.tdsReceivable.findMany({
     where: { companyId: ctx.companyId, financialYearId: fy.id },
@@ -121,7 +122,7 @@ export async function form16aChaseList(ctx: RequestContext, financialYearId?: st
   const { rows } = await receivableSummary(ctx, financialYearId)
   const fy = financialYearId
     ? await prisma.financialYear.findUniqueOrThrow({ where: { id: financialYearId } })
-    : await prisma.financialYear.findFirstOrThrow({ where: { companyId: ctx.companyId, status: 'OPEN' }, orderBy: { startsOn: 'desc' } })
+    : await currentFinancialYearOrThrow(ctx.companyId)
   const fyStartYear = Number(fy.label.split('-')[0])
   const today = new Date()
 

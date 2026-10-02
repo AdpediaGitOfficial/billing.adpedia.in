@@ -2,6 +2,7 @@ import { prisma } from '@/server/db'
 import { Decimal, ZERO } from '@/lib/money'
 import type { RequestContext } from '@/server/context'
 import { assertCan } from '@/server/auth/permissions'
+import { currentFinancialYearOrThrow } from '@/server/services/accounting/period'
 
 export interface ProjectPnlRow {
   projectId: string
@@ -31,7 +32,7 @@ export async function projectPnl(ctx: RequestContext, financialYearId?: string):
 
   const fy = financialYearId
     ? await prisma.financialYear.findUniqueOrThrow({ where: { id: financialYearId } })
-    : await prisma.financialYear.findFirstOrThrow({ where: { companyId: ctx.companyId, status: 'OPEN' }, orderBy: { startsOn: 'desc' } })
+    : await currentFinancialYearOrThrow(ctx.companyId)
 
   const projects = await prisma.project.findMany({
     where: { companyId: ctx.companyId },

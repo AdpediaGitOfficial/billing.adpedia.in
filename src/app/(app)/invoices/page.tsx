@@ -7,6 +7,7 @@ import { peekNextNumber } from '@/server/services/invoicing/numbering'
 import { Card, PageHeader, StatCard, Pill, Empty, Button, DataTable, type Column } from '@/components/ui/kit'
 import type { InvoiceStatus } from '@prisma/client'
 import type { Tone } from '@/components/ui/kit'
+import { currentFinancialYear } from '@/server/services/accounting/period'
 
 const TONE: Record<InvoiceStatus, Tone> = {
   DRAFT: 'neutral', SENT: 'accent', VIEWED: 'accent',
@@ -22,7 +23,7 @@ export default async function InvoicesPage() {
       orderBy: [{ date: 'desc' }, { seq: 'desc' }], take: 100,
     }),
     arSummary(ctx),
-    prisma.financialYear.findFirst({ where: { companyId: ctx.companyId, status: 'OPEN' }, orderBy: { startsOn: 'desc' } }),
+    currentFinancialYear(ctx.companyId),
   ])
 
   const nextNumber = fy

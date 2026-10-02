@@ -7,6 +7,7 @@ import { AppError, NotFound } from '@/server/errors'
 import { buildGstr3b } from './gstr3b'
 import { periodsInFy, periodFor } from './periods'
 import type { GstReturnType } from '@prisma/client'
+import { currentFinancialYear } from '@/server/services/accounting/period'
 
 /**
  * Recording that a GST return was filed.
@@ -72,9 +73,7 @@ export async function recordGstFiling(ctx: RequestContext, input: RecordFilingIn
   })
   if (!company.gstin) throw new AppError('This company has no GSTIN, so there is no return to file')
 
-  const fy = await prisma.financialYear.findFirst({
-    where: { companyId: ctx.companyId, status: 'OPEN' }, orderBy: { startsOn: 'desc' },
-  })
+  const fy = await currentFinancialYear(ctx.companyId)
   if (!fy) throw new NotFound('No open financial year')
 
   const period = periodsInFy(fy.startsOn, fy.endsOn, company.gstFilingFrequency)

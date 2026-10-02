@@ -5,13 +5,14 @@ import { periodsInFy, periodFor, daysUntil, type GstPeriod } from './periods'
 import { gstPosition } from './gst-ledger'
 import { buildGstr1 } from './gstr1'
 import { buildGstr3b } from './gstr3b'
+import { currentFinancialYear } from '@/server/services/accounting/period'
 
 export async function gstOverview(ctx: RequestContext, periodLabel?: string) {
   assertCan(ctx.role, 'tax', 'read')
 
   const [company, fy] = await Promise.all([
     prisma.company.findUniqueOrThrow({ where: { id: ctx.companyId } }),
-    prisma.financialYear.findFirst({ where: { companyId: ctx.companyId, status: 'OPEN' }, orderBy: { startsOn: 'desc' } }),
+    currentFinancialYear(ctx.companyId),
   ])
   if (!fy) return null
 

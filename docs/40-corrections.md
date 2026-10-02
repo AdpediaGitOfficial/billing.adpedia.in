@@ -94,3 +94,11 @@ marked as the reversal of the other.
   is the path a wrong match should take; the reconcile screen only lists unmatched lines, so
   there is nowhere to click it yet.
 - **Advance receipts** — money in before an invoice exists — still have no manual path.
+
+---
+
+## Postscript — three of these had no button
+
+Written in `docs/49`. This module built four corrections and the UI shipped one: receipts.
+Bill payments, expenses and bank matches were reachable only from the database for nine
+modules, and nothing said so, because the services themselves were tested.

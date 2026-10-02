@@ -132,9 +132,14 @@ export async function createExpense(ctx: RequestContext, input: ExpenseInput) {
 export async function listExpenses(ctx: RequestContext, limit = 100) {
   assertCan(ctx.role, 'expenses.own', 'read')
   return prisma.expense.findMany({
-    // a cancelled expense is reversed in the ledger; showing it in the running list would
-    // double it up against the reversal
-    where: { companyId: ctx.companyId, cancelledAt: null },
+    // 🔴 Cancelled ones are LISTED, struck through — docs/49.
+    //
+    // They used to be filtered out, on the reasoning that showing them would double them up
+    // against their reversal. But nothing financial is deleted in this system, and an
+    // expense that simply vanishes when it is cancelled is indistinguishable from one that
+    // was. The receipts list already settled this the other way: show it, strike it, and
+    // keep it out of the totals.
+    where: { companyId: ctx.companyId },
     include: { category: true, project: { select: { name: true } } },
     orderBy: { date: 'desc' },
     take: limit,

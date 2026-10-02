@@ -6,6 +6,7 @@ import { filedPeriods } from '@/server/services/tax/gst-filing'
 import { paidPeriods } from '@/server/services/tax/gst-payment'
 import { dischargedPeriods } from '@/server/services/tax/gst-setoff'
 import { periodFor } from '@/server/services/tax/periods'
+import { currentFinancialYear } from '@/server/services/accounting/period'
 import {
   tdsDepositDue, tdsReturnDue, form16aDue, form16Due,
   gstr1Due, gstr3bDue, gstr9Due, professionTaxDue, lutRenewalDue, itrDue,
@@ -51,9 +52,7 @@ export async function complianceCalendar(ctx: RequestContext, now = new Date()):
     where: { id: ctx.companyId },
     select: { stateCode: true, gstFilingFrequency: true, gstin: true },
   })
-  const fy = await prisma.financialYear.findFirst({
-    where: { companyId: ctx.companyId, status: 'OPEN' }, orderBy: { startsOn: 'desc' },
-  })
+  const fy = await currentFinancialYear(ctx.companyId)
   if (!fy) return []
 
   const fyStartYear = fy.startsOn.getUTCFullYear()

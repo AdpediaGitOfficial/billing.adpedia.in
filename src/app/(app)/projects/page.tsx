@@ -58,6 +58,11 @@ export default async function ProjectsPage() {
       } },
     { key: 'status', header: 'Status', align: 'center', width: '12%', mobile: false,
       cell: (r) => <Pill tone={TONE[r.status]}>{r.status.replace('_', ' ').toLowerCase()}</Pill> },
+    { key: 'edit', header: '', width: '8%', align: 'right', mobile: false,
+      cell: (r) => (
+        <Link href={`/projects/${r.id}/edit`} className="text-[12px] underline underline-offset-2"
+          style={{ color: 'var(--accent)' }}>edit</Link>
+      ) },
   ]
 
   return (

@@ -8,6 +8,7 @@ import { Topbar } from '@/components/shell/topbar'
 import { complianceAlerts } from '@/server/services/dashboard'
 import { OfflineProvider } from '@/components/pwa/offline-provider'
 import { IdleLock } from '@/components/pwa/idle-lock'
+import { currentFinancialYear } from '@/server/services/accounting/period'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const ctx = await getContext()
@@ -16,7 +17,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const [user, company, fy] = await Promise.all([
     prisma.user.findUniqueOrThrow({ where: { id: ctx.userId }, select: { name: true } }),
     prisma.company.findUniqueOrThrow({ where: { id: ctx.companyId }, select: { legalName: true, tradeName: true } }),
-    prisma.financialYear.findFirst({ where: { companyId: ctx.companyId, status: 'OPEN' }, orderBy: { startsOn: 'desc' } }),
+    currentFinancialYear(ctx.companyId),
   ])
   const alerts = await complianceAlerts(ctx.companyId)
   const name = company.tradeName ?? company.legalName

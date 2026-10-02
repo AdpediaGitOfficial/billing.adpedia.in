@@ -2,6 +2,7 @@ import { prisma } from '@/server/db'
 import { Decimal, ZERO } from '@/lib/money'
 import type { RequestContext } from '@/server/context'
 import { arSummary } from '@/server/services/sales/receivables'
+import { currentFinancialYear } from '@/server/services/accounting/period'
 
 export interface ComplianceAlert {
   id: string
@@ -123,7 +124,7 @@ export async function revenueByCustomer(companyId: string, fyId: string) {
 }
 
 export async function dashboardSummary(ctx: RequestContext) {
-  const fy = await prisma.financialYear.findFirst({ where: { companyId: ctx.companyId, status: 'OPEN' }, orderBy: { startsOn: 'desc' } })
+  const fy = await currentFinancialYear(ctx.companyId)
   if (!fy) return null
 
   const [ar, invoices, receipts, bank, series, byCustomer, alerts] = await Promise.all([

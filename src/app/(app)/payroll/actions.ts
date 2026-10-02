@@ -7,7 +7,7 @@ import { setAnnualTaxEstimate } from '@/server/services/payroll/tds-192'
 import { setAllocation } from '@/server/services/payroll/allocation'
 import { assertCan } from '@/server/auth/permissions'
 import { AppError } from '@/server/errors'
-import { prisma } from '@/server/db'
+import { currentFinancialYear } from '@/server/services/accounting/period'
 
 export async function approvePayrollAction(month: number, year: number) {
   const ctx = await requireContext()
@@ -43,7 +43,7 @@ export async function setEstimateAction(_prev: { error?: string; ok?: boolean } 
   const parsed = EstimateSchema.safeParse(Object.fromEntries(formData))
   if (!parsed.success) return { error: parsed.error.issues[0].message }
 
-  const fy = await prisma.financialYear.findFirst({ where: { companyId: ctx.companyId, status: 'OPEN' }, orderBy: { startsOn: 'desc' } })
+  const fy = await currentFinancialYear(ctx.companyId)
   if (!fy) return { error: 'No open financial year' }
   try {
     await setAnnualTaxEstimate({ companyId: ctx.companyId, financialYearId: fy.id, ...parsed.data })

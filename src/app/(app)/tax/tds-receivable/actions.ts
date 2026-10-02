@@ -2,10 +2,10 @@
 import { z } from 'zod'
 import { revalidatePath } from 'next/cache'
 import { requireContext } from '@/server/context'
-import { prisma } from '@/server/db'
 import { import26as, reconcile26as } from '@/server/services/tax/form26as'
 import { markForm16aReceived } from '@/server/services/tax/tds-receivable'
 import { AppError } from '@/server/errors'
+import { currentFinancialYear } from '@/server/services/accounting/period'
 
 const Schema = z.object({ text: z.string().min(10, 'Paste the 26AS rows first') })
 
@@ -14,7 +14,7 @@ export async function import26asAction(_prev: { error?: string; ok?: string } | 
   const parsed = Schema.safeParse(Object.fromEntries(formData))
   if (!parsed.success) return { error: parsed.error.issues[0].message }
 
-  const fy = await prisma.financialYear.findFirst({ where: { companyId: ctx.companyId, status: 'OPEN' }, orderBy: { startsOn: 'desc' } })
+  const fy = await currentFinancialYear(ctx.companyId)
   if (!fy) return { error: 'No open financial year' }
 
   try {

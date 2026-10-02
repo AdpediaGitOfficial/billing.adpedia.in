@@ -6,6 +6,7 @@ import { buildGstr1 } from '@/server/services/tax/gstr1'
 import { buildGstr3b } from '@/server/services/tax/gstr3b'
 import { gstr1ToCsv, gstr3bToCsv } from '@/server/services/tax/gst-export'
 import { AppError } from '@/server/errors'
+import { currentFinancialYearOrThrow } from '@/server/services/accounting/period'
 
 /** CSV for the CA. Deliberately not a portal payload — see gstr1.ts. */
 export async function GET(req: Request) {
@@ -19,7 +20,7 @@ export async function GET(req: Request) {
 
     const [company, fy] = await Promise.all([
       prisma.company.findUniqueOrThrow({ where: { id: ctx.companyId } }),
-      prisma.financialYear.findFirstOrThrow({ where: { companyId: ctx.companyId, status: 'OPEN' }, orderBy: { startsOn: 'desc' } }),
+      currentFinancialYearOrThrow(ctx.companyId),
     ])
     const all = periodsInFy(fy.startsOn, fy.endsOn, company.gstFilingFrequency)
     const period = all.find((p) => p.label === label) ?? periodFor(new Date(), company.gstFilingFrequency)

@@ -3,10 +3,11 @@ import { prisma } from '@/server/db'
 import { formatINR, Decimal } from '@/lib/money'
 import { Card, PageHeader, Pill, Empty, DataTable, Alert, type Column } from '@/components/ui/kit'
 import { EstimateForm } from './estimate-form'
+import { currentFinancialYear } from '@/server/services/accounting/period'
 
 export default async function EmployeesPage() {
   const ctx = await requireContext()
-  const fy = await prisma.financialYear.findFirst({ where: { companyId: ctx.companyId, status: 'OPEN' }, orderBy: { startsOn: 'desc' } })
+  const fy = await currentFinancialYear(ctx.companyId)
 
   const employees = await prisma.employee.findMany({
     where: { companyId: ctx.companyId, OR: [{ leftOn: null }, { leftOn: { gte: new Date() } }] },

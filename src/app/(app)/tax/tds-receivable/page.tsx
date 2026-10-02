@@ -5,6 +5,7 @@ import { reconcile26as } from '@/server/services/tax/form26as'
 import { formatINR, ZERO } from '@/lib/money'
 import { Card, CardHeader, PageHeader, StatCard, Pill, Alert, Empty, DataTable, type Column, type Tone } from '@/components/ui/kit'
 import { Import26asForm } from './import-form'
+import { currentFinancialYear } from '@/server/services/accounting/period'
 
 const STATUS_TONE: Record<string, Tone> = {
   BOOKED: 'neutral', MATCHED_26AS: 'good', MISSING_IN_26AS: 'critical', DISPUTED: 'warn', CLAIMED: 'good',
@@ -12,7 +13,7 @@ const STATUS_TONE: Record<string, Tone> = {
 
 export default async function TdsReceivablePage() {
   const ctx = await requireContext()
-  const fy = await prisma.financialYear.findFirst({ where: { companyId: ctx.companyId, status: 'OPEN' }, orderBy: { startsOn: 'desc' } })
+  const fy = await currentFinancialYear(ctx.companyId)
   if (!fy) return <Card><Empty title="No open financial year" icon="CalendarX" /></Card>
 
   const [summary, chase, entryCount] = await Promise.all([

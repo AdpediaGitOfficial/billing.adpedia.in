@@ -1,6 +1,6 @@
 # 00 · Handover — read this first
 
-Adpedia Films Private Limited's internal finance ERP. **593 tests** (314 unit + 279
+Adpedia Films Private Limited's internal finance ERP. **603 tests** (314 unit + 289
 integration), typecheck and lint clean, production build passes.
 
 Everything below is either hard-won or non-obvious. The per-module detail is in `docs/20`
@@ -132,6 +132,14 @@ on a phone, a credit note whose legal declaration quoted the wrong invoice numbe
 statutory deadline printed a day late. Tests asserted figures and HTML substrings; the
 document was arithmetically perfect and still wrong.
 
+🔴 **"The newest OPEN financial year" is not the year you are in** (`docs/49 §4`). Next
+year's row exists before April because numbering needs it; twenty-five screens read the
+newest open row and jumped to it. Use `currentFinancialYear()`.
+
+🔴 **A service with tests and no caller looks finished.** Docs/40 built four corrections and
+shipped one button; the other three were unreachable for nine modules. The survey that finds
+this is a script, not a memory — `docs/49 §1`.
+
 🔴 **A value bound twice in a template is substituted once.** Both renderers replaced the
 first occurrence only, so the signature line kept the template's company name and the s.34(2)
 declaration kept its placeholder invoice number. Use a global replace, and look for the
@@ -141,10 +149,9 @@ binding appearing more than once — `docs/48 §3`.
 
 In rough order of value:
 
-- **Vendor and project edit pages** — services and audit done, pages missing (`docs/41`)
-- **Unmatching a bank line** has a service and no button (`docs/40`)
 - **Payroll runs and TDS challans cannot be cancelled** — heavier downstream consequences, so
-  they want their own thinking rather than the pattern applied blindly
+  they want their own thinking rather than the pattern applied blindly (`docs/49 §6`)
+- **A credit note and a set-off cannot be reversed** (`docs/46`, `docs/48`)
 - **Debit notes** (s.34(3)), **advance receipts**, **expense attachment panel**, **PDF
   statements**, **journal/ledger export**, **service-item CRUD**
 - **Reconciling either electronic ledger against the portal** — the balances are ours, and
