@@ -146,10 +146,17 @@ export async function buildGstr1(companyId: string, from: Date, to: Date, label:
     })
 
   // ── Credit notes ────────────────────────────────────────────────────────────
+  //
+  // 🔴 Only the ones that actually adjust tax — docs/48. A note raised after the s.34(2)
+  // deadline is a commercial credit between the parties: it recovers no GST, so reporting it
+  // here would claim a reduction the return cannot support.
   const cns = await prisma.creditNote.findMany({
-    where: { companyId, date: { gte: from, lte: to } },
+    where: { companyId, date: { gte: from, lte: to }, gstAdjusted: true },
     include: { invoice: { select: { number: true } } },
     orderBy: { date: 'asc' },
+  })
+  const commercial = await prisma.creditNote.count({
+    where: { companyId, date: { gte: from, lte: to }, gstAdjusted: false },
   })
   const creditNotes = cns.map((c) => ({
     number: c.number, date: c.date, againstInvoice: c.invoice?.number ?? null, reason: c.reason,
@@ -175,6 +182,12 @@ export async function buildGstr1(companyId: string, from: Date, to: Date, label:
   }
   if (hsnMap.has('UNSPECIFIED')) {
     warnings.push('Some lines carry no SAC code. At Adpedia’s turnover a 4-digit SAC is mandatory on B2B invoices (Notification 78/2020).')
+  }
+  if (commercial > 0) {
+    warnings.push(
+      `${commercial} commercial credit note${commercial === 1 ? ' is' : 's are'} deliberately left out of the cdnr table — ` +
+      'the s.34(2) deadline had passed, so no GST is being recovered on them (docs/48).',
+    )
   }
 
   // ── Document series summary ─────────────────────────────────────────────────

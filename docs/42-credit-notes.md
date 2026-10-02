@@ -83,10 +83,11 @@ discovered.
 
 ## 7. Still open
 
-- **Credit notes have no PDF.** The renderer and template are invoice-shaped; a credit note
-  needs its own document, which is a template job.
+- ~~**Credit notes have no PDF.**~~ Done in **`docs/48`**, which also found that §4 above was
+  wrong past the deadline: a note raised after 30 November was still debiting output GST and
+  still being reported in GSTR-1. It now carries no tax at all.
 - **Debit notes** (s.34(3), increasing the value) are not built. Rarer, and the mirror image.
-- **No credit-note list screen** — they are reachable from the invoice they credit, and they
-  appear in GSTR-1.
+- **No credit-note list screen** — they are now listed on the invoice they credit
+  (`docs/48 §4`), but there is no register of the series.
 - Carried forward: vendor and project edit pages, the unmatch button, payroll and challan
   cancellation.

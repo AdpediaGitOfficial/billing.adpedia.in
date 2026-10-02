@@ -602,6 +602,14 @@ model CreditNote {
   sgst            Decimal  @default(0) @db.Decimal(18, 2)
   igst            Decimal  @default(0) @db.Decimal(18, 2)
   grandTotal      Decimal  @db.Decimal(18, 2)
+  /// 🔴 docs/48 · whether this note reduces OUTPUT TAX, which s.34(2) allows only until
+  /// 30 November following the financial year of supply. After that the note is still valid
+  /// between the parties, but the GST already paid stays paid — so it carries no tax, is not
+  /// reported in GSTR-1, and the document says so on its face.
+  gstAdjusted     Boolean  @default(true)
+  /// the tax that could not be recovered, where gstAdjusted is false. Kept so the row still
+  /// adds up — taxableValue + taxNotAdjusted = grandTotal — and so the cost is visible.
+  taxNotAdjusted  Decimal  @default(0) @db.Decimal(18, 2)
   pdfUrl          String?
 
   @@unique([companyId, number])

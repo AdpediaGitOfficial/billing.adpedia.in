@@ -1,6 +1,6 @@
 # 00 · Handover — read this first
 
-Adpedia Films Private Limited's internal finance ERP. **580 tests** (314 unit + 266
+Adpedia Films Private Limited's internal finance ERP. **593 tests** (314 unit + 279
 integration), typecheck and lint clean, production build passes.
 
 Everything below is either hard-won or non-obvious. The per-module detail is in `docs/20`
@@ -73,6 +73,8 @@ Each of these is implemented and tested; each was wrong in an obvious first atte
 - **Kerala files quarterly GSTR-3B on the 24th**, not the 22nd.
 - **A March supply is in the SAME financial year as the previous April.** The s.34(2) credit
   note deadline for a 15 Mar 2027 invoice is 30 Nov 2027, not a year later.
+- **Past that deadline a credit note carries NO TAX.** It still credits the client the same
+  gross, but no output tax is debited and it is not reported in GSTR-1 — `docs/48 §1`.
 - **Advance tax percentages are cumulative**, not per instalment.
 - **CGST and SGST are two halves of one tax** — a receipt OCR must add them, not take one.
 - **Profession tax caps at ₹2,500 a year** under Article 276(2).
@@ -124,15 +126,21 @@ kept working:
   to be hiding a head-wise set-off bug that understated the cash payable, and a period
   position that counted the previous period's payment
 
-🔴 **Three times, rendering the output and looking at it found bugs the tests did not** — a
-broken logo, stray IGST rows on a Kerala invoice, a two-page A4 layout. Tests asserted
-figures and HTML substrings; the document was arithmetically perfect and still wrong.
+🔴 **Every time, rendering the output and looking at it found bugs the tests did not** — a
+broken logo, stray IGST rows on a Kerala invoice, a two-page A4 layout, a PAN box 60px wide
+on a phone, a credit note whose legal declaration quoted the wrong invoice number, a
+statutory deadline printed a day late. Tests asserted figures and HTML substrings; the
+document was arithmetically perfect and still wrong.
+
+🔴 **A value bound twice in a template is substituted once.** Both renderers replaced the
+first occurrence only, so the signature line kept the template's company name and the s.34(2)
+declaration kept its placeholder invoice number. Use a global replace, and look for the
+binding appearing more than once — `docs/48 §3`.
 
 ## 7. The largest remaining gaps
 
 In rough order of value:
 
-- **Credit-note PDF** — the renderer is invoice-shaped, so this is a template job
 - **Vendor and project edit pages** — services and audit done, pages missing (`docs/41`)
 - **Unmatching a bank line** has a service and no button (`docs/40`)
 - **Payroll runs and TDS challans cannot be cancelled** — heavier downstream consequences, so
@@ -145,6 +153,7 @@ In rough order of value:
   threshold today, and the exceptions want the CA (`docs/46 §7`)
 - **A set-off cannot be reversed** — the docs/40 pattern applies, but a filed return and a
   locked period make the consequences heavier
+- **Debit notes** (s.34(3)) — the mirror of docs/48, and rarer
 - **Nothing chases a missing PAN card** — the register lists them, no one is asked
   (`docs/47 §7`)
 - **Inoperative PANs** (rule 114AAA, PAN not linked to Aadhaar) attract 20% as if none had

@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Credit Note — Adpedia Films Private Limited</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* ==========================================================================
+     ADPEDIA — CREDIT NOTE TEMPLATE  (docs/48)
+     Renders to A4 via headless Chromium, the same way the invoice does.
+
+     Rule 53(1A) of the CGST Rules fixes what this document must carry:
+       (a) supplier name, address, GSTIN
+       (b) the nature of the document, said plainly — "Credit Note"
+       (c) a consecutive serial number, unique for the financial year
+       (d) date of issue
+       (e) recipient name, address and GSTIN
+       (f) 🔴 the serial number AND DATE of the invoice it relates to
+       (g) value of supply, rate of tax, and the amount of tax credited
+       (h) signature of the supplier or an authorised representative
+
+     TAX MODE — set ONE on .sheet:
+       .mode-intra   CGST + SGST        .mode-inter  IGST        .mode-export  zero-rated
+
+     GST MODE — set ONE on .sheet:
+       .gst-adjusted    within s.34(2): output tax is reduced, reported in GSTR-1
+       .gst-commercial  🔴 past the deadline: no tax credited, NOT reported in GSTR-1
+     ========================================================================== */
+
+  :root{
+    --brand:      #4135AF;
+    --brand-deep: #332A8C;
+    --brand-tint: #EEECF9;
+    --brand-line: #D5D0F0;
+    --ink:        #1A1922;
+    --ink-soft:   #504E5C;
+    --ink-faint:  #85828F;
+    --rule:       #E4E2EC;
+    --row-alt:    #FAFAFD;
+    --warn-bg:    #FFF8E9;
+    --warn-ink:   #7A5A12;
+    --pad: 10mm;
+  }
+
+  @page { size: A4; margin: 0; }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+
+  html{ background:#6E6A7A; }
+  body{
+    font-family:'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color:var(--ink); font-size:10pt; line-height:1.5;
+    -webkit-font-smoothing:antialiased; -webkit-print-color-adjust:exact; print-color-adjust:exact;
+  }
+
+  .sheet{
+    width:210mm; min-height:297mm; margin:0 auto; background:#fff;
+    padding:var(--pad) var(--pad) 0; display:flex; flex-direction:column;
+  }
+
+  .head{ display:flex; justify-content:space-between; align-items:flex-start; gap:10mm; }
+  .logo{ height:11mm; width:auto; }
+  .doc-title{ text-align:right; }
+  .doc-title h1{
+    font-size:20pt; font-weight:700; letter-spacing:.18em; color:var(--brand);
+    text-transform:uppercase; line-height:1; white-space:nowrap;
+  }
+  .copy-mark{
+    display:inline-block; margin-top:3mm; padding:1.2mm 3mm; border:1px solid var(--brand-line);
+    background:var(--brand-tint); color:var(--brand); border-radius:1mm;
+    font-size:7.2pt; font-weight:600; letter-spacing:.10em; text-transform:uppercase;
+  }
+  .gst-commercial .copy-mark{ background:var(--warn-bg); border-color:#E6CF9A; color:var(--warn-ink); }
+
+  .meta{
+    margin-top:7mm; display:grid; grid-template-columns:repeat(4,1fr);
+    border:1px solid var(--rule); border-radius:1.5mm; overflow:hidden;
+  }
+  .meta > div{ padding:3mm 3.4mm; border-right:1px solid var(--rule); }
+  .meta > div:last-child{ border-right:0; }
+  .meta .k{ font-size:7pt; font-weight:600; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-faint); }
+  .meta .v{ font-size:9.6pt; font-weight:600; margin-top:.8mm; line-height:1.25; }
+
+  .parties{ margin-top:3mm; display:grid; grid-template-columns:1fr 1fr; gap:6mm; }
+  .party{ border:1px solid var(--rule); border-radius:1.5mm; padding:2.4mm 3mm; }
+  .party.to{ background:var(--brand-tint); border-color:var(--brand-line); }
+  .party h2{
+    font-size:7.2pt; font-weight:600; letter-spacing:.11em; text-transform:uppercase;
+    color:var(--brand); margin-bottom:1.6mm;
+  }
+  .party .name{ font-size:10pt; font-weight:600; line-height:1.25; }
+  .party address{ font-style:normal; color:var(--ink-soft); font-size:8.4pt; margin-top:1mm; line-height:1.3; }
+  .idlist{ margin-top:1.8mm; font-size:8.2pt; line-height:1.35; }
+  .idlist span{ display:inline-block; margin-right:5mm; }
+  .idlist .lbl{ color:var(--ink-faint); font-weight:500; }
+  .idlist b{ font-weight:600; }
+
+  .against{
+    margin-top:3.5mm; padding:2.2mm 3.4mm; background:var(--brand); color:#fff;
+    border-radius:1.5mm; display:flex; justify-content:space-between; gap:6mm; font-size:8.8pt;
+  }
+  .against .lbl{ opacity:.70; font-weight:400; }
+  .against b{ font-weight:600; }
+
+  table{ width:100%; border-collapse:collapse; }
+  .items{ margin-top:3mm; }
+  .items thead th{
+    background:var(--brand); color:#fff; font-size:7.4pt; font-weight:600;
+    letter-spacing:.07em; text-transform:uppercase; padding:2.2mm 2.6mm; text-align:left;
+  }
+  .items th.num, .items td.num{ text-align:right; }
+  .items th.mid, .items td.mid{ text-align:center; }
+  .items tbody td{ padding:1.9mm 2.6mm; border-bottom:1px solid var(--rule); vertical-align:top; font-size:9pt; }
+  .items .desc{ font-weight:600; line-height:1.3; }
+  .items .sub{ color:var(--ink-soft); font-size:8pt; font-weight:400; margin-top:.7mm; line-height:1.35; }
+
+  .foot-grid{ margin-top:3.5mm; display:grid; grid-template-columns:1fr 88mm; gap:7mm; align-items:start; }
+  .words h3, .why h3{
+    font-size:7pt; font-weight:600; letter-spacing:.10em; text-transform:uppercase;
+    color:var(--ink-faint); margin-bottom:2mm;
+  }
+  .words p{ font-size:9.2pt; font-weight:600; line-height:1.35; }
+  .why{ margin-top:3.5mm; }
+  .why p{ font-size:9pt; color:var(--ink-soft); line-height:1.4; }
+
+  .totals{ border:1px solid var(--rule); border-radius:1.5mm; overflow:hidden; }
+  .totals .row{ display:flex; justify-content:space-between; gap:4mm; padding:1.4mm 3mm; font-size:8.8pt; }
+  .totals .row + .row{ border-top:1px solid var(--rule); }
+  .totals .row .k{ color:var(--ink-soft); }
+  .totals .grand{
+    background:var(--brand); color:#fff; padding:2.2mm 3mm;
+    display:flex; justify-content:space-between; align-items:baseline;
+  }
+  .totals .grand .k{ font-size:8.6pt; font-weight:500; letter-spacing:.08em; text-transform:uppercase; opacity:.86; }
+  .totals .grand .v{ font-size:13pt; font-weight:700; }
+
+  /* --- tax-mode row visibility ---
+     🔴 !important for the same reason as the invoice: `.totals .row{display:flex}` is
+     (0,2,0) and outranks a single-class rule, so without it a Kerala credit note prints an
+     IGST line of 0.00 and an export one claims zero-rating on a domestic supply. */
+  .r-cgst, .r-sgst, .r-igst, .r-zero, .r-nogst{ display:none !important; }
+  .gst-adjusted.mode-intra  .r-cgst, .gst-adjusted.mode-intra .r-sgst{ display:flex !important; }
+  .gst-adjusted.mode-inter  .r-igst{ display:flex !important; }
+  .gst-adjusted.mode-export .r-zero{ display:flex !important; }
+  .gst-commercial .r-nogst{ display:flex !important; }
+  .totals .r-nogst{ background:var(--warn-bg); }
+  .totals .r-nogst .k{ color:var(--warn-ink); }
+  .totals .r-nogst .k small{ display:block; font-size:7.2pt; opacity:.85; line-height:1.25; margin-top:.3mm; }
+
+  .payline{ margin-top:3mm; display:grid; grid-template-columns:1fr 58mm; gap:8mm; align-items:start; }
+  .effect h3{
+    font-size:7pt; font-weight:600; letter-spacing:.10em; text-transform:uppercase;
+    color:var(--brand); margin-bottom:2mm;
+  }
+  .effect p{ font-size:8.4pt; color:var(--ink-soft); line-height:1.4; }
+  .sign{ text-align:center; }
+  .sign .for{ font-size:8.8pt; font-weight:600; line-height:1.35; }
+  .sign .space{ height:10mm; display:flex; align-items:flex-end; justify-content:center; }
+  .sign .space img{ max-width:38mm; max-height:9.5mm; width:auto; height:auto; }
+  .sign .line{ border-top:1px solid var(--ink); padding-top:1.8mm; font-size:8.2pt; font-weight:600;
+               letter-spacing:.06em; text-transform:uppercase; }
+
+  .terms{ margin-top:3mm; border-top:1px solid var(--rule); padding-top:2.2mm; }
+  .terms h3{ font-size:7pt; font-weight:600; letter-spacing:.10em; text-transform:uppercase;
+             color:var(--brand); margin-bottom:2mm; }
+  .terms ol{ margin-left:4.2mm; font-size:7.8pt; color:var(--ink-soft); line-height:1.3; }
+  .s34{ display:none; margin-top:2.6mm; padding:2.6mm 3.2mm; background:var(--warn-bg);
+        border:1px solid #E6CF9A; border-radius:1.5mm;
+        font-size:8.6pt; font-weight:600; color:var(--warn-ink); line-height:1.5; }
+  .gst-commercial .s34{ display:block; }
+  .decl{ margin-top:2mm; font-size:7.8pt; color:var(--ink-soft); font-style:italic; line-height:1.35; }
+
+  .brandbar{
+    margin:3mm calc(var(--pad) * -1) 0; background:var(--brand); color:#fff;
+    padding:2.6mm var(--pad); display:flex; justify-content:space-between; align-items:center;
+    font-size:7.8pt; letter-spacing:.04em; gap:8mm;
+  }
+  .brandbar img{ height:4.6mm; width:auto; filter:brightness(0) invert(1); }
+  .brandbar .ids{ opacity:.82; text-align:right; }
+  .spacer{ flex:1 1 auto; }
+
+  @media screen{ body{ padding:8mm 0; } .sheet{ box-shadow:0 2mm 8mm rgba(0,0,0,.28); } }
+  @media print{ html{ background:#fff; } .sheet{ box-shadow:none; } }
+</style>
+</head>
+<body>
+
+<!-- ============ set tax mode + GST mode here ============ -->
+<div class="sheet mode-intra gst-adjusted" data-bind="note.taxMode + note.gstMode">
+
+  <header class="head">
+    <img class="logo" src="assets/adpedia-logo.svg" alt="adpedia" data-bind="company.logoUrl">
+    <div class="doc-title">
+      <h1>Credit Note</h1>
+      <div class="copy-mark" data-bind="doc.copyType">Original for Recipient</div>
+    </div>
+  </header>
+
+  <section class="meta">
+    <div><div class="k">Credit Note No.</div><div class="v" data-bind="note.number">ADPC/26-27/0001</div></div>
+    <div><div class="k">Date</div>           <div class="v" data-bind="note.date">30 Sep 2026</div></div>
+    <div><div class="k">Against Invoice</div><div class="v" data-bind="invoice.number">ADP/26-27/0026</div></div>
+    <div><div class="k">Invoice Date</div>   <div class="v" data-bind="invoice.date">30 Sep 2026</div></div>
+  </section>
+
+  <section class="parties">
+    <div class="party from">
+      <h2>Supplier</h2>
+      <div class="name" data-bind="company.legalName">Adpedia Films Private Limited</div>
+      <address data-bind="company.registeredAddress">
+        VIII/318, Chinnangath House, Thommana,<br>
+        Kaduppassery P.O., Irinjalakuda,<br>
+        Thrissur, Kerala &ndash; 680683, India
+      </address>
+      <div class="idlist">
+        <span><span class="lbl">GSTIN</span> <b data-bind="company.gstin">32AAUCA9985H1ZX</b></span>
+        <span><span class="lbl">PAN</span> <b data-bind="company.pan">AAUCA9985H</b></span><br>
+        <span><span class="lbl">CIN</span> <b data-bind="company.cin">U92190KL2021PTC068241</b></span>
+      </div>
+    </div>
+
+    <div class="party to">
+      <h2>Credit To</h2>
+      <div class="name" data-bind="customer.name">Click AR Business Private Limited</div>
+      <address data-bind="customer.billingAddress">
+        36/3460-A, M G Road,<br>
+        Thrissur, Thrissur District,<br>
+        Kerala &ndash; 680001, India
+      </address>
+      <div class="idlist">
+        <span><span class="lbl">GSTIN</span> <b data-bind="customer.gstinOrNA">32AAKCC9890P1ZS</b></span>
+        <span><span class="lbl">Place of Supply</span> <b data-bind="customer.stateLabel">Kerala (32)</b></span>
+      </div>
+    </div>
+  </section>
+
+  <section class="against">
+    <div><span class="lbl">Issued under</span> &nbsp;<b>Section 34(1), CGST Act 2017</b></div>
+    <div><span class="lbl">Project</span> &nbsp;<b data-bind="project.name">&mdash;</b></div>
+    <div><span class="lbl">Your Ref / PO</span> &nbsp;<b data-bind="invoice.customerRef">&mdash;</b></div>
+  </section>
+
+  <table class="items" data-bind="note.lines">
+    <thead>
+      <tr>
+        <th style="width:8mm">#</th>
+        <th>Particulars</th>
+        <th class="mid c-sac" style="width:18mm">SAC</th>
+        <th class="num" style="width:34mm">Value Credited (₹)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="mid">1</td>
+        <td>
+          <div class="desc" data-bind="note.description">Credit against tax invoice ADP/26-27/0026</div>
+          <!-- the reason has its own labelled block below; repeating it here just prints the
+               same sentence twice on a document with a single line -->
+        </td>
+        <td class="mid c-sac" data-bind="note.sac">998314</td>
+        <td class="num" data-bind="note.taxableValue">20,000.00</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <section class="foot-grid">
+    <div>
+      <div class="words">
+        <h3>Total Credit (in words)</h3>
+        <p data-bind="note.totalInWords">Indian Rupees Twenty Three Thousand Six Hundred Only</p>
+      </div>
+      <div class="why">
+        <h3>Reason for this credit note</h3>
+        <p data-bind="note.reasonFull">Rate revised after delivery, per the client's note of 28 Sep.</p>
+      </div>
+    </div>
+
+    <div class="totals">
+      <div class="row"><span class="k">Value of supply credited</span><span data-bind="note.taxableValue">20,000.00</span></div>
+
+      <div class="row r-cgst"><span class="k">CGST credited <span data-bind="note.cgstRate">@ 9%</span></span><span data-bind="note.cgst">1,800.00</span></div>
+      <div class="row r-sgst"><span class="k">SGST credited <span data-bind="note.sgstRate">@ 9%</span></span><span data-bind="note.sgst">1,800.00</span></div>
+      <div class="row r-igst"><span class="k">IGST credited <span data-bind="note.igstRate">@ 18%</span></span><span data-bind="note.igst">3,600.00</span></div>
+      <div class="row r-zero"><span class="k">GST &mdash; zero rated (export of services)</span><span>0.00</span></div>
+
+      <div class="row r-nogst">
+        <span class="k">
+          GST not credited
+          <small>s.34(2) deadline passed &mdash; the tax already paid cannot be recovered</small>
+        </span>
+        <span data-bind="note.taxNotAdjusted">3,600.00</span>
+      </div>
+
+      <div class="grand">
+        <span class="k">Total Credit</span>
+        <span class="v" data-bind="note.grandTotal">₹ 23,600.00</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="payline">
+    <div class="effect">
+      <h3>Effect of this note</h3>
+      <p data-bind="note.effect">
+        The amount payable against invoice ADP/26-27/0026 is reduced by the total above. The invoice
+        itself stands as issued and remains reported; this note is a separate document with its own
+        number, reported separately.
+      </p>
+    </div>
+
+    <div class="sign">
+      <div class="for">For <span data-bind="company.legalName">Adpedia Films Private Limited</span></div>
+      <div class="space"><img src="assets/signature.png" alt="" data-bind="company.signatureImageUrl"></div>
+      <div class="line">Authorised Signatory</div>
+    </div>
+  </section>
+
+  <section class="terms">
+    <h3>Declarations</h3>
+    <ol>
+      <li>Issued under section 34(1) of the CGST Act 2017 and Rule 53(1A) of the CGST Rules.</li>
+      <li>This credit note relates to the tax invoice identified above and does not cancel it.</li>
+      <li>Please quote this credit note number when settling the invoice it relates to.</li>
+      <li><span data-bind="note.reportingNote">This note is reported in GSTR-1 for the period in which it is issued.</span></li>
+    </ol>
+
+    <p class="s34">
+      &#9888; Commercial credit note &mdash; <b>no GST is credited</b>. The time limit in section 34(2) for
+      adjusting output tax against invoice <span data-bind="invoice.number">ADP/26-27/0026</span> expired on
+      <span data-bind="note.deadline">30 Nov 2027</span>. The credit above is agreed between the parties; the tax
+      already paid to the government on the original supply is not recoverable and is not reported in GSTR-1.
+    </p>
+
+    <p class="decl">Certified that the particulars given above are true and correct, and that this note reflects a
+      reduction agreed in respect of the supply covered by the invoice identified above.</p>
+  </section>
+
+  <div class="spacer"></div>
+
+  <footer class="brandbar">
+    <img src="assets/adpedia-logo.svg" alt="adpedia">
+    <span class="ids">CIN U92190KL2021PTC068241 &nbsp;·&nbsp; GSTIN 32AAUCA9985H1ZX &nbsp;·&nbsp; PAN AAUCA9985H</span>
+  </footer>
+
+</div>
+</body>
+</html>

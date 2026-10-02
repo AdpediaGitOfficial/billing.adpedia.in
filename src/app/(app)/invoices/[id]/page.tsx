@@ -18,6 +18,8 @@ export default async function InvoiceDetail({ params }: { params: Promise<{ id: 
     include: {
       customer: true, project: true, lines: { orderBy: { position: 'asc' } },
       financialYear: true, lut: true,
+      // docs/48 — raised credit notes were reachable from nowhere once issued
+      creditNotes: { orderBy: { date: 'asc' } },
     },
   })
   if (!inv) notFound()
@@ -28,6 +30,10 @@ export default async function InvoiceDetail({ params }: { params: Promise<{ id: 
     where: { companyId: ctx.companyId, sourceType: 'INVOICE', sourceId: inv.id },
     include: { lines: { include: { account: true } } },
   })
+
+  const credited = inv.creditNotes.reduce(
+    (a, c) => a.plus(c.grandTotal.toString()), new Decimal(0),
+  )
 
   const money = (v: unknown) => inv.currency === 'INR'
     ? formatINR(v as string)
@@ -122,12 +128,56 @@ export default async function InvoiceDetail({ params }: { params: Promise<{ id: 
                 <Row k="Net payable" v={money(inv.netPayable.toString())} strong />
               </>
             )}
+            {/* 🔴 A credited invoice still read as fully owed. The credit notes were listed
+                further down the page and nothing connected them to the total, so the figure
+                a reader takes away was the one before the credit. */}
+            {credited.gt(0) && (
+              <>
+                <Row k={`Less: credit note${inv.creditNotes.length === 1 ? '' : 's'}`} v={`(${money(credited.toString())})`} />
+                <Row k="Net after credits" v={money(new Decimal(inv.grandTotal.toString()).minus(credited).toString())} strong />
+              </>
+            )}
             {new Decimal(inv.amountReceived.toString()).gt(0) && (
               <Row k="Received" v={money(inv.amountReceived.toString())} />
             )}
           </dl>
         </Card>
       </div>
+
+      {inv.creditNotes.length > 0 && (
+        <Card className="mt-4 p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.1em]" style={{ color: 'var(--text-muted)' }}>
+            Credit notes against this invoice
+          </p>
+          <table className="mt-2 w-full text-[12.5px]">
+            <tbody>
+              {inv.creditNotes.map((c) => (
+                <tr key={c.id} className="border-t" style={{ borderColor: 'var(--rule)' }}>
+                  <td className="py-2 font-medium">{c.number}</td>
+                  <td className="py-2 tabular" style={{ color: 'var(--text-muted)' }}>
+                    {c.date.toISOString().slice(0, 10)}
+                  </td>
+                  <td className="py-2" style={{ color: 'var(--text-secondary)' }}>{c.reason}</td>
+                  <td className="py-2">
+                    {/* 🔴 A commercial note credits the client without recovering any GST,
+                        and it is not in GSTR-1 — which is worth seeing before the CA asks. */}
+                    {c.gstAdjusted
+                      ? <Pill tone="neutral">GST adjusted</Pill>
+                      : <Pill tone="warn">commercial · no GST</Pill>}
+                  </td>
+                  <td className="py-2 text-right font-semibold tabular">{money(c.grandTotal.toString())}</td>
+                  <td className="py-2 pl-3 text-right">
+                    <a href={`/api/credit-notes/${c.id}/document`} target="_blank" rel="noreferrer"
+                      className="text-[12px] underline underline-offset-2" style={{ color: 'var(--accent)' }}>
+                      Document
+                    </a>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
+      )}
 
       <InvoiceActions
         invoiceId={inv.id}

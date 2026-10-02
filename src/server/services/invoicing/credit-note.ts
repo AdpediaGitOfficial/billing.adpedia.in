@@ -70,6 +70,8 @@ export interface CreditNotePreview {
   /** the most that may still be credited against this invoice */
   creditable: Decimal
   gstAdjustable: boolean
+  /** 🔴 tax that cannot be recovered because the s.34(2) deadline has passed */
+  taxNotAdjusted: Decimal
   deadline: Date
   nextNumber: string | null
   warnings: string[]
@@ -119,10 +121,21 @@ export async function previewCreditNote(
 
   const warnings: string[] = []
   const gstAdjustable = canAdjustGst(inv.date, date)
+
+  // 🔴 Past the deadline the note carries NO TAX — docs/48.
+  //
+  // This screen already said the GST could not be recovered, and the posting recovered it
+  // anyway: output GST was debited and the note went into GSTR-1's cdnr table. The books
+  // then claimed a reduction the return cannot support, and the portal would reject the
+  // table that carried it. The client is still credited the full gross; what changes is that
+  // the tax inside it is a cost the company bears, not tax it gets back.
+  const taxNotAdjusted = gstAdjustable ? ZERO : tax
   if (!gstAdjustable) {
+    cgst = ZERO; sgst = ZERO; igst = ZERO
     warnings.push(
       `The deadline for adjusting GST on ${inv.number} passed on ${gstAdjustmentDeadline(inv.date).toISOString().slice(0, 10)} (s.34(2)). ` +
-      'A credit note raised now is valid between you and the client, but the GST already paid cannot be recovered.',
+      `This is a commercial credit note: the client is credited the full ${taxable.plus(tax).toFixed(2)}, ` +
+      `but the ${tax.toFixed(2)} of GST already paid stays paid, is not reported in GSTR-1, and lands in the P&L.`,
     )
   }
   if (taxable.gt(creditable)) {
@@ -138,8 +151,9 @@ export async function previewCreditNote(
   return {
     invoiceNumber: inv.number, invoiceDate: inv.date, taxMode: inv.taxMode,
     taxableValue: taxable, cgst, sgst, igst,
-    grandTotal: taxable.plus(cgst).plus(sgst).plus(igst),
-    creditable, gstAdjustable, deadline: gstAdjustmentDeadline(inv.date),
+    // the client is credited the same gross either way — only its composition changes
+    grandTotal: taxable.plus(cgst).plus(sgst).plus(igst).plus(taxNotAdjusted),
+    creditable, gstAdjustable, taxNotAdjusted, deadline: gstAdjustmentDeadline(inv.date),
     nextNumber: null, warnings,
   }
 }
@@ -182,6 +196,8 @@ export async function createCreditNote(ctx: RequestContext, input: CreditNoteInp
         taxableValue: preview.taxableValue.toFixed(2),
         cgst: preview.cgst.toFixed(2), sgst: preview.sgst.toFixed(2), igst: preview.igst.toFixed(2),
         grandTotal: preview.grandTotal.toFixed(2),
+        gstAdjusted: preview.gstAdjustable,
+        taxNotAdjusted: preview.taxNotAdjusted.toFixed(2),
       },
     })
 
@@ -193,7 +209,17 @@ export async function createCreditNote(ctx: RequestContext, input: CreditNoteInp
       sourceType: 'CREDIT_NOTE', sourceId: note.id,
       postings: [
         { accountCode: '1100', credit: preview.grandTotal, customerId: inv.customerId, projectId: inv.projectId ?? undefined },
-        { accountCode: '4010', debit: preview.taxableValue, customerId: inv.customerId, projectId: inv.projectId ?? undefined },
+        // 🔴 Where the GST cannot be recovered it is NOT debited back to the tax accounts —
+        // that would reduce a liability the return still has to carry. The whole gross comes
+        // off revenue instead, which is what the company actually gave back.
+        {
+          accountCode: '4010',
+          debit: preview.taxableValue.plus(preview.taxNotAdjusted),
+          customerId: inv.customerId, projectId: inv.projectId ?? undefined,
+          narration: preview.taxNotAdjusted.gt(0)
+            ? `includes ${preview.taxNotAdjusted.toFixed(2)} of GST that cannot be recovered — s.34(2) deadline passed`
+            : undefined,
+        },
         ...(preview.cgst.gt(0) ? [{ accountCode: '2110', debit: preview.cgst, customerId: inv.customerId }] : []),
         ...(preview.sgst.gt(0) ? [{ accountCode: '2120', debit: preview.sgst, customerId: inv.customerId }] : []),
         ...(preview.igst.gt(0) ? [{ accountCode: '2130', debit: preview.igst, customerId: inv.customerId }] : []),
@@ -210,7 +236,10 @@ export async function createCreditNote(ctx: RequestContext, input: CreditNoteInp
 
     await audit(ctx, {
       entity: 'CreditNote', entityId: note.id, action: 'CREATE',
-      after: { number, against: inv.number, grandTotal: preview.grandTotal.toFixed(2), gstAdjustable: preview.gstAdjustable },
+      after: {
+        number, against: inv.number, grandTotal: preview.grandTotal.toFixed(2),
+        gstAdjustable: preview.gstAdjustable, taxNotAdjusted: preview.taxNotAdjusted.toFixed(2),
+      },
     }, tx)
 
     return note

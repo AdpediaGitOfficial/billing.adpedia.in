@@ -118,17 +118,24 @@ describe('🔴 GSTR-1 finally has a cdnr section', () => {
 })
 
 describe('🔴 past the s.34(2) deadline', () => {
-  it('still issues the note, and says the GST cannot be recovered', async () => {
+  it('still issues the note, and credits no tax on it', async () => {
     const inv = await invoice()   // dated 1 May 2026 → deadline 30 Nov 2027
 
     const late = await previewCreditNote(ctx, {
       invoiceId: inv.id, date: '2027-12-15', full: true,
     })
     expect(late.gstAdjustable).toBe(false)
-    expect(late.warnings.join(' ')).toMatch(/cannot be recovered/)
+    // docs/48: the note carries no tax at all once the deadline has passed. It used to carry
+    // the full split and debit the output-tax accounts, recovering GST the return could not.
+    expect(late.cgst.toString()).toBe('0')
+    expect(late.sgst.toString()).toBe('0')
+    expect(late.taxNotAdjusted.gt(0)).toBe(true)
+    expect(late.warnings.join(' ')).toMatch(/stays paid/)
+    expect(late.warnings.join(' ')).toMatch(/commercial credit note/)
 
     const inTime = await previewCreditNote(ctx, { invoiceId: inv.id, date: '2026-07-01', full: true })
     expect(inTime.gstAdjustable).toBe(true)
+    expect(inTime.taxNotAdjusted.toString()).toBe('0')
     expect(inTime.warnings).toEqual([])
   })
 })

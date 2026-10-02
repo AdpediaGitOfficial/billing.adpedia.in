@@ -100,7 +100,11 @@ export async function renderInvoiceHtml(companyId: string, invoiceId: string): P
     [/(<div class="v" data-bind="invoice\.dueDate">)[^<]*/, `$1${fmtDate(inv.dueDate)}`],
     [/(<div class="v" data-bind="invoice\.placeOfSupply">)[^<]*/, `$1${esc(placeOfSupplyLabel(inv.taxMode, billTo.stateCode))}`],
 
-    [/(<div class="name" data-bind="company\.legalName">)[^<]*/, `$1${esc(co.legalName)}`],
+    // 🔴 Bound twice: the supplier block and the "For <company>" above the signature. Only
+    // the first was ever substituted, so the signature line printed whatever the template
+    // happened to carry. It reads correctly today because the placeholder IS this company —
+    // which is exactly how a defect like this survives a careful look at the output.
+    [/(data-bind="company\.legalName">)[^<]*/g, `$1${esc(co.legalName)}`],
     [/(<address data-bind="company\.registeredAddress">)[\s\S]*?(<\/address>)/, `$1${addressHtml(co.registeredAddress)}$2`],
     [/(<b data-bind="company\.gstin">)[^<]*/, `$1${esc(co.gstin)}`],
     [/(<b data-bind="company\.pan">)[^<]*/, `$1${esc(co.pan)}`],
