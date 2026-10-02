@@ -39,9 +39,13 @@ export function gstr1ToCsv(r: Gstr1): string {
   }
 
   section('cdnr — Credit / Debit notes (registered)')
-  out.push(row(['Note Number', 'Note Date', 'Against Invoice', 'Reason', 'Taxable Value', 'CGST', 'SGST', 'IGST']))
+  // 🔴 the note type is the first column the portal reads — C or D decides the sign
+  out.push(row(['Note Type', 'Note Number', 'Note Date', 'Against Invoice', 'Reason', 'Taxable Value', 'CGST', 'SGST', 'IGST']))
   for (const c of r.creditNotes) {
-    out.push(row([c.number, c.date, c.againstInvoice, c.reason, d2(c.taxableValue), d2(c.cgst), d2(c.sgst), d2(c.igst)]))
+    out.push(row([
+      c.noteType === 'DEBIT' ? 'D' : 'C',
+      c.number, c.date, c.againstInvoice, c.reason, d2(c.taxableValue), d2(c.cgst), d2(c.sgst), d2(c.igst),
+    ]))
   }
 
   // 🔴 docs/52 — the amendment tables. The CA imports these into the RPU alongside the rest;

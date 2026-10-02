@@ -19,7 +19,7 @@ function addressHtml(a: unknown): string {
 }
 
 /**
- * The credit note as a document — docs/48.
+ * The note as a document — docs/48, and docs/53 for the debit side.
  *
  * Rule 53(1A) fixes what has to be on it, and the two fields people forget are the ones the
  * recipient needs most: **the number and date of the invoice it relates to**. Without them a
@@ -29,6 +29,11 @@ function addressHtml(a: unknown): string {
  * record. The invoice froze them when it was sent (docs/41); a credit note that re-read the
  * live customer would show today's address against yesterday's supply, and the pair that is
  * supposed to net out would not agree on who it was issued to.
+ *
+ * 🔴 One template serves both directions, because rule 53(1A) fixes identical contents for a
+ * credit note and a debit note. What changes is the title, the word on the money column, and
+ * the declarations — a debit note is issued under s.34(3), is not time-barred, and carries the
+ * s.16(4) note the recipient needs in order to claim.
  */
 export async function renderCreditNoteHtml(companyId: string, creditNoteId: string): Promise<string> {
   // CreditNote carries companyId without a relation, so the company is read alongside it
@@ -94,17 +99,38 @@ export async function renderCreditNoteHtml(companyId: string, creditNoteId: stri
   const gstClass = note.gstAdjusted ? 'gst-adjusted' : 'gst-commercial'
   const sacClass = sac ? '' : ' hide-sac'
 
-  const reportingNote = note.gstAdjusted
-    ? 'This note is reported in table 9B (credit notes) of GSTR-1 for the period in which it is issued.'
-    : 'This note is NOT reported in GSTR-1: no output tax is being adjusted against it.'
+  const isDebit = note.noteType === 'DEBIT'
+
+  const reportingNote = isDebit
+    ? 'This note is reported in the cdnr table of GSTR-1 for the period in which it is issued, and the ' +
+      'tax on it belongs to that period — s.34(4).'
+    : note.gstAdjusted
+      ? 'This note is reported in table 9B (credit notes) of GSTR-1 for the period in which it is issued.'
+      : 'This note is NOT reported in GSTR-1: no output tax is being adjusted against it.'
 
   const effect = inv
-    ? `The amount payable against invoice ${esc(inv.number)} is reduced by the total above. The invoice itself ` +
-      'stands as issued and remains reported; this note is a separate document with its own number, reported separately.'
-    : 'The amount payable is reduced by the total above.'
+    ? `The amount payable against invoice ${esc(inv.number)} is ${isDebit ? 'increased' : 'reduced'} by the total ` +
+      'above. The invoice itself stands as issued and remains reported; this note is a separate document with its ' +
+      'own number, reported separately.'
+    : `The amount payable is ${isDebit ? 'increased' : 'reduced'} by the total above.`
 
   const SUBS: [RegExp, string][] = [
-    [/class="sheet mode-intra gst-adjusted"/, `class="sheet ${taxClass} ${gstClass}${sacClass}"`],
+    [/class="sheet mode-intra gst-adjusted"/, `class="sheet ${taxClass} ${gstClass}${sacClass}${isDebit ? ' note-debit' : ''}"`],
+    [/(<h1>)Credit Note(<\/h1>)/, `$1${isDebit ? 'Debit Note' : 'Credit Note'}$2`],
+    // 🔴 The three the tests did not catch and the page did: the meta-strip label still read
+    // "Credit Note No.", the line still began "Credit against", and the browser tab — which
+    // becomes the saved filename when a client prints to PDF — still said Credit Note.
+    [/(<title>)Credit Note/, `$1${isDebit ? 'Debit Note' : 'Credit Note'}`],
+    [/(<div class="k">)Credit Note No\.(<\/div>)/, `$1${isDebit ? 'Debit Note No.' : 'Credit Note No.'}$2`],
+    [/(<h2>)Credit To(<\/h2>)/, `$1${isDebit ? 'Charged To' : 'Credit To'}$2`],
+    [/(<b>Section 34\(1\), CGST Act 2017<\/b>)/, `<b>Section 34(${isDebit ? '3' : '1'}), CGST Act 2017</b>`],
+    [/(<h3>)Total Credit \(in words\)(<\/h3>)/, `$1Total ${isDebit ? 'Charged' : 'Credit'} (in words)$2`],
+    [/(<h3>)Reason for this credit note(<\/h3>)/, `$1Reason for this ${isDebit ? 'debit' : 'credit'} note$2`],
+    [/(<span class="k">)Value of supply credited(<\/span>)/, `$1Value of supply ${isDebit ? 'charged' : 'credited'}$2`],
+    [/(<span class="k">)Total Credit(<\/span>)/, `$1Total ${isDebit ? 'Charged' : 'Credit'}$2`],
+    [/CGST credited /g, isDebit ? 'CGST charged ' : 'CGST credited '],
+    [/SGST credited /g, isDebit ? 'SGST charged ' : 'SGST credited '],
+    [/IGST credited /g, isDebit ? 'IGST charged ' : 'IGST credited '],
 
     [/(<div class="v" data-bind="note\.number">)[^<]*/, `$1${esc(note.number)}`],
     [/(<div class="v" data-bind="note\.date">)[^<]*/, `$1${fmtDate(note.date)}`],
@@ -131,7 +157,8 @@ export async function renderCreditNoteHtml(companyId: string, creditNoteId: stri
     [/(<b data-bind="invoice\.customerRef">)[^<]*/, `$1${esc(inv?.customerRef ?? '—')}`],
 
     [/(<div class="desc" data-bind="note\.description">)[^<]*/,
-      `$1Credit against tax invoice ${esc(inv?.number ?? '—')}${inv ? ` dated ${fmtDate(inv.date)}` : ''}`],
+      `$1${isDebit ? 'Additional charge against' : 'Credit against'} tax invoice ${esc(inv?.number ?? '—')}` +
+      `${inv ? ` dated ${fmtDate(inv.date)}` : ''}`],
     [/(<td class="mid c-sac" data-bind="note\.sac">)[^<]*/, `$1${esc(sac ?? '—')}`],
 
     [/(<p data-bind="note\.reasonFull">)[^<]*/, `$1${esc(note.reason)}`],
@@ -159,7 +186,29 @@ export async function renderCreditNoteHtml(companyId: string, creditNoteId: stri
   html = html.replace(/(data-bind="note\.taxableValue">)[^<]*/g, `$1${money(taxable.toFixed(2))}`)
 
   // the column heading carries the currency, like the invoice's does
-  html = html.replace(/Value Credited \(₹\)/g, `Value Credited (${cur === 'INR' ? '₹' : cur})`)
+  html = html.replace(/Value Credited \(₹\)/g,
+    `${isDebit ? 'Value Charged' : 'Value Credited'} (${cur === 'INR' ? '₹' : cur})`)
+
+  // 🔴 A debit note is not time-barred and its declarations say different things, so the
+  // whole block is replaced rather than patched word by word.
+  if (isDebit) {
+    html = html.replace(
+      '<li>Issued under section 34(1) of the CGST Act 2017 and Rule 53(1A) of the CGST Rules.</li>',
+      '<li>Issued under section 34(3) of the CGST Act 2017 and Rule 53(1A) of the CGST Rules.</li>',
+    )
+    html = html.replace(
+      '<li>This credit note relates to the tax invoice identified above and does not cancel it.</li>',
+      '<li>This debit note relates to the tax invoice identified above and charges an additional amount against it.</li>' +
+      '<li>The time limit in section 34(2) applies to credit notes only — a debit note may be issued at any time.</li>' +
+      '<li>You may claim the input tax credit on this note by the section 16(4) deadline measured from ' +
+      '<b>this note&rsquo;s date</b>, not from the date of the original invoice.</li>',
+    )
+    html = html.replace(/Please quote this credit note number/, 'Please quote this debit note number')
+    html = html.replace(
+      /reduction agreed in respect of the supply covered by the invoice identified above/,
+      'additional amount properly chargeable in respect of the supply covered by the invoice identified above',
+    )
+  }
 
   // 🔴 Inlined, not linked — docs/33. Chromium renders this through setContent() with no
   // base URL, so a relative asset silently does not appear and the note goes out unbranded

@@ -57,8 +57,9 @@ payroll, projects and bank reconciliation on a double-entry ledger.
 | [50 · Cancelling with consequences](docs/50-cancelling-payroll-and-challans.md) | Payroll runs and TDS challans — and the filing record that decides whether they may be reversed at all |
 | [51 · Reversible](docs/51-reversible.md) | Credit notes and GST set-offs — the last documents that could not be undone, and the rule behind all of them |
 | [52 · Amendments](docs/52-amendments.md) | GSTR-1 table 9A and TDS correction statements — what every refusal was pointing at |
+| [53 · Debit notes](docs/53-debit-notes.md) | s.34(3) — the mirror of the credit note, and the three rules that are not mirrored |
 
-**650 tests passing** · typecheck and lint clean · production build passes.
+**661 tests passing** · typecheck and lint clean · production build passes.
 
 ```bash
 cp .env.example .env     # set DATABASE_URL and JWT_SECRET

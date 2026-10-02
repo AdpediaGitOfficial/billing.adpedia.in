@@ -594,7 +594,14 @@ model InvoiceLine {
   igst          Decimal      @default(0) @db.Decimal(18, 2)
 }
 
+/// A note under s.34 — in either direction.
+///
+/// 🔴 One table, because the law treats them as one document facing two ways: rule 53(1A)
+/// fixes identical contents for both, GSTR-1 reports both in the same `cdnr` table with a
+/// flag, and the posting is a mirror. The table keeps its original name rather than taking a
+/// migration for a word; `noteType` is what distinguishes them everywhere it matters.
 model CreditNote {
+  noteType        NoteType  @default(CREDIT)
   id              String    @id @default(cuid())
   companyId       String
   financialYearId String
@@ -1323,6 +1330,14 @@ model GstReturnPeriod {
   status          GstReturnStatus @default(OPEN)
 
   @@unique([companyId, periodLabel, returnType])
+}
+
+enum NoteType {
+  /// s.34(1) — reduces what is owed. Time-barred by s.34(2).
+  CREDIT
+  /// 🔴 s.34(3) — increases what is owed, and NOT time-barred, because it increases the
+  /// government's tax rather than reducing it.
+  DEBIT
 }
 
 enum GstReturnType {

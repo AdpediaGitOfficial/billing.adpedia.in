@@ -90,6 +90,7 @@ export async function seedAll(prisma: PrismaClient, opts: SeedOptions = {}) {
   for (const [docType, pattern] of [
     ['EXPORT_INVOICE', 'ADPX/{FY}/{SEQ:4}'],   // ADPX/26-27/0004  (15)
     ['CREDIT_NOTE', 'ADPC/{FY}/{SEQ:4}'],      // ADPC/26-27/0001  (15)
+    ['DEBIT_NOTE', 'ADPD/{FY}/{SEQ:4}'],       // ADPD/26-27/0001  (15) — docs/53
     ['RECEIPT', 'ADPR/{FY}/{SEQ:4}'],
     ['SELF_INVOICE', 'ADPS/{FY}/{SEQ:4}'],
     ['PROFORMA', 'ADPP/{FY}/{SEQ:4}'],

@@ -35,8 +35,12 @@ export default async function InvoiceDetail({ params }: { params: Promise<{ id: 
     include: { lines: { include: { account: true } } },
   })
 
-  const credited = inv.creditNotes
-    .filter((c) => !c.cancelledAt)
+  const live = inv.creditNotes.filter((c) => !c.cancelledAt)
+  const credited = live
+    .filter((c) => c.noteType === 'CREDIT')
+    .reduce((a, c) => a.plus(c.grandTotal.toString()), new Decimal(0))
+  const debited = live
+    .filter((c) => c.noteType === 'DEBIT')
     .reduce((a, c) => a.plus(c.grandTotal.toString()), new Decimal(0))
 
   const money = (v: unknown) => inv.currency === 'INR'
@@ -59,6 +63,9 @@ export default async function InvoiceDetail({ params }: { params: Promise<{ id: 
             )}
             {!isDraft && inv.status !== 'CANCELLED' && (
               <Link href={`/invoices/${inv.id}/credit-note`}><Button variant="ghost">Credit note</Button></Link>
+            )}
+            {!isDraft && inv.status !== 'CANCELLED' && (
+              <Link href={`/invoices/${inv.id}/debit-note`}><Button variant="ghost">Debit note</Button></Link>
             )}
             {!isDraft && inv.status !== 'CANCELLED' && (
               <Link href={`/invoices/${inv.id}/amend`}><Button variant="ghost">Amend</Button></Link>
@@ -138,11 +145,15 @@ export default async function InvoiceDetail({ params }: { params: Promise<{ id: 
             {/* 🔴 A credited invoice still read as fully owed. The credit notes were listed
                 further down the page and nothing connected them to the total, so the figure
                 a reader takes away was the one before the credit. */}
+            {debited.gt(0) && (
+              <Row k="Add: debit notes" v={money(debited.toString())} />
+            )}
             {credited.gt(0) && (
-              <>
-                <Row k={`Less: credit note${inv.creditNotes.length === 1 ? '' : 's'}`} v={`(${money(credited.toString())})`} />
-                <Row k="Net after credits" v={money(new Decimal(inv.grandTotal.toString()).minus(credited).toString())} strong />
-              </>
+              <Row k="Less: credit notes" v={`(${money(credited.toString())})`} />
+            )}
+            {(credited.gt(0) || debited.gt(0)) && (
+              <Row k="Net after notes"
+                v={money(new Decimal(inv.grandTotal.toString()).minus(credited).plus(debited).toString())} strong />
             )}
             {new Decimal(inv.amountReceived.toString()).gt(0) && (
               <Row k="Received" v={money(inv.amountReceived.toString())} />
@@ -154,7 +165,7 @@ export default async function InvoiceDetail({ params }: { params: Promise<{ id: 
       {inv.creditNotes.length > 0 && (
         <Card className="mt-4 p-4">
           <p className="text-[10px] font-semibold uppercase tracking-[0.1em]" style={{ color: 'var(--text-muted)' }}>
-            Credit notes against this invoice
+            Notes against this invoice
           </p>
           <table className="mt-2 w-full text-[12.5px]">
             <tbody>
@@ -174,9 +185,11 @@ export default async function InvoiceDetail({ params }: { params: Promise<{ id: 
                         A cancelled one is neither, so it says nothing about tax at all. */}
                     {c.cancelledAt
                       ? null
-                      : c.gstAdjusted
-                        ? <Pill tone="neutral">GST adjusted</Pill>
-                        : <Pill tone="warn">commercial · no GST</Pill>}
+                      : c.noteType === 'DEBIT'
+                        ? <Pill tone="accent">debit · charged</Pill>
+                        : c.gstAdjusted
+                          ? <Pill tone="neutral">GST adjusted</Pill>
+                          : <Pill tone="warn">commercial · no GST</Pill>}
                   </td>
                   <td className="py-2 text-right font-semibold tabular"
                     style={c.cancelledAt ? { textDecoration: 'line-through', color: 'var(--text-muted)' } : undefined}>

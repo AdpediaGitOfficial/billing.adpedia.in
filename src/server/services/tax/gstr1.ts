@@ -57,7 +57,8 @@ export interface Gstr1 {
   b2b: B2BRow[]
   b2cs: { placeOfSupply: string; rate: number; taxableValue: Decimal; cgst: Decimal; sgst: Decimal; igst: Decimal }[]
   exports: ExportRow[]
-  creditNotes: { number: string; date: Date; againstInvoice: string | null; reason: string; taxableValue: Decimal; cgst: Decimal; sgst: Decimal; igst: Decimal }[]
+  /** cdnr — credit AND debit notes, flagged. docs/53. */
+  creditNotes: { noteType: 'CREDIT' | 'DEBIT'; number: string; date: Date; againstInvoice: string | null; reason: string; taxableValue: Decimal; cgst: Decimal; sgst: Decimal; igst: Decimal }[]
   /**
    * Table 9A — amendments to invoices filed in an earlier period (docs/52).
    *
@@ -168,10 +169,12 @@ export async function buildGstr1(companyId: string, from: Date, to: Date, label:
     include: { invoice: { select: { number: true } } },
     orderBy: { date: 'asc' },
   })
+  // 🔴 only credit notes can be commercial — s.34(2) restricts them alone (docs/53)
   const commercial = await prisma.creditNote.count({
-    where: { companyId, date: { gte: from, lte: to }, gstAdjusted: false, cancelledAt: null },
+    where: { companyId, date: { gte: from, lte: to }, gstAdjusted: false, cancelledAt: null, noteType: 'CREDIT' },
   })
   const creditNotes = cns.map((c) => ({
+    noteType: c.noteType,
     number: c.number, date: c.date, againstInvoice: c.invoice?.number ?? null, reason: c.reason,
     taxableValue: new Decimal(c.taxableValue.toString()),
     cgst: new Decimal(c.cgst.toString()), sgst: new Decimal(c.sgst.toString()), igst: new Decimal(c.igst.toString()),
