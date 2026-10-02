@@ -59,8 +59,9 @@ payroll, projects and bank reconciliation on a double-entry ledger.
 | [52 · Amendments](docs/52-amendments.md) | GSTR-1 table 9A and TDS correction statements — what every refusal was pointing at |
 | [53 · Debit notes](docs/53-debit-notes.md) | s.34(3) — the mirror of the credit note, and the three rules that are not mirrored |
 | [54 · Advances](docs/54-advance-receipts.md) | Money in before an invoice — the receipt voucher, the GST that falls due on it, and rule 50 |
+| [55 · Certificates](docs/55-certificates.md) | Form 16 and 16A — a register and a chase, because only TRACES may generate them |
 
-**675 tests passing** · typecheck and lint clean · production build passes.
+**684 tests passing** · typecheck and lint clean · production build passes.
 
 ```bash
 cp .env.example .env     # set DATABASE_URL and JWT_SECRET

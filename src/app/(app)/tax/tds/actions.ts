@@ -5,6 +5,7 @@ import { requireContext } from '@/server/context'
 import { createChallan } from '@/server/services/tax/tds-challan'
 import { cancelTdsChallan } from '@/server/services/accounting/corrections'
 import { recordTdsFiling, recordTdsCorrection, type CorrectionCategory } from '@/server/services/tax/tds-filing'
+import { recordCertificateDownload, recordCertificateIssued } from '@/server/services/tax/tds-certificate'
 import type { ReturnForm } from '@/server/services/tax/tds-return'
 import { AppError } from '@/server/errors'
 
@@ -91,4 +92,46 @@ export async function recordCorrectionAction(_prev: { error?: string; ok?: strin
   }
   revalidatePath('/tax/tds'); revalidatePath('/tax/calendar'); revalidatePath('/payroll/runs')
   return { ok: 'Correction recorded — the return now reports the corrected figures' }
+}
+
+/**
+ * Record that the certificate was downloaded from TRACES — docs/55.
+ *
+ * 🔴 Refused before the return is filed: TRACES generates it from the statement, so a
+ * download that cannot have happened would turn the chase list green while every deductee is
+ * still waiting.
+ */
+export async function recordDownloadAction(_prev: { error?: string; ok?: string } | null, form: FormData) {
+  const ctx = await requireContext()
+  try {
+    const q = String(form.get('quarter') ?? '')
+    await recordCertificateDownload(ctx, {
+      formType: String(form.get('formType') ?? '16A') as '16' | '16A',
+      quarter: q ? Number(q) : null,
+      deducteeId: String(form.get('deducteeId') ?? ''),
+      isEmployee: String(form.get('isEmployee') ?? 'false') === 'true',
+      tracesRequestNo: String(form.get('tracesRequestNo') ?? '') || undefined,
+      downloadedOn: String(form.get('downloadedOn') ?? ''),
+    })
+  } catch (e) {
+    return { error: e instanceof AppError ? e.message : 'Could not record that download' }
+  }
+  revalidatePath('/tax/tds'); revalidatePath('/tax/calendar')
+  return { ok: 'Download recorded — attach the file, then record it as issued.' }
+}
+
+export async function recordIssuedAction(_prev: { error?: string; ok?: string } | null, form: FormData) {
+  const ctx = await requireContext()
+  try {
+    await recordCertificateIssued(
+      ctx,
+      String(form.get('id') ?? ''),
+      String(form.get('issuedOn') ?? ''),
+      String(form.get('issuedTo') ?? ''),
+    )
+  } catch (e) {
+    return { error: e instanceof AppError ? e.message : 'Could not record that' }
+  }
+  revalidatePath('/tax/tds'); revalidatePath('/tax/calendar')
+  return { ok: 'Recorded as issued.' }
 }

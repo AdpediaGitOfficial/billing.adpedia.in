@@ -101,7 +101,8 @@ than emphasis. Removed from rendered text; it stays in comments and in these doc
 - ~~**Revised returns are not modelled.**~~ Done in **`docs/52`**: a correction statement
   replaces the snapshot these guards read, so recording one re-opens exactly what it corrects
   and nothing else.
-- **Form 16/16A are still not issued**, so a cancelled run cannot invalidate a certificate
-  that was never produced.
+- ~~**Form 16/16A are still not issued**~~ — the register arrived in **`docs/55`**, and a
+  certificate already issued for a quarter is one more thing a cancellation should notice.
+  It does not yet (`docs/55 §5`).
 - Carried forward: debit notes, advance receipts, PDF statements, journal export,
   service-item CRUD.

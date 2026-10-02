@@ -60,24 +60,25 @@ model Company {
   /// payment. Adpedia qualifies — confirm which option is actually elected.
   gstFilingFrequency GstFilingFrequency @default(QUARTERLY)
 
-  bankAccounts   CompanyBankAccount[]
-  luts           CompanyLut[]
-  financialYears FinancialYear[]
-  series         DocumentSeries[]
-  accounts       Account[]
-  users          UserCompany[]
-  customers      Customer[]
-  vendors        Vendor[]
-  employees      Employee[]
-  projects       Project[]
-  invoices       Invoice[]
-  journalEntries JournalEntry[]
-  attachments    Attachment[]
-  gstChallans    GstChallan[]
-  gstSetOffs     GstSetOff[]
-  tdsFilings     TdsReturnFiling[]
-  tdsCorrections TdsCorrection[]
-  gstAmendments  GstAmendment[]
+  bankAccounts    CompanyBankAccount[]
+  luts            CompanyLut[]
+  financialYears  FinancialYear[]
+  series          DocumentSeries[]
+  accounts        Account[]
+  users           UserCompany[]
+  customers       Customer[]
+  vendors         Vendor[]
+  employees       Employee[]
+  projects        Project[]
+  invoices        Invoice[]
+  journalEntries  JournalEntry[]
+  attachments     Attachment[]
+  gstChallans     GstChallan[]
+  gstSetOffs      GstSetOff[]
+  tdsFilings      TdsReturnFiling[]
+  tdsCorrections  TdsCorrection[]
+  tdsCertificates TdsCertificate[]
+  gstAmendments   GstAmendment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -719,11 +720,12 @@ model Vendor {
   rcmApplicable     Boolean @default(false)
 
   bankDetails     Json?
-  paymentTermDays Int            @default(15)
-  aliases         String[]       @default([])
+  paymentTermDays Int              @default(15)
+  aliases         String[]         @default([])
   bills           VendorBill[]
-  isActive        Boolean        @default(true)
+  isActive        Boolean          @default(true)
   tdsDeductions   TdsDeduction[]
+  tdsCertificates TdsCertificate[]
 
   @@index([companyId, name])
 }
@@ -952,6 +954,7 @@ model Employee {
   allocations        StaffAllocation[]
   salaryTaxEstimates SalaryTaxEstimate[]
   tdsDeductions      TdsDeduction[]
+  tdsCertificates    TdsCertificate[]
 
   @@unique([companyId, employeeCode])
 }
@@ -1199,6 +1202,45 @@ model GstAmendment {
 
   @@index([companyId, periodLabel])
   @@index([companyId, invoiceId])
+}
+
+/// docs/55 · A TDS certificate — Form 16A for a vendor, Form 16 for an employee.
+///
+/// 🔴 This system does NOT generate the certificate, and must not. Rule 31(1) requires both
+/// to be generated and downloaded from TRACES: a certificate produced anywhere else carries
+/// no digital signature the deductee can verify, and the credit it evidences is the one
+/// TRACES holds, not the one our books hold. What this records is that the real one was
+/// downloaded and issued — which is the part nobody can see otherwise.
+model TdsCertificate {
+  id              String    @id @default(cuid())
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id])
+  financialYearId String
+  /// "16" for salary (annual) · "16A" for everyone else (quarterly)
+  formType        String
+  /// null on a Form 16, which covers the whole year
+  quarter         Int?
+  vendorId        String?
+  vendor          Vendor?   @relation(fields: [vendorId], references: [id])
+  employeeId      String?
+  employee        Employee? @relation(fields: [employeeId], references: [id])
+  /// the PAN as it stood when the certificate was issued — the certificate is about that PAN
+  pan             String?
+  /// what the certificate covers, from the deductions behind it
+  tdsAmount       Decimal   @db.Decimal(18, 2)
+
+  /// the TRACES request number from the download
+  tracesRequestNo String?
+  downloadedOn    DateTime?
+  issuedOn        DateTime?
+  /// where it was sent — an email, a WhatsApp, a hand
+  issuedTo        String?
+  note            String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([companyId, financialYearId, formType, quarter, vendorId, employeeId])
+  @@index([companyId, financialYearId, quarter])
 }
 
 /// docs/52 · A correction statement filed against a TDS return already filed.
@@ -1551,6 +1593,8 @@ enum AttachmentKind {
   RECEIPT
   /// a copy of the payee's PAN card — docs/47
   PAN_CARD
+  /// the Form 16 / 16A downloaded from TRACES — docs/55
+  TDS_CERTIFICATE
   VENDOR_INVOICE
   PAYSLIP
   FORM_26AS

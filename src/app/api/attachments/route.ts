@@ -3,9 +3,10 @@ import { requireContext } from '@/server/context'
 import { uploadAttachment, MAX_BYTES } from '@/server/services/storage/attachment'
 import { AppError } from '@/server/errors'
 import { assertParty, PAN_ENTITY } from '@/server/services/tax/pan-card'
+import { prisma } from '@/server/db'
 import type { AttachmentKind } from '@prisma/client'
 
-const KINDS = ['RECEIPT', 'VENDOR_INVOICE', 'PAYSLIP', 'FORM_26AS', 'CHALLAN', 'BANK_STATEMENT', 'PAN_CARD', 'OTHER']
+const KINDS = ['RECEIPT', 'VENDOR_INVOICE', 'PAYSLIP', 'FORM_26AS', 'CHALLAN', 'BANK_STATEMENT', 'PAN_CARD', 'TDS_CERTIFICATE', 'OTHER']
 
 export async function POST(req: Request) {
   return handler(async () => {
@@ -34,6 +35,14 @@ export async function POST(req: Request) {
         : null
       if (!party) throw new AppError('A PAN card belongs to an employee or a vendor')
       await assertParty(ctx, party, entityId)
+    }
+
+    // 🔴 Same reasoning for a TDS certificate — it names a person and their PAN, so it is
+    // filed against a certificate record that belongs to this company or not at all.
+    if (kind === 'TDS_CERTIFICATE') {
+      if (entityType !== 'TdsCertificate') throw new AppError('A TDS certificate belongs to a certificate record')
+      const exists = await prisma.tdsCertificate.count({ where: { id: entityId, companyId: ctx.companyId } })
+      if (exists === 0) throw new AppError('Certificate record not found')
     }
 
     const row = await uploadAttachment(ctx, {

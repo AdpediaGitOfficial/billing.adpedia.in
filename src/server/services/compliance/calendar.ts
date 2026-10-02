@@ -6,6 +6,7 @@ import { filedPeriods } from '@/server/services/tax/gst-filing'
 import { paidPeriods } from '@/server/services/tax/gst-payment'
 import { dischargedPeriods } from '@/server/services/tax/gst-setoff'
 import { filedTdsQuarters, formForSectionCode } from '@/server/services/tax/tds-filing'
+import { certificatesOutstanding } from '@/server/services/tax/tds-certificate'
 import { periodFor } from '@/server/services/tax/periods'
 import { currentFinancialYear } from '@/server/services/accounting/period'
 import {
@@ -117,6 +118,8 @@ export async function complianceCalendar(ctx: RequestContext, now = new Date()):
   // nagged forever and the one state that matters — filed, and therefore reported against
   // every deductee's PAN — was invisible.
   const tdsFiled = await filedTdsQuarters(ctx.companyId)
+  // docs/55 — how many certificates are actually out, so these items can ever be done
+  const certs = await certificatesOutstanding(ctx)
 
   for (const q of [1, 2, 3, 4] as const) {
     const inQuarter = deductions.filter((d) => quarterOf(d.deductedOn) === q)
@@ -144,13 +147,19 @@ export async function complianceCalendar(ctx: RequestContext, now = new Date()):
       href: '/tax/tds',
     })
     if (hasAny) {
+      const c = certs.byQuarter.get(q) ?? { total: 0, issued: 0 }
       push({
         id: `form16a-q${q}`,
         obligation: 'FORM_16A',
         title: `Issue Form 16A for Q${q}`,
-        detail: 'Your vendors cannot claim the deduction without it',
+        detail: c.total === 0
+          ? 'Your vendors cannot claim the deduction without it'
+          : c.issued === c.total
+            ? `All ${c.total} issued`
+            : `${c.total - c.issued} of ${c.total} still to issue — download them from TRACES`,
         dueOn: form16aDue(q, fyStartYear),
         penalty: '₹100 a day per certificate under s.272A(2)(g)',
+        done: c.total > 0 && c.issued === c.total,
         href: '/tax/tds',
       })
     }
@@ -167,9 +176,15 @@ export async function complianceCalendar(ctx: RequestContext, now = new Date()):
       id: 'form16',
       obligation: 'FORM_16',
       title: 'Issue Form 16 to employees',
-      detail: `${employees} on payroll`,
+      detail: certs.form16.total === 0
+        ? `${employees} on payroll · nothing deducted yet, so none is due`
+        : certs.form16.issued === certs.form16.total
+          ? `All ${certs.form16.total} issued`
+          : `${certs.form16.total - certs.form16.issued} of ${certs.form16.total} still to issue`,
       dueOn: form16Due(fyStartYear),
-      href: '/payroll/employees',
+      notApplicable: certs.form16.total === 0,
+      done: certs.form16.total > 0 && certs.form16.issued === certs.form16.total,
+      href: '/tax/tds',
     })
   }
 

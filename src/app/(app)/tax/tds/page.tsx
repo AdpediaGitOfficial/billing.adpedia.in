@@ -9,6 +9,8 @@ import { TdsFilings } from './filings'
 import { ReverseButton } from '@/components/corrections/reverse-button'
 import { cancelChallanAction } from './actions'
 import { listTdsFilings, listTdsCorrections, correctionLabel } from '@/server/services/tax/tds-filing'
+import { certificateRegister } from '@/server/services/tax/tds-certificate'
+import { Certificates } from './certificates'
 import { currentFinancialYear } from '@/server/services/accounting/period'
 
 export default async function TdsPage({ searchParams }: { searchParams: Promise<{ q?: string; form?: string }> }) {
@@ -21,12 +23,13 @@ export default async function TdsPage({ searchParams }: { searchParams: Promise<
   const quarter = (Number(sp.q) || 2) as 1 | 2 | 3 | 4
   const form = (sp.form ?? '26Q') as ReturnForm
 
-  const [outstanding, ret, challans, filings, corrections] = await Promise.all([
+  const [outstanding, ret, challans, filings, corrections, certificates] = await Promise.all([
     outstandingDeductions(ctx),
     buildTdsReturn(ctx, form, fy.label, quarter),
     prisma.tdsChallan.findMany({ where: { companyId: ctx.companyId, financialYearId: fy.id }, orderBy: { depositedOn: 'desc' }, include: { deductions: true } }),
     listTdsFilings(ctx),
     listTdsCorrections(ctx),
+    certificateRegister(ctx),
   ])
   const liveChallans = challans.filter((c) => !c.cancelledAt)
 
@@ -157,6 +160,16 @@ export default async function TdsPage({ searchParams }: { searchParams: Promise<
             filedOn: c.filedOn.toISOString().slice(0, 10), reason: c.reason,
           })),
         }))} />
+
+      <Certificates rows={certificates.map((c) => ({
+        id: c.id, formType: c.formType, quarter: c.quarter,
+        deducteeId: c.deducteeId, deducteeName: c.deducteeName, isEmployee: c.isEmployee,
+        pan: c.pan, tdsAmount: c.tdsAmount.toFixed(2),
+        dueOn: c.dueOn.toISOString().slice(0, 10),
+        downloadedOn: c.downloadedOn ? c.downloadedOn.toISOString().slice(0, 10) : null,
+        issuedOn: c.issuedOn ? c.issuedOn.toISOString().slice(0, 10) : null,
+        issuedTo: c.issuedTo, attachments: c.attachments, blockedBy: c.blockedBy,
+      }))} />
 
       {/* ── the return ───────────────────────────────────────────────── */}
       <Card>
