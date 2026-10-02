@@ -160,23 +160,55 @@ binding appearing more than once — `docs/48 §3`.
 
 ## 7. The largest remaining gaps
 
-In rough order of value:
+🔴 Deduplicated on 02 Oct 2026 — it had drifted, listing debit notes three times and an item
+docs/51 had already closed. Grouped by the module each would be, largest value first.
 
-- **Revised returns are not modelled** — every refusal in `docs/50` and `docs/51` points at
-  one, and the system has no idea what it is
-- **Debit notes** (s.34(3)) — the honest answer to a credit note that was too large
-- **Debit notes** (s.34(3)), **advance receipts**, **expense attachment panel**, **PDF
-  statements**, **journal/ledger export**, **service-item CRUD**
-- **Reconciling either electronic ledger against the portal** — the balances are ours, and
-  nobody has compared them with PMT-05 (`docs/46 §7`)
-- **Rule 86B** (1% in cash above ₹50 lakh monthly turnover) is not implemented — below the
-  threshold today, and the exceptions want the CA (`docs/46 §7`)
-- **A set-off cannot be reversed** — the docs/40 pattern applies, but a filed return and a
-  locked period make the consequences heavier
-- **Debit notes** (s.34(3)) — the mirror of docs/48, and rarer
-- **Nothing chases a missing PAN card** — the register lists them, no one is asked
+### Worth a module each
+
+1. **Revised returns and amendments.** Every refusal in `docs/50` and `docs/51` ends by
+   pointing at one — a GST amendment in a later period, or a TDS correction statement — and
+   the system has no idea what either is. The biggest single gap.
+2. **Debit notes** (s.34(3)) — the mirror of `docs/48`, and the honest answer to a credit note
+   that was too large. Document included.
+3. **Advance receipts.** Money in before an invoice exists has no path (`docs/39`, `docs/40`).
+   It needs the receipt voucher under s.31(3)(d) and the GST that falls due on the advance.
+4. **Certificates: Form 16 and 16A.** The calendar asks for them and nothing issues or tracks
+   them. 🔴 Form 16A must be *downloaded from TRACES* to be valid, so this is a register and
+   a chase, not a generator.
+5. **Portal reconciliation.** Our electronic cash and credit ledgers (`docs/46 §7`) and every
+   challan CIN (`docs/45 §6`) are recorded on trust and have never been compared with the
+   portal.
+6. **Payslip documents.** `htmlToPdf` is waiting; there is no payslip template (`docs/33`),
+   and payslips are the one document an employee actually asks for.
+7. **Statement PDFs and ledger export.** P&L and balance sheet as PDFs, and a download on the
+   journal and account-ledger drill-throughs (`docs/36 §7`).
+8. **Attachments where the documents are.** The expense screens have no panel (`docs/38`,
+   `docs/39`), and invoice and payslip PDFs are generated per request rather than stored.
+9. **The mobile tail** (`docs/30 §7`): receipt images are queued offline but never uploaded,
+   swipe gestures are unwired, push is never scheduled, and the performance budget from
+   `docs/13` has not been measured.
+10. **Chases that nobody sends.** The PAN register lists who is missing a card and nothing
+    asks them (`docs/47 §7`); the compliance calendar is read, never delivered.
+
+### Smaller, and mostly one screen each
+
+- **Service-item CRUD** — the catalogue is seeded and used, with no screen (`docs/34`, `docs/35`)
+- **Company details and user invitations** — deliberately unwired in `docs/35 §6`
+- **Invoice draft editing** — a draft must be cancelled and re-raised (`docs/41`)
+- **Advance tax instalments on the calendar** (`docs/43 §7`), and **ROC filings**, which need
+  the AGM date
+- **Opening balances as explicit entries** at year-end close (`docs/37 §7`)
+- **Credit-note register** — they are listed on their invoice, but there is no view of the
+  series (`docs/48 §5`)
+- **IRN and QR on the invoice template** — the fields persist, the template ignores them
+  (`docs/31 §7`)
+
+### Deliberate non-goals
+
+- **S3 storage driver** (`docs/38 §7`) and the **live IRP client** (`docs/31 §6`) — both
+  unimplemented on purpose, with the reasoning written down
+- **E-way bills** — a goods mandate; Adpedia supplies services
+- **Rule 86B** — below the threshold, and the exceptions want the CA (`docs/46 §7`)
+- **Inoperative PANs** (rule 114AAA) — nothing available to this system can detect one
   (`docs/47 §7`)
-- **Inoperative PANs** (rule 114AAA, PAN not linked to Aadhaar) attract 20% as if none had
-  been furnished, and nothing available here can detect that (`docs/47 §7`)
-- **S3 storage driver** is deliberately unimplemented (`docs/38 §7`)
-- **Live IRP client** is deliberately unimplemented (`docs/31 §6`)
+- **Virus scanning** of uploads — files are never executed and never served inline (`docs/38 §8`)
