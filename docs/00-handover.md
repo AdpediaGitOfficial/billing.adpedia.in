@@ -177,6 +177,14 @@ newest open row and jumped to it. Use `currentFinancialYear()`.
 shipped one button; the other three were unreachable for nine modules. The survey that finds
 this is a script, not a memory — `docs/49 §1`.
 
+🔴 **The review marker must never reach a user.** It has escaped four times, most recently
+into an email bound for a client. `tests/marker-leak.test.ts` strips comments from every
+source and template file and asserts it does not survive (`docs/61 §3`).
+
+🔴 **An employee is not a vendor.** s.206AA on salary is a FLOOR, not a flat rate, and salary
+TDS is not a rate at all. A draft chase told four salaried people they were being deducted
+20% "instead of 0%" (`docs/61 §2`).
+
 🔴 **A reminder is computed at the moment of sending, never queued.** One prepared last night
 about an invoice paid this morning is the message that teaches somebody to ignore all the
 others (`docs/60 §2`).
@@ -239,17 +247,14 @@ docs/51 had already closed. Grouped by the module each would be, largest value f
 
 ### Worth a module each
 
-1. **Chases that reach OUTSIDE the company.** `docs/60` delivers the internal reminders; the
-   PAN register still needs a human to ask a vendor for their card, and the certificate
-   register to send a Form 16A (`docs/47 §7`, `docs/55 §5`).
-2. **The rest of the mobile tail** (`docs/30 §9`): swipe gestures are unwired and the
+1. **The rest of the mobile tail** (`docs/30 §9`): swipe gestures are unwired and the
    performance budget from `docs/13` has not been measured. Receipt upload and push
    scheduling are done (`docs/60`).
-3. **Note amendments (table 9C)** — the same shape as `docs/52`'s 9A, against a credit or
+2. **Note amendments (table 9C)** — the same shape as `docs/52`'s 9A, against a credit or
    debit note rather than an invoice.
-4. **Refund vouchers** (s.31(3)(e)) — where an advance is returned and no supply is made
+3. **Refund vouchers** (s.31(3)(e)) — where an advance is returned and no supply is made
    (`docs/54 §7`).
-5. **Invoice-level GST reconciliation.** `docs/56` compares ledger balances and challans;
+4. **Invoice-level GST reconciliation.** `docs/56` compares ledger balances and challans;
    GSTR-2B against our own purchase register is the layer that finds *which* supplier did not
    file, and `1240` has to be split three ways first (`docs/56 §7`).
 

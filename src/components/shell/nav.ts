@@ -6,7 +6,12 @@ export interface NavGroup { label: string; items: NavItem[] }
 
 /** docs/13 §2.1. Filtered by role — the server also refuses whatever the UI hides. */
 export const NAV: NavGroup[] = [
-  { label: '', items: [{ label: 'Dashboard', href: '/dashboard', cap: 'dashboard', icon: 'LayoutDashboard' }] },
+  { label: '', items: [
+    { label: 'Dashboard', href: '/dashboard', cap: 'dashboard', icon: 'LayoutDashboard' },
+    // docs/61 — cross-cutting: PAN, certificates, 26AS credits and unpaid invoices all end
+    // in somebody outside this company being asked for something
+    { label: 'Chases', href: '/chases', cap: 'tax', icon: 'MessageSquare' },
+  ]},
   { label: 'Sales', items: [
     { label: 'Customers', href: '/customers', cap: 'customers', icon: 'Users' },
     { label: 'Projects', href: '/projects', cap: 'projects', icon: 'FolderKanban' },

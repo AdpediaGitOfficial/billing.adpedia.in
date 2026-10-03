@@ -1793,3 +1793,31 @@ model NotificationLog {
   @@unique([companyId, kind, subjectId, forDay])
   @@index([companyId, sentAt])
 }
+
+/// docs/61 · Something this company asked somebody OUTSIDE it for.
+///
+/// 🔴 Distinct from `NotificationLog`, which is what we told our own phones. The audience is
+/// different and so is what the record is for: "we asked the vendor for their PAN card on
+/// 12 August, and this is what we said" is evidence at an assessment, where a push to the
+/// owner's handset is housekeeping.
+///
+/// The message TEXT is kept, not just the fact. "We chased them" is an assertion; the words
+/// are the thing that can be produced.
+model ChaseLog {
+  id        String   @id @default(cuid())
+  companyId String
+  kind      String
+  /// the vendor, employee, customer or invoice it was about
+  subjectId String
+  partyName String
+  /// where it actually went — an address, a number, or how it was handed over
+  sentTo    String
+  channel   String
+  message   String
+  sentById  String?
+  sentAt    DateTime @default(now())
+  note      String?
+
+  @@index([companyId, kind, subjectId])
+  @@index([companyId, sentAt])
+}

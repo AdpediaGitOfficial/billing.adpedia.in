@@ -65,8 +65,9 @@ payroll, projects and bank reconciliation on a double-entry ledger.
 | [58 · Statements](docs/58-statements.md) | P&L, balance sheet and journal exports — and whether a statement says it can still change |
 | [59 · Issued documents](docs/59-issued-documents.md) | Keeping the invoice that was actually sent, and the bill behind every input-credit claim |
 | [60 · Reminders](docs/60-reminders.md) | The deadlines, chases and approvals this system knew about and never told anyone |
+| [61 · Chases](docs/61-chases.md) | Asking the people outside this company for the PAN, the certificate and the money |
 
-**811 tests passing** · typecheck and lint clean · production build passes.
+**825 tests passing** · typecheck and lint clean · production build passes.
 
 ```bash
 cp .env.example .env     # set DATABASE_URL and JWT_SECRET
