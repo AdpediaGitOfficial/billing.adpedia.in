@@ -1,8 +1,9 @@
 import Link from 'next/link'
 import { requireContext } from '@/server/context'
-import { listExpenses } from '@/server/services/purchases/expense'
+import { listExpenses, expensesWithoutEvidence } from '@/server/services/purchases/expense'
 import { formatINR } from '@/lib/money'
-import { Card, PageHeader, Pill, Empty, Button, DataTable, type Column } from '@/components/ui/kit'
+import { Card, PageHeader, Pill, Empty, Button, Alert, DataTable, type Column } from '@/components/ui/kit'
+import { formatINR as inr } from '@/lib/money'
 import { ReverseButton } from '@/components/corrections/reverse-button'
 import { cancelExpenseAction } from './actions'
 
@@ -10,15 +11,24 @@ export default async function ExpensesPage() {
   const ctx = await requireContext()
   const expenses = await listExpenses(ctx)
   const live = expenses.filter((e) => !e.cancelledAt)
+  const missing = await expensesWithoutEvidence(ctx)
+  const noEvidence = new Set(missing.rows.map((r) => r.id))
 
   type Row = (typeof expenses)[number]
   const cols: Column<Row>[] = [
     { key: 'desc', header: 'Description', mobile: 'primary',
       cell: (r) => (
         <>
+          {/* 🔴 the LINK is the description, not the row. This table's last column holds the
+              reverse button, and a row-wide anchor wraps every cell — so clicking "cancel"
+              navigated away instead of asking why. */}
           <span className="block font-medium"
             style={r.cancelledAt ? { textDecoration: 'line-through', color: 'var(--text-muted)' } : undefined}>
-            {r.description}
+            <Link href={`/expenses/${r.id}`} className="hover:underline">{r.description}</Link>
+            {/* docs/59 — the claim and its evidence were in different places until now */}
+            {!r.cancelledAt && noEvidence.has(r.id) && (
+              <span className="ml-2 align-middle"><Pill tone="warn">no bill</Pill></span>
+            )}
           </span>
           <span className="block text-[11.5px]" style={{ color: 'var(--text-muted)' }}>
             {r.category.name}{r.project && ` · ${r.project.name}`}
@@ -55,6 +65,15 @@ export default async function ExpensesPage() {
       <PageHeader title="Expenses"
         sub={`${live.length} recorded${expenses.length > live.length ? ` · ${expenses.length - live.length} cancelled` : ''}`}
         action={<Link href="/expenses/new"><Button icon="Plus">New expense</Button></Link>} />
+
+      {missing.itcAtRisk.gt(0) && (
+        <div className="mb-4">
+          <Alert tone="critical" title={`${inr(missing.itcAtRisk)} of input credit has no bill behind it`}>
+            Rule 36(1) makes input credit claimable against a tax invoice you hold. {missing.rows.filter((r) => r.itc.gt(0)).length} of
+            these expenses claim credit with nothing attached — open each and attach the bill.
+          </Alert>
+        </div>
+      )}
       <Card flush className="overflow-hidden">
         <DataTable columns={cols} rows={expenses} keyOf={(r) => r.id}
           empty={<Empty icon="CreditCard" title="No expenses yet"

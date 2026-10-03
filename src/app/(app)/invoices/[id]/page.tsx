@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireContext } from '@/server/context'
+import { archivedDocument } from '@/server/services/storage/document-archive'
 import { prisma } from '@/server/db'
 import { formatINR, amountInWords, Decimal } from '@/lib/money'
 import { placeOfSupplyLabel, taxModeLabel } from '@/server/services/tax/tax-mode'
@@ -47,6 +48,9 @@ export default async function InvoiceDetail({ params }: { params: Promise<{ id: 
     ? formatINR(v as string)
     : `${inv.currency} ${Number(v).toFixed(2)}`
 
+  // docs/59 — is there a copy of what was actually issued?
+  const archived = isDraft ? null : await archivedDocument(ctx.companyId, 'Invoice', inv.id)
+
   return (
     <div className="max-w-3xl">
       <PageHeader
@@ -55,7 +59,7 @@ export default async function InvoiceDetail({ params }: { params: Promise<{ id: 
         action={
           <div className="flex gap-2">
             <a href={`/api/invoices/${inv.id}/document`} target="_blank" rel="noreferrer">
-              <Button variant="ghost">View document</Button>
+              <Button variant="ghost">{archived ? 'The invoice as issued' : 'View document'}</Button>
             </a>
             {!isDraft && (
               <ShareInvoice invoiceId={inv.id} number={inv.number}
@@ -74,6 +78,19 @@ export default async function InvoiceDetail({ params }: { params: Promise<{ id: 
           </div>
         }
       />
+
+      {/* 🔴 docs/59 — an invoice sent before the archive existed, or whose render failed, has
+          no copy of what the client received. Reprinting it uses today's template and today's
+          company details: a different document with the same number. */}
+      {!isDraft && inv.status !== 'CANCELLED' && !archived && (
+        <div className="mb-4">
+          <Alert tone="warn" title="No copy of this invoice as it was issued">
+            It was sent before documents were archived, or its render failed at the time.
+            &ldquo;View document&rdquo; rebuilds it from today&rsquo;s data and today&rsquo;s template — close to
+            what the client received, and not the same file.
+          </Alert>
+        </div>
+      )}
 
       <div className="mb-4 flex flex-wrap gap-2">
         <Pill tone={inv.status === 'PAID' ? 'good' : inv.status === 'CANCELLED' ? 'neutral' : isDraft ? 'neutral' : 'accent'}>

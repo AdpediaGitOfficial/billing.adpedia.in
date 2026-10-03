@@ -14,6 +14,8 @@ import { computeInvoiceTds, defaultRateFor } from '@/server/services/tax/tds'
 import { allocateNumber, peekNextNumber } from './numbering'
 import { resolveLutForInvoice } from './lut'
 import { validateSac, sacLooksWrongForDescription } from './sac'
+import { archiveIssuedDocument } from '@/server/services/storage/document-archive'
+import { renderInvoiceHtml } from './render'
 
 /**
  * 🔴 ONE rule for the billing currency, used by both the preview and the create path.
@@ -221,7 +223,7 @@ export async function createInvoice(ctx: RequestContext, input: CreateInvoiceInp
 export async function sendInvoice(ctx: RequestContext, invoiceId: string) {
   assertCan(ctx.role, 'invoices.send', 'approve')
 
-  return prisma.$transaction(async (tx) => {
+  const sent = await prisma.$transaction(async (tx) => {
     const inv = await tx.invoice.findFirst({
       where: { id: invoiceId, companyId: ctx.companyId },
       include: { lines: { include: { serviceItem: true } }, financialYear: true, customer: true },
@@ -291,6 +293,23 @@ export async function sendInvoice(ctx: RequestContext, invoiceId: string) {
     await audit(ctx, { entity: 'Invoice', entityId: inv.id, action: 'APPROVE', before: { number: inv.number, status: inv.status }, after: { number, status: 'SENT' } }, tx)
     return sent
   })
+
+  /**
+   * 🔴 docs/59 — the issued document is archived AFTER the transaction, and a failure here
+   * does not fail the send.
+   *
+   * Rendering launches a browser. Doing it inside the transaction would hold a database
+   * write lock open for a second or more per invoice; doing it at all as a precondition
+   * would mean a company that cannot bill because a PDF renderer is unwell. The invoice is
+   * issued either way, and `unarchivedInvoices` names the ones with no copy on file.
+   */
+  await archiveIssuedDocument(ctx, {
+    kind: 'TAX_INVOICE', entityType: 'Invoice', entityId: sent.id,
+    filename: `${sent.number ?? 'invoice'}.pdf`,
+    render: () => renderInvoiceHtml(ctx.companyId, sent.id),
+  })
+
+  return sent
 }
 
 /** Cancel keeps the number — gaps in a GST series must be explainable. */

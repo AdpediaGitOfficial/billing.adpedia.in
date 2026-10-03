@@ -1613,6 +1613,11 @@ enum AttachmentKind {
   /// the Form 16 / 16A downloaded from TRACES — docs/55
   TDS_CERTIFICATE
   VENDOR_INVOICE
+  /// docs/59 — the tax invoice exactly as it was issued, kept because re-rendering it later
+  /// produces a different document
+  TAX_INVOICE
+  /// docs/59 — a credit or debit note as issued
+  CREDIT_NOTE
   PAYSLIP
   FORM_26AS
   CHALLAN

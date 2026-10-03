@@ -177,6 +177,14 @@ newest open row and jumped to it. Use `currentFinancialYear()`.
 shipped one button; the other three were unreachable for nine modules. The survey that finds
 this is a script, not a memory — `docs/49 §1`.
 
+🔴 **A re-rendered document is not the document that was issued.** The template, the company's
+own details, the logo and the signature are all read live. One invoice archived and rebuilt
+seconds apart came out 433,850 bytes against 78,679, with the supplier block breaking
+differently. Archive the bytes at issue and serve those (`docs/59 §1`).
+
+🔴 **Archiving must never fail the thing it archives.** After the transaction, never inside
+it; never throws; and what was not archived is named rather than hidden (`docs/59 §3`).
+
 🔴 **A statement must say whether it can still change.** Closed, locked, or open — and a lock
 that stops inside the period is a draft, not a lock. Every export before `docs/58` was silent,
 and a year-to-date figure with nothing said is read as a final one (`docs/58 §1`).
@@ -220,18 +228,16 @@ docs/51 had already closed. Grouped by the module each would be, largest value f
 
 ### Worth a module each
 
-1. **Attachments where the documents are.** The expense screens have no panel (`docs/38`,
-   `docs/39`), and invoice and payslip PDFs are generated per request rather than stored.
-2. **The mobile tail** (`docs/30 §7`): receipt images are queued offline but never uploaded,
+1. **The mobile tail** (`docs/30 §7`): receipt images are queued offline but never uploaded,
    swipe gestures are unwired, push is never scheduled, and the performance budget from
    `docs/13` has not been measured.
-3. **Chases that nobody sends.** The PAN register lists who is missing a card and nothing
+2. **Chases that nobody sends.** The PAN register lists who is missing a card and nothing
    asks them (`docs/47 §7`); the compliance calendar is read, never delivered.
-4. **Note amendments (table 9C)** — the same shape as `docs/52`'s 9A, against a credit or
+3. **Note amendments (table 9C)** — the same shape as `docs/52`'s 9A, against a credit or
    debit note rather than an invoice.
-5. **Refund vouchers** (s.31(3)(e)) — where an advance is returned and no supply is made
+4. **Refund vouchers** (s.31(3)(e)) — where an advance is returned and no supply is made
    (`docs/54 §7`).
-6. **Invoice-level GST reconciliation.** `docs/56` compares ledger balances and challans;
+5. **Invoice-level GST reconciliation.** `docs/56` compares ledger balances and challans;
    GSTR-2B against our own purchase register is the layer that finds *which* supplier did not
    file, and `1240` has to be split three ways first (`docs/56 §7`).
 

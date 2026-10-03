@@ -1,4 +1,6 @@
 import { prisma } from '@/server/db'
+import { archiveIssuedDocument } from '@/server/services/storage/document-archive'
+import { renderCreditNoteHtml } from './render-credit-note'
 import { Decimal, ZERO, round2, halveTax } from '@/lib/money'
 import type { RequestContext } from '@/server/context'
 import { assertCan } from '@/server/auth/permissions'
@@ -150,7 +152,7 @@ export async function createDebitNote(ctx: RequestContext, input: DebitNoteInput
   const p = await previewDebitNote(ctx, input)
   if (p.taxableValue.lte(0)) throw new AppError('A debit note needs a positive value')
 
-  return prisma.$transaction(async (tx) => {
+  const note = await prisma.$transaction(async (tx) => {
     const inv = await tx.invoice.findFirstOrThrow({ where: { id: input.invoiceId, companyId: ctx.companyId } })
 
     const { number } = await allocateNumber(tx, {
@@ -200,4 +202,14 @@ export async function createDebitNote(ctx: RequestContext, input: DebitNoteInput
 
     return note
   })
+
+  // 🔴 docs/59 — a note is issued the moment it is raised, so the document is archived here,
+  // after the transaction and without power to fail it.
+  await archiveIssuedDocument(ctx, {
+    kind: 'CREDIT_NOTE', entityType: 'CreditNote', entityId: note.id,
+    filename: `${note.number}.pdf`,
+    render: () => renderCreditNoteHtml(ctx.companyId, note.id),
+  })
+
+  return note
 }

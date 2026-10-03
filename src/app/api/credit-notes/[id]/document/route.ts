@@ -4,6 +4,8 @@ import { assertCan } from '@/server/auth/permissions'
 import { renderCreditNoteHtml } from '@/server/services/invoicing/render-credit-note'
 import { htmlToPdf, pdfFilename } from '@/server/services/invoicing/pdf'
 import { AppError } from '@/server/errors'
+import { archivedDocument } from '@/server/services/storage/document-archive'
+import { readAttachment } from '@/server/services/storage/attachment'
 
 /**
  * The credit note document — docs/48.
@@ -17,26 +19,49 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     // 🔴 docs/57 — same hole as the invoice document route
     assertCan(ctx.role, 'invoices', 'read')
     const { id } = await params
-    const format = new URL(req.url).searchParams.get('format')
+    const url = new URL(req.url)
+    const format = url.searchParams.get('format')
+
+    const note = await prisma.creditNote.findFirst({
+      where: { id, companyId: ctx.companyId }, select: { number: true },
+    })
+    const name = pdfFilename(note?.number ?? 'credit-note')
+
+    // 🔴 docs/59 — the copy archived when the note was raised is the one that was issued
+    if (format !== 'html' && url.searchParams.get('rebuild') !== '1') {
+      const archived = await archivedDocument(ctx.companyId, 'CreditNote', id)
+      if (archived) {
+        const { bytes } = await readAttachment(ctx, archived.id)
+        return new Response(new Uint8Array(bytes), {
+          headers: {
+            'content-type': 'application/pdf',
+            'content-disposition': `inline; filename="${name}"`,
+            'x-document-source': 'archived-at-issue',
+            'cache-control': 'private, no-store',
+          },
+        })
+      }
+    }
 
     const html = await renderCreditNoteHtml(ctx.companyId, id)
 
     if (format === 'html') {
       return new Response(html, {
-        headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' },
+        headers: {
+          'content-type': 'text/html; charset=utf-8',
+          'x-document-source': 'rebuilt-now',
+          'cache-control': 'private, no-store',
+        },
       })
     }
-
-    const note = await prisma.creditNote.findFirst({
-      where: { id, companyId: ctx.companyId }, select: { number: true },
-    })
 
     const pdf = await htmlToPdf(html)
     return new Response(new Uint8Array(pdf), {
       headers: {
         'content-type': 'application/pdf',
-        'content-disposition': `inline; filename="${pdfFilename(note?.number ?? 'credit-note')}"`,
-        'cache-control': 'no-store',
+        'content-disposition': `inline; filename="${name}"`,
+        'x-document-source': 'rebuilt-now',
+        'cache-control': 'private, no-store',
       },
     })
   } catch (e) {

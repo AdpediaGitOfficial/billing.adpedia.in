@@ -145,3 +145,50 @@ export async function listExpenses(ctx: RequestContext, limit = 100) {
     take: limit,
   })
 }
+
+/**
+ * Which expenses have no receipt on file — docs/59.
+ *
+ * 🔴 The ones that matter are the ones claiming input credit. Rule 36(1) makes the credit
+ * claimable against a tax invoice the recipient **holds**; s.16(2)(a) says the same from the
+ * other side. An expense with ₹9,000 of ITC and no document behind it is a claim that cannot
+ * be sustained when it is asked about, and nothing in this system has ever said which those
+ * were — the evidence and the claim lived in different places.
+ */
+export async function expensesWithoutEvidence(ctx: RequestContext) {
+  assertCan(ctx.role, 'expenses.own', 'read')
+
+  const expenses = await prisma.expense.findMany({
+    where: { companyId: ctx.companyId, cancelledAt: null },
+    include: { category: true },
+    orderBy: { date: 'desc' },
+  })
+  if (expenses.length === 0) return { rows: [], itcAtRisk: ZERO as Decimal }
+
+  const attached = await prisma.attachment.findMany({
+    where: {
+      companyId: ctx.companyId, entityType: 'Expense', detachedAt: null,
+      entityId: { in: expenses.map((e) => e.id) },
+    },
+    select: { entityId: true },
+  })
+  const have = new Set(attached.map((a) => a.entityId))
+
+  const rows = expenses
+    .filter((e) => !have.has(e.id))
+    .map((e) => ({
+      id: e.id,
+      date: e.date,
+      description: e.description,
+      category: e.category.name,
+      total: new Decimal(e.total.toString()),
+      itc: e.itcEligible
+        ? new Decimal(e.cgst.toString()).plus(e.sgst.toString()).plus(e.igst.toString())
+        : ZERO,
+    }))
+
+  return {
+    rows,
+    itcAtRisk: rows.reduce((a, r) => a.plus(r.itc), ZERO as Decimal),
+  }
+}
