@@ -1723,6 +1723,8 @@ enum PortalStatementKind {
   GST_CHALLANS
   /// OLTAS challan status enquiry, by TAN and period
   TDS_CHALLANS
+  /// docs/62 — GSTR-2B, the auto-drafted statement of input credit, invoice by invoice
+  GST_2B
 }
 
 model PortalStatement {
@@ -1736,6 +1738,8 @@ model PortalStatement {
   importedAt   DateTime              @default(now())
   importedById String?
   lines        PortalStatementLine[]
+  /// docs/62 — the invoice-level rows, where the statement is a GSTR-2B
+  gst2bLines   Gst2bLine[]
   /// what the comparison concluded when it was last run, for the record
   verdict      String?
 
@@ -1820,4 +1824,44 @@ model ChaseLog {
 
   @@index([companyId, kind, subjectId])
   @@index([companyId, sentAt])
+}
+
+
+/// docs/62 · One invoice as GSTR-2B reports it.
+///
+/// 🔴 Its own table rather than more columns on `PortalStatementLine`. A ledger balance and a
+/// challan reference are two or three fields; an invoice is a dozen, and a statement whose
+/// rows are mostly null is one nobody can read. The STATEMENT header is shared, because what
+/// matters about it — the period it covers and the date it was pulled — is the same.
+model Gst2bLine {
+  id          String          @id @default(cuid())
+  statementId String
+  statement   PortalStatement @relation(fields: [statementId], references: [id], onDelete: Cascade)
+  companyId   String
+
+  /// the supplier's GSTIN, as the portal spells it
+  supplierGstin String
+  supplierName  String?
+  docNumber     String
+  /// 🔴 the number with punctuation and case removed, which is what matching uses
+  docKey        String
+  docDate       DateTime?
+  docType       String?
+
+  taxableValue Decimal @default(0) @db.Decimal(18, 2)
+  igst         Decimal @default(0) @db.Decimal(18, 2)
+  cgst         Decimal @default(0) @db.Decimal(18, 2)
+  sgst         Decimal @default(0) @db.Decimal(18, 2)
+  cess         Decimal @default(0) @db.Decimal(18, 2)
+
+  /// 🔴 the portal's own verdict: "N" means it is telling you NOT to claim this one
+  itcAvailable Boolean @default(true)
+  /// why not, where the portal gives a reason code
+  itcReason    String?
+
+  matchedBillId String?
+  raw           String
+
+  @@index([companyId, supplierGstin, docKey])
+  @@index([statementId])
 }

@@ -21,6 +21,7 @@ const LABEL: Record<string, string> = {
   PAN_CARD: 'No copy of the card',
   FORM_16A: 'Certificate not sent',
   TDS_CREDIT: 'Credit not in 26AS',
+  GSTR1_NOT_FILED: 'Not declared in their GSTR-1',
   INVOICE_OVERDUE: 'Payment overdue',
 }
 
@@ -60,7 +61,7 @@ export function ChaseCard({ chase }: { chase: ChaseView }) {
         <div className="min-w-0">
           <p className="flex flex-wrap items-center gap-2 text-[14px] font-semibold">
             {chase.partyName}
-            <Pill tone={chase.kind === 'PAN_NUMBER' || chase.kind === 'TDS_CREDIT' ? 'critical' : 'warn'}>
+            <Pill tone={['PAN_NUMBER', 'TDS_CREDIT', 'GSTR1_NOT_FILED'].includes(chase.kind) ? 'critical' : 'warn'}>
               {LABEL[chase.kind] ?? chase.kind}
             </Pill>
           </p>

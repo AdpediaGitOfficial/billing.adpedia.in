@@ -5,10 +5,12 @@ import {
 } from '@/server/services/tax/portal-reconciliation'
 import { ImportStatement } from './import-form'
 import { LedgerComparison, ChallanComparison } from './comparison'
+import { reconcile2b } from '@/server/services/tax/gstr2b'
+import { Itc2b } from './itc'
 
 const KIND_LABEL: Record<string, string> = {
   GST_CASH_LEDGER: 'Cash ledger', GST_CREDIT_LEDGER: 'Credit ledger',
-  GST_CHALLANS: 'GST challans', TDS_CHALLANS: 'OLTAS challans',
+  GST_CHALLANS: 'GST challans', TDS_CHALLANS: 'OLTAS challans', GST_2B: 'GSTR-2B',
 }
 
 export default async function PortalPage() {
@@ -22,6 +24,7 @@ export default async function PortalPage() {
   // 🔴 these two write (they persist the confirmation), so they run after the reads
   const tdsChallans = await reconcileChallans(ctx, 'TDS_CHALLANS')
   const gstChallans = await reconcileChallans(ctx, 'GST_CHALLANS')
+  const itc = await reconcile2b(ctx)
 
   const unconfirmed = confidence.tds.unconfirmed + confidence.gst.unconfirmed
   const total = confidence.tds.total + confidence.gst.total
@@ -77,6 +80,8 @@ export default async function PortalPage() {
 
       <LedgerComparison r={cash} />
       <LedgerComparison r={credit} />
+      {/* docs/62 — the credit ledger says how much is wrong; this says whose */}
+      <Itc2b r={itc} />
       <ChallanComparison r={tdsChallans} title="TDS challans against OLTAS" />
       <ChallanComparison r={gstChallans} title="GST challans against the portal" />
 

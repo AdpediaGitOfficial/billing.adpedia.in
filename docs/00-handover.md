@@ -177,6 +177,14 @@ newest open row and jumped to it. Use `currentFinancialYear()`.
 shipped one button; the other three were unreachable for nine modules. The survey that finds
 this is a script, not a memory — `docs/49 §1`.
 
+🔴 **ITC is matched on GSTIN and the NORMALISED invoice number.** A supplier files `EX/300`
+and the bill was typed `EX-300`; a literal comparison reports the whole purchase register as
+unavailable credit. Amount is a fallback only — two invoices from one supplier for one amount
+in one month is a retainer, and matching on amount crosses them over (`docs/62 §3`).
+
+🔴 **A page must not write in order to render.** `compare2b` reads; `reconcile2b` writes. The
+same rules, in one place, so the chase screen and the portal screen cannot drift (`docs/62 §5`).
+
 🔴 **The review marker must never reach a user.** It has escaped four times, most recently
 into an email bound for a client. `tests/marker-leak.test.ts` strips comments from every
 source and template file and asserts it does not survive (`docs/61 §3`).
@@ -254,9 +262,9 @@ docs/51 had already closed. Grouped by the module each would be, largest value f
    debit note rather than an invoice.
 3. **Refund vouchers** (s.31(3)(e)) — where an advance is returned and no supply is made
    (`docs/54 §7`).
-4. **Invoice-level GST reconciliation.** `docs/56` compares ledger balances and challans;
-   GSTR-2B against our own purchase register is the layer that finds *which* supplier did not
-   file, and `1240` has to be split three ways first (`docs/56 §7`).
+4. **Splitting account 1240.** Reverse-charge credit is one balance here and three heads on
+   the portal, so `docs/56`'s head-wise credit comparison stays approximate while any is held.
+   It is a chart-of-accounts change plus a reclassification entry (`docs/62 §7`).
 
 ### Smaller, and mostly one screen each
 

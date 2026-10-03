@@ -6,6 +6,7 @@ import { audit } from '@/server/audit'
 import { AppError } from '@/server/errors'
 import { panRegister } from '@/server/services/tax/pan-register'
 import { certificateRegister } from '@/server/services/tax/tds-certificate'
+import { compare2b } from '@/server/services/tax/gstr2b'
 
 /**
  * Asking somebody outside this company for something — docs/61.
@@ -25,7 +26,10 @@ import { certificateRegister } from '@/server/services/tax/tds-certificate'
  * the rest of this system: prepare for the CA, never file.
  */
 
-export type ChaseKind = 'PAN_CARD' | 'PAN_NUMBER' | 'FORM_16A' | 'INVOICE_OVERDUE' | 'TDS_CREDIT'
+export type ChaseKind =
+  | 'PAN_CARD' | 'PAN_NUMBER' | 'FORM_16A' | 'INVOICE_OVERDUE' | 'TDS_CREDIT'
+  /** docs/62 — a supplier who has not declared our invoice in their GSTR-1 */
+  | 'GSTR1_NOT_FILED'
 
 export interface Chase {
   kind: ChaseKind
@@ -213,6 +217,43 @@ export async function outstandingChases(ctx: RequestContext): Promise<Chase[]> {
     })
   }
 
+  /**
+   * ── a supplier who has not declared our invoice ──────────────────────────
+   *
+   * 🔴 The chase with the clearest price on it. docs/62 can name the supplier whose invoice
+   * is missing from GSTR-2B, and under s.16(2)(aa) that credit is not available until they
+   * file it — the remedy is literally a telephone call, which is what this is for.
+   */
+  const itc = await compare2b(ctx).catch(() => null)
+  if (itc) {
+    const vendorNames = itc.notInPortal.filter((x) => x.gstin !== null)
+    const bills = vendorNames.length
+      ? await prisma.vendorBill.findMany({
+          where: { id: { in: vendorNames.map((x) => x.billId) } },
+          select: { id: true, vendor: { select: { id: true, email: true, phone: true } } },
+        })
+      : []
+    const byBill = new Map(bills.map((b) => [b.id, b.vendor]))
+
+    for (const row of itc.notInPortal) {
+      if (!row.gstin) continue
+      const vendor = byBill.get(row.billId)
+      out.push({
+        kind: 'GSTR1_NOT_FILED', subjectId: row.billId, partyName: row.vendorName,
+        email: vendor?.email ?? null, phone: vendor?.phone ?? null,
+        why: `${formatINR(row.tax)} of credit we cannot take until they declare invoice ${row.billNumber}`,
+        subject: `Invoice ${row.billNumber} is not in our GSTR-2B — ${displayName(name)}`,
+        body: sign(name,
+          `Your invoice ${row.billNumber} dated ${day(row.billDate)} does not appear in our GSTR-2B.\n\n` +
+          `Section 16(2)(aa) means we cannot claim the ${formatINR(row.tax)} of GST on it until it has been ` +
+          `declared in your GSTR-1 and reaches our 2B. Could you check it was included, and report it in ` +
+          `your next return if it was missed?`),
+        lastAskedAt: asked.get(`GSTR1_NOT_FILED:${row.billId}`) ?? null,
+        amount: row.tax,
+      })
+    }
+  }
+
   // ── invoices somebody has not paid ───────────────────────────────────────
   const overdue = await prisma.invoice.findMany({
     where: {
@@ -336,6 +377,7 @@ export function chaseTotals(rows: Chase[]) {
     count: rows.length,
     neverAsked: rows.filter((r) => r.lastAskedAt === null).length,
     overWithheld: sum(['PAN_NUMBER']),
+    creditBlocked: sum(['GSTR1_NOT_FILED']),
     unclaimedCredit: sum(['TDS_CREDIT']),
     owedToUs: sum(['INVOICE_OVERDUE']),
   }

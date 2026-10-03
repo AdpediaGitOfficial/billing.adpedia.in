@@ -66,8 +66,9 @@ payroll, projects and bank reconciliation on a double-entry ledger.
 | [59 · Issued documents](docs/59-issued-documents.md) | Keeping the invoice that was actually sent, and the bill behind every input-credit claim |
 | [60 · Reminders](docs/60-reminders.md) | The deadlines, chases and approvals this system knew about and never told anyone |
 | [61 · Chases](docs/61-chases.md) | Asking the people outside this company for the PAN, the certificate and the money |
+| [62 · GSTR-2B](docs/62-gstr2b.md) | Which supplier did not file — input credit matched invoice by invoice |
 
-**825 tests passing** · typecheck and lint clean · production build passes.
+**847 tests passing** · typecheck and lint clean · production build passes.
 
 ```bash
 cp .env.example .env     # set DATABASE_URL and JWT_SECRET

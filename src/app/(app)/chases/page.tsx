@@ -7,6 +7,8 @@ import { ChaseCard } from './chase-card'
 const GROUPS: { kinds: string[]; title: string; sub: string }[] = [
   { kinds: ['PAN_NUMBER', 'PAN_CARD'], title: 'PAN',
     sub: 'Without a number, s.206AA forces 20% — money the payee only gets back by filing a return' },
+  { kinds: ['GSTR1_NOT_FILED'], title: 'Suppliers who have not declared our invoice',
+    sub: 's.16(2)(aa) — the credit is not available until it appears in our GSTR-2B' },
   { kinds: ['TDS_CREDIT'], title: 'Tax deducted from us that is not in our 26AS',
     sub: 'Until it appears it cannot be claimed, so it is a cost rather than a timing difference' },
   { kinds: ['FORM_16A'], title: 'Certificates downloaded and not sent',
@@ -45,8 +47,8 @@ export default async function ChasesPage() {
           foot={totals.neverAsked > 0 ? `${totals.neverAsked} never asked at all` : 'All of them have been asked once'} />
         <StatCard label="Over-withheld for want of a PAN" value={formatINR(totals.overWithheld, { decimals: false })}
           icon="UserX" foot="s.206AA — 20% instead of the section rate" />
-        <StatCard label="Credit we cannot claim" value={formatINR(totals.unclaimedCredit, { decimals: false })}
-          icon="FileWarning" foot="Deducted from us and missing from 26AS" />
+        <StatCard label="GST credit we cannot take" value={formatINR(totals.creditBlocked.plus(totals.unclaimedCredit), { decimals: false })}
+          icon="FileWarning" foot="Suppliers who have not filed, and TDS missing from our 26AS" />
         <StatCard label="Owed to us" value={formatINR(totals.owedToUs, { decimals: false })}
           icon="HandCoins" foot="Invoices past their due date" />
       </div>

@@ -6,7 +6,7 @@ import { recordChase } from '@/server/services/compliance/chases'
 import { AppError } from '@/server/errors'
 
 const Schema = z.object({
-  kind: z.enum(['PAN_CARD', 'PAN_NUMBER', 'FORM_16A', 'INVOICE_OVERDUE', 'TDS_CREDIT']),
+  kind: z.enum(['PAN_CARD', 'PAN_NUMBER', 'FORM_16A', 'INVOICE_OVERDUE', 'TDS_CREDIT', 'GSTR1_NOT_FILED']),
   subjectId: z.string().min(1),
   partyName: z.string().min(1),
   sentTo: z.string().min(3, 'Say where it was sent'),
