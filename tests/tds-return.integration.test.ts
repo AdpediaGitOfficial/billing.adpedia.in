@@ -59,7 +59,9 @@ describe('challans', () => {
     const challan = await createChallan(ctx, { sectionCode: '194C', quarter: 2, deductionIds: ids, bsrCode: '0510308', challanSerial: '00001', depositedOn: '2026-09-05' })
 
     expect(challan.amount.toString()).toBe('6000')          // 2% of 200,000 + 2% of 100,000
-    expect(challan.cin).toBe('0510308202609050000100001'.slice(0, 7) + '20260905' + '00001')
+    // 🔴 BSR code + the date of tender as DDMMYYYY + the 5-digit serial. This assertion
+    // used to say YYYYMMDD, which is what the code built — docs/56 found both.
+    expect(challan.cin).toBe('0510308' + '05092026' + '00001')
 
     const entry = await prisma.journalEntry.findFirstOrThrow({
       where: { sourceType: 'TDS_CHALLAN', sourceId: challan.id }, include: { lines: { include: { account: true } } },

@@ -122,6 +122,20 @@ export interface ChallanInput {
   bankAccountId?: string
 }
 
+/**
+ * The OLTAS challan identification number: the BSR code, then the date of tender as
+ * **DDMMYYYY**, then the 5-digit serial — 20 characters, exactly as the counterfoil prints it.
+ *
+ * 🔴 docs/56 found this constructed as YYYYMMDD. The length came out right, so nothing ever
+ * complained — and the 26Q carries the CIN, so every challan in a filed return would have
+ * been rejected by TRACES as a challan mismatch and no deductee would have got their credit.
+ */
+export function oltasCin(bsrCode: string, depositedOn: Date, challanSerial: string): string {
+  const d = String(depositedOn.getUTCDate()).padStart(2, '0')
+  const m = String(depositedOn.getUTCMonth() + 1).padStart(2, '0')
+  return `${bsrCode}${d}${m}${depositedOn.getUTCFullYear()}${challanSerial.padStart(5, '0')}`
+}
+
 /** BSR code is 7 digits; the challan serial is 5. Both are printed on the counterfoil. */
 function validateChallanRefs(bsrCode: string, challanSerial: string) {
   if (!/^\d{7}$/.test(bsrCode)) throw new AppError(`BSR code must be 7 digits — "${bsrCode}" is ${bsrCode.length}`)
@@ -163,7 +177,7 @@ export async function createChallan(ctx: RequestContext, input: ChallanInput) {
         sectionCode: input.sectionCode,
         bsrCode: input.bsrCode, challanSerial: input.challanSerial, depositedOn,
         amount: amount.toFixed(2), interest: interest.toFixed(2), lateFee: lateFee.toFixed(2),
-        cin: input.cin ?? `${input.bsrCode}${depositedOn.toISOString().slice(0, 10).replace(/-/g, '')}${input.challanSerial.padStart(5, '0')}`,
+        cin: input.cin ?? oltasCin(input.bsrCode, depositedOn, input.challanSerial),
       },
     })
 

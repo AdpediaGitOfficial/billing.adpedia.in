@@ -1,4 +1,5 @@
 import { prisma } from '@/server/db'
+import { oltasCin } from './tds-challan'
 import { Decimal, ZERO } from '@/lib/money'
 import type { RequestContext } from '@/server/context'
 import { assertCan } from '@/server/auth/permissions'
@@ -147,6 +148,13 @@ export async function buildTdsReturn(
     if (!reconciles) {
       issues.push({ severity: 'error', code: 'CHALLAN_MISMATCH',
         message: `Challan ${c.cin ?? c.challanSerial}: ₹${amount.toFixed(2)} deposited but ₹${deductionTotal.toFixed(2)} of deductions are linked. The RPU will reject this.` })
+    }
+    // 🔴 docs/56 — a CIN is BSR + DDMMYYYY + serial. One built the other way round is the
+    // right length and the wrong number, and TRACES rejects the challan rather than the file.
+    const expectedCin = oltasCin(c.bsrCode, c.depositedOn, c.challanSerial)
+    if (c.cin && c.cin !== expectedCin) {
+      issues.push({ severity: 'warning', code: 'CIN_SHAPE',
+        message: `Challan ${c.challanSerial}: the CIN on record is ${c.cin}, but the BSR code, date and serial make ${expectedCin}. Check it against the counterfoil — TRACES matches on the CIN.` })
     }
     return {
       bsrCode: c.bsrCode, challanSerial: c.challanSerial, depositedOn: c.depositedOn,

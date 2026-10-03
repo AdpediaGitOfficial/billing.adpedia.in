@@ -90,6 +90,7 @@ export default async function GstPage({ searchParams }: { searchParams: Promise<
         sub={`${g.frequency === 'QUARTERLY' ? 'Quarterly filing (QRMP)' : 'Monthly filing'} · FY ${g.fy.label}`}
         action={
           <>
+            <Link href="/tax/portal"><Button variant="ghost" icon="ShieldCheck">Check the portal</Button></Link>
             <a href={`/api/tax/gst/export?return=gstr1&period=${g.selected.label}`}>
               <Button variant="ghost" icon="Download">GSTR-1 CSV</Button>
             </a>

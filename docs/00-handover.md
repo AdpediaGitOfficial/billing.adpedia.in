@@ -102,6 +102,12 @@ Each of these is implemented and tested; each was wrong in an obvious first atte
   (rule 88A). Netting total credit against total output tax understates the cash payable.
 - **A period is settled in the FOLLOWING period.** Anything that reads "movement on the tax
   account during the period" therefore picks up the previous period's payment — `docs/46 §4`.
+- **An OLTAS CIN is BSR(7) + the date of tender as DDMMYYYY + the 5-digit serial.** Built the
+  other way round it is the right length and the wrong number, and TRACES rejects the challan
+  rather than the file, so every deductee on it silently loses their credit — `docs/56 §3`.
+- **ITC is not available at all unless it appears in GSTR-2B** (s.16(2)(aa)). Credit the books
+  have accrued and the portal does not hold is not a timing difference; claimed, it must be
+  reversed with interest at 18% — `docs/56 §2`.
 
 ## 5. Environment quirks
 
@@ -171,6 +177,16 @@ newest open row and jumped to it. Use `currentFinancialYear()`.
 shipped one button; the other three were unreachable for nine modules. The survey that finds
 this is a script, not a memory — `docs/49 §1`.
 
+🔴 **Two balances with the same name are not the same quantity.** Our credit ledger is credit
+the books accrued; the portal's is credit a filed return claimed. Subtracting one from the
+other reports a frightening hole every month that means nothing, and after three of those
+nobody reads the screen again. Work out what the other side *should* be holding first —
+`docs/56 §2`.
+
+🔴 **Silence is not denial.** A challan absent from a statement that was never imported, or
+that stops before the challan was paid, is *unchecked* — not missing. The first version of
+`docs/56` told the owner that two challans paid last week had never been paid at all.
+
 🔴 **A value bound twice in a template is substituted once.** Both renderers replaced the
 first occurrence only, so the signature line kept the template's company name and the s.34(2)
 declaration kept its placeholder invoice number. Use a global replace, and look for the
@@ -183,24 +199,24 @@ docs/51 had already closed. Grouped by the module each would be, largest value f
 
 ### Worth a module each
 
-1. **Portal reconciliation.** Our electronic cash and credit ledgers (`docs/46 §7`) and every
-   challan CIN (`docs/45 §6`) are recorded on trust and have never been compared with the
-   portal.
-2. **Payslip documents.** `htmlToPdf` is waiting; there is no payslip template (`docs/33`),
+1. **Payslip documents.** `htmlToPdf` is waiting; there is no payslip template (`docs/33`),
    and payslips are the one document an employee actually asks for.
-3. **Statement PDFs and ledger export.** P&L and balance sheet as PDFs, and a download on the
+2. **Statement PDFs and ledger export.** P&L and balance sheet as PDFs, and a download on the
    journal and account-ledger drill-throughs (`docs/36 §7`).
-4. **Attachments where the documents are.** The expense screens have no panel (`docs/38`,
+3. **Attachments where the documents are.** The expense screens have no panel (`docs/38`,
    `docs/39`), and invoice and payslip PDFs are generated per request rather than stored.
-5. **The mobile tail** (`docs/30 §7`): receipt images are queued offline but never uploaded,
+4. **The mobile tail** (`docs/30 §7`): receipt images are queued offline but never uploaded,
    swipe gestures are unwired, push is never scheduled, and the performance budget from
    `docs/13` has not been measured.
-6. **Chases that nobody sends.** The PAN register lists who is missing a card and nothing
+5. **Chases that nobody sends.** The PAN register lists who is missing a card and nothing
    asks them (`docs/47 §7`); the compliance calendar is read, never delivered.
-7. **Note amendments (table 9C)** — the same shape as `docs/52`'s 9A, against a credit or
+6. **Note amendments (table 9C)** — the same shape as `docs/52`'s 9A, against a credit or
    debit note rather than an invoice.
-8. **Refund vouchers** (s.31(3)(e)) — where an advance is returned and no supply is made
+7. **Refund vouchers** (s.31(3)(e)) — where an advance is returned and no supply is made
    (`docs/54 §7`).
+8. **Invoice-level GST reconciliation.** `docs/56` compares ledger balances and challans;
+   GSTR-2B against our own purchase register is the layer that finds *which* supplier did not
+   file, and `1240` has to be split three ways first (`docs/56 §7`).
 
 ### Smaller, and mostly one screen each
 

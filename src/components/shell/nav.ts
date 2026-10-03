@@ -32,6 +32,7 @@ export const NAV: NavGroup[] = [
     { label: 'TDS payable', href: '/tax/tds', cap: 'tax', icon: 'ScrollText' },
     { label: 'TDS receivable', href: '/tax/tds-receivable', cap: 'tax', icon: 'HandCoins' },
     { label: 'PAN register', href: '/tax/pan', cap: 'tax', icon: 'IdCard' },
+    { label: 'The portal', href: '/tax/portal', cap: 'tax', icon: 'ShieldCheck' },
     { label: 'Calendar', href: '/tax/calendar', cap: 'tax', icon: 'CalendarClock' },
   ]},
   { label: 'Accounting', items: [

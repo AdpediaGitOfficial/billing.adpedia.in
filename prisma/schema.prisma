@@ -1157,6 +1157,12 @@ model TdsChallan {
   cancelledAt     DateTime?
   cancelReason    String?
 
+  /// docs/56 — 🔴 the CIN here is CONSTRUCTED from the BSR code, date and serial, because
+  /// that is the format. Until a bank or OLTAS statement says the same thing, it is a guess,
+  /// and a 26Q quoting a CIN OLTAS does not hold is rejected as a challan mismatch.
+  portalConfirmedAt  DateTime?
+  portalConfirmedVia String?
+
   @@unique([companyId, bsrCode, challanSerial, depositedOn])
 }
 
@@ -1627,6 +1633,10 @@ model GstChallan {
   bankAccountId   String?
   createdAt       DateTime @default(now())
 
+  /// docs/56 — confirmed against the portal's own challan history, not on our word
+  portalConfirmedAt  DateTime?
+  portalConfirmedVia String?
+
   @@index([companyId, periodLabel])
 }
 
@@ -1679,4 +1689,64 @@ model GstSetOff {
   createdAt DateTime @default(now())
 
   @@index([companyId, periodLabel])
+}
+
+/// docs/56 · What the portal said, as at a moment in time.
+///
+/// 🔴 This system has no portal credentials and never will — docs/00 §6 rules out live
+/// filing. So the portal's word arrives the way the CA's word arrives: as a statement a
+/// person downloaded and brought here. What matters is that it is KEPT, with its date,
+/// because "the portal agreed on 12 October" is the only defence against a notice that
+/// arrives in March, and a live lookup could never prove it.
+enum PortalStatementKind {
+  /// the electronic cash ledger, Form GST PMT-05
+  GST_CASH_LEDGER
+  /// the electronic credit ledger
+  GST_CREDIT_LEDGER
+  /// the portal's challan history (PMT-06 payments)
+  GST_CHALLANS
+  /// OLTAS challan status enquiry, by TAN and period
+  TDS_CHALLANS
+}
+
+model PortalStatement {
+  id           String                @id @default(cuid())
+  companyId    String
+  kind         PortalStatementKind
+  /// the date the portal's figures are AS AT — not the date of the import
+  asOn         DateTime
+  filename     String?
+  importBatch  String
+  importedAt   DateTime              @default(now())
+  importedById String?
+  lines        PortalStatementLine[]
+  /// what the comparison concluded when it was last run, for the record
+  verdict      String?
+
+  @@index([companyId, kind, asOn])
+}
+
+model PortalStatementLine {
+  id          String          @id @default(cuid())
+  statementId String
+  statement   PortalStatement @relation(fields: [statementId], references: [id], onDelete: Cascade)
+  companyId   String
+
+  /// ledger statements: the major head this balance belongs to — igst | cgst | sgst | other
+  head    String?
+  balance Decimal? @db.Decimal(18, 2)
+
+  /// challan statements
+  cin           String?
+  bsrCode       String?
+  challanSerial String?
+  depositedOn   DateTime?
+  amount        Decimal?  @db.Decimal(18, 2)
+
+  /// 🔴 the line exactly as it arrived. A parsed figure that turns out wrong is only
+  /// arguable if the original text is still here.
+  raw String
+
+  @@index([companyId, cin])
+  @@index([statementId])
 }

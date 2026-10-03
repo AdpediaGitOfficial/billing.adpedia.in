@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { requireContext } from '@/server/context'
 import { prisma } from '@/server/db'
 import { outstandingDeductions } from '@/server/services/tax/tds-challan'
@@ -74,9 +75,12 @@ export default async function TdsPage({ searchParams }: { searchParams: Promise<
     <div className="space-y-5">
       <PageHeader title="TDS" sub={`FY ${fy.label} · what you deduct and deposit`}
         action={
-          <a href={`/api/tax/tds/export?form=${form}&fy=${fy.label}&quarter=${quarter}`}>
-            <Button variant="ghost" icon="Download">{form} Q{quarter} CSV</Button>
-          </a>
+          <>
+            <Link href="/tax/portal"><Button variant="ghost" icon="ShieldCheck">Check OLTAS</Button></Link>
+            <a href={`/api/tax/tds/export?form=${form}&fy=${fy.label}&quarter=${quarter}`}>
+              <Button variant="ghost" icon="Download">{form} Q{quarter} CSV</Button>
+            </a>
+          </>
         } />
 
       {overdue.length > 0 && (
