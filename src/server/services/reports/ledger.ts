@@ -133,7 +133,12 @@ export async function accountLedger(
     prisma.journalLine.findMany({
       where: { accountId: account.id, journalEntry: { companyId: ctx.companyId, date: { gte: period.from, lte: period.to } } },
       include: { journalEntry: { select: { id: true, entryNo: true, date: true, narration: true, sourceType: true, sourceId: true } } },
-      orderBy: [{ journalEntry: { date: 'asc' } }, { journalEntry: { entryNo: 'asc' } }],
+      // 🔴 docs/58 — `id` is the tiebreaker, and it is load-bearing. JournalLine has no
+      // ordering column, so the two sides of one entry come back in whatever order Postgres
+      // feels like, and the running balance below is computed line by line: the same ledger
+      // exported twice could show different intermediate balances. Ids are time-ordered, so
+      // this reproduces the order the lines were written in, and always the same one.
+      orderBy: [{ journalEntry: { date: 'asc' } }, { journalEntry: { entryNo: 'asc' } }, { id: 'asc' }],
     }),
   ])
 

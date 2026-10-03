@@ -4,6 +4,9 @@ import type { CashFlow } from './cash-flow'
 import type { Ageing } from './ageing'
 import { BUCKETS } from './ageing'
 import type { ClientPnlRow } from './client-pnl'
+import type { JournalExport } from './journal-export'
+import type { AccountBalance, LedgerLine } from './ledger'
+import type { StatementStanding } from './status'
 
 /**
  * CSV for the CA.
@@ -12,17 +15,82 @@ import type { ClientPnlRow } from './client-pnl'
  * sheet that has been emailed on and renamed still says what it is. A statement without its
  * period is an unattributable list of numbers.
  */
-interface Meta { company: string; gstin: string | null; period: string }
+interface Meta {
+  company: string; gstin: string | null; period: string
+  /**
+   * 🔴 docs/58 — whether the books behind this file are closed, locked or still open.
+   *
+   * Every export before this said nothing about it. A profit figure for the year to date,
+   * emailed to a bank in October, is not the year's profit, and a file that does not say so
+   * is read as though it were final.
+   */
+  standing?: StatementStanding
+}
 
 function header(m: Meta, title: string): string[] {
-  return [
+  const out = [
     csvRow([`# ${title}`]),
     csvRow(['# Company', m.company]),
     csvRow(['# GSTIN', m.gstin ?? '—']),
     csvRow(['# Period', m.period]),
     csvRow(['# Generated', new Date()]),
-    '',
   ]
+  if (m.standing) {
+    out.push(csvRow(['# Status', m.standing.label]), csvRow(['# ', m.standing.note]))
+  }
+  out.push('')
+  return out
+}
+
+/**
+ * The whole journal, line by line — the file an auditor asks for first.
+ *
+ * Both sides of every entry are present, so the file foots to zero on its own, and the
+ * footer says whether it did. One row per LINE, not per entry: an entry with four lines is
+ * four rows carrying the same entry number, which is what makes it sortable and pivotable.
+ */
+export function journalCsv(m: Meta, j: JournalExport): string {
+  const out = header(m, 'Journal')
+  out.push(csvRow([
+    'Entry no', 'Date', 'Narration', 'Source', 'Source id', 'Reverses entry',
+    'Account code', 'Account', 'Line narration', 'Debit', 'Credit', 'Project', 'Counterparty',
+  ]))
+  for (const l of j.lines) {
+    out.push(csvRow([
+      l.entryNo, l.date, l.narration, l.sourceType, l.sourceId ?? '', l.reversalOf ?? '',
+      l.accountCode, l.accountName, l.lineNarration ?? '',
+      csvMoney(l.debit), csvMoney(l.credit), l.project ?? '', l.counterparty ?? '',
+    ]))
+  }
+  out.push(csvRow(['', '', `TOTAL — ${j.entries} entries, ${j.lines.length} lines`, '', '', '', '', '', '',
+    csvMoney(j.totals.debit), csvMoney(j.totals.credit), '', '']))
+  out.push('', csvRow(['# Balanced', j.balanced ? 'yes' : `NO — out by ${j.totals.debit.minus(j.totals.credit).toFixed(2)}`]))
+  return toCsv(out)
+}
+
+/**
+ * One account's ledger, with its opening balance and a running balance.
+ *
+ * 🔴 The opening balance is a row of its own, not a note. Without it the running balance in
+ * the last column starts from a figure that is nowhere in the file, and every line of it
+ * looks wrong to anybody checking the arithmetic.
+ */
+export function accountLedgerCsv(m: Meta, account: AccountBalance, lines: LedgerLine[]): string {
+  const out = header(m, 'Account Ledger')
+  // 🔴 the account's own cells, NOT interpolated into the title. An account name is
+  // user-entered, and a value built into a title string has already escaped the one place
+  // that escapes it — `csvCell`. Here it goes through the same guard as every other cell.
+  out.splice(1, 0, csvRow(['# Account', account.code]), csvRow(['# Account name', account.name]))
+  out.push(csvRow(['Date', 'Entry no', 'Narration', 'Line narration', 'Source', 'Debit', 'Credit', 'Balance']))
+  out.push(csvRow(['', '', 'Opening balance', '', '', '', '', csvMoney(account.opening)]))
+  for (const l of lines) {
+    out.push(csvRow([l.date, l.entryNo, l.narration, l.lineNarration ?? '', l.sourceType,
+      csvMoney(l.debit), csvMoney(l.credit), csvMoney(l.balance)]))
+  }
+  out.push(csvRow(['', '', 'Closing balance', '', '',
+    csvMoney(account.debit), csvMoney(account.credit), csvMoney(account.closing)]))
+  out.push('', csvRow(['# Balance direction', account.type === 'ASSET' || account.type === 'EXPENSE' ? 'debit' : 'credit']))
+  return toCsv(out)
 }
 
 export function trialBalanceCsv(m: Meta, tb: TrialBalance): string {

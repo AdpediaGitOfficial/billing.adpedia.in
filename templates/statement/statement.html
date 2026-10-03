@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Statement — Adpedia Films Private Limited</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* ==========================================================================
+     ADPEDIA — FINANCIAL STATEMENT TEMPLATE  (docs/58)
+     Serves the profit & loss, the balance sheet and the trial balance. A4 via the
+     same headless Chromium renderer as the invoice, credit note and payslip.
+
+     🔴 These are NOT statutory accounts. Schedule III of the Companies Act fixes the
+     format in which a company's financial statements are filed, and these are not in
+     it — they are management statements, drawn from the same ledger the CA will work
+     from. The footer says so, because a document that looks like accounts and is not
+     will eventually be filed as though it were.
+
+     STANDING — set ONE on .sheet:
+       .st-final   the financial year is closed
+       .st-locked  the period is locked; later ones are not
+       .st-draft   🔴 the books are open and every figure can still change
+     ========================================================================== */
+
+  :root{
+    --brand:      #4135AF;
+    --brand-deep: #332A8C;
+    --brand-tint: #EEECF9;
+    --brand-line: #D5D0F0;
+    --ink:        #1A1922;
+    --ink-soft:   #504E5C;
+    --ink-faint:  #85828F;
+    --rule:       #E4E2EC;
+    --row-alt:    #FAFAFD;
+    --warn-bg:    #FFF8E9;
+    --warn-ink:   #7A5A12;
+    --good-bg:    #EDF7EE;
+    --good-ink:   #2B6B32;
+    --bad-bg:     #FDEDED;
+    --bad-ink:    #96231F;
+    --pad: 10mm;
+  }
+
+  @page { size: A4; margin: 0; }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+
+  html{ background:#6E6A7A; }
+  body{
+    font-family:'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color:var(--ink); font-size:10pt; line-height:1.5;
+    -webkit-font-smoothing:antialiased; -webkit-print-color-adjust:exact; print-color-adjust:exact;
+  }
+
+  .sheet{
+    width:210mm; min-height:297mm; margin:0 auto; background:#fff;
+    padding:var(--pad) var(--pad) 0; display:flex; flex-direction:column;
+  }
+
+  .head{ display:flex; justify-content:space-between; align-items:flex-start; gap:10mm; }
+  .logo{ height:11mm; width:auto; }
+  .doc-title{ text-align:right; }
+  .doc-title h1{
+    font-size:17pt; font-weight:700; letter-spacing:.14em; color:var(--brand);
+    text-transform:uppercase; line-height:1.1; white-space:nowrap;
+  }
+  .doc-title .scope{ font-size:9.6pt; font-weight:600; color:var(--ink-soft); margin-top:1.4mm; }
+  .copy-mark{
+    display:inline-block; margin-top:2.4mm; padding:1.2mm 3mm; border:1px solid var(--brand-line);
+    background:var(--brand-tint); color:var(--brand); border-radius:1mm;
+    font-size:7.2pt; font-weight:600; letter-spacing:.10em; text-transform:uppercase;
+  }
+  .st-draft  .copy-mark{ background:var(--warn-bg); border-color:#E6CF9A; color:var(--warn-ink); }
+  .st-final  .copy-mark{ background:var(--good-bg); border-color:#BFE0C3; color:var(--good-ink); }
+
+  /* 🔴 the standing note is never hidden — it is the first thing a reader needs */
+  .standing{
+    margin-top:4mm; padding:2.6mm 3.4mm; border-radius:1.5mm;
+    font-size:8.6pt; line-height:1.45; font-weight:500;
+    background:var(--brand-tint); border:1px solid var(--brand-line); color:var(--brand-deep);
+  }
+  .st-draft .standing{ background:var(--warn-bg); border-color:#E6CF9A; color:var(--warn-ink); font-weight:600; }
+  .st-final .standing{ background:var(--good-bg); border-color:#BFE0C3; color:var(--good-ink); }
+
+  .meta{
+    margin-top:3.5mm; display:grid; grid-template-columns:repeat(4,1fr);
+    border:1px solid var(--rule); border-radius:1.5mm; overflow:hidden;
+  }
+  .meta > div{ padding:2.6mm 3.4mm; border-right:1px solid var(--rule); }
+  .meta > div:last-child{ border-right:0; }
+  .meta .k{ font-size:7pt; font-weight:600; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-faint); }
+  .meta .v{ font-size:9.4pt; font-weight:600; margin-top:.8mm; line-height:1.25; }
+
+  table{ width:100%; border-collapse:collapse; }
+  .fig{ margin-top:4mm; }
+  .fig thead th{
+    background:var(--brand); color:#fff; font-size:7.4pt; font-weight:600;
+    letter-spacing:.07em; text-transform:uppercase; padding:2.2mm 2.6mm; text-align:left;
+  }
+  .fig thead th.num{ text-align:right; }
+  .fig tbody td{ padding:1.6mm 2.6mm; border-bottom:1px solid var(--rule); font-size:9pt; }
+  .fig td.num{ text-align:right; font-variant-numeric:tabular-nums; }
+  .fig td.code{ color:var(--ink-faint); font-size:8.2pt; width:16mm; }
+
+  .fig tr.section td{
+    background:var(--brand-tint); font-weight:600; font-size:8pt;
+    letter-spacing:.08em; text-transform:uppercase; color:var(--brand-deep);
+    padding-top:2.2mm; padding-bottom:2.2mm;
+  }
+  .fig tr.subtotal td{ font-weight:600; border-bottom:1px solid var(--ink); }
+  .fig tr.total td{
+    background:var(--brand); color:#fff; font-weight:700; font-size:10pt;
+    padding-top:2.6mm; padding-bottom:2.6mm;
+  }
+  .fig tr.derived td{ font-style:italic; color:var(--ink-soft); }
+  .fig tr.spacer td{ border-bottom:0; height:2.5mm; padding:0; }
+
+  .check{
+    margin-top:3.5mm; padding:2.4mm 3.4mm; border-radius:1.5mm; font-size:8.8pt; font-weight:600;
+    background:var(--good-bg); border:1px solid #BFE0C3; color:var(--good-ink);
+  }
+  .check.bad{ background:var(--bad-bg); border-color:#EBB9B6; color:var(--bad-ink); }
+
+  .notes{ margin-top:3.5mm; border-top:1px solid var(--rule); padding-top:2.4mm; }
+  .notes h3{
+    font-size:7pt; font-weight:600; letter-spacing:.10em; text-transform:uppercase;
+    color:var(--brand); margin-bottom:2mm;
+  }
+  .notes li{ font-size:7.8pt; color:var(--ink-soft); line-height:1.4; margin-left:4.2mm; }
+
+  .spacer-fill{ flex:1 1 auto; }
+
+  .brandbar{
+    margin:3mm calc(var(--pad) * -1) 0; background:var(--brand); color:#fff;
+    padding:2.6mm var(--pad); display:flex; justify-content:space-between; align-items:center;
+    font-size:7.8pt; letter-spacing:.04em; gap:8mm;
+  }
+  .brandbar img{ height:4.6mm; width:auto; filter:brightness(0) invert(1); }
+  .brandbar .ids{ opacity:.82; text-align:right; }
+
+  @media screen{ body{ padding:8mm 0; } .sheet{ box-shadow:0 2mm 8mm rgba(0,0,0,.28); } }
+  @media print{ html{ background:#fff; } .sheet{ box-shadow:none; } thead{ display:table-header-group; } tr{ break-inside:avoid; } }
+</style>
+</head>
+<body>
+
+<!-- ============ set the standing here ============ -->
+<div class="sheet st-draft" data-bind="statement.standing">
+
+  <header class="head">
+    <img class="logo" src="assets/adpedia-logo.svg" alt="adpedia" data-bind="company.logoUrl">
+    <div class="doc-title">
+      <h1 data-bind="statement.title">Profit &amp; Loss</h1>
+      <div class="scope" data-bind="statement.scope">For the year ended 31 March 2027</div>
+      <div class="copy-mark" data-bind="statement.standingLabel">Draft — books are open</div>
+    </div>
+  </header>
+
+  <div class="standing" data-bind="statement.standingNote">
+    FY 2026-27 is open and nothing is locked. Every figure here can still change.
+  </div>
+
+  <section class="meta">
+    <div><div class="k">Company</div><div class="v" data-bind="company.legalName">Adpedia Films Private Limited</div></div>
+    <div><div class="k">CIN</div>    <div class="v" data-bind="company.cin">U92190KL2021PTC068241</div></div>
+    <div><div class="k">PAN</div>    <div class="v" data-bind="company.pan">AAUCA9985H</div></div>
+    <div><div class="k">Prepared</div><div class="v" data-bind="statement.generatedOn">03 Oct 2026</div></div>
+  </section>
+
+  <table class="fig">
+    <thead><tr id="figheads"><th>Particulars</th><th class="num">Amount (&#8377;)</th></tr></thead>
+    <tbody id="figures">
+      <tr><td>Nothing to report</td><td class="num">0.00</td></tr>
+    </tbody>
+  </table>
+
+  <div class="check" data-bind="statement.check">These figures foot to the ledger.</div>
+
+  <section class="notes">
+    <h3>Notes</h3>
+    <ol id="notes">
+      <li>Prepared from the general ledger.</li>
+    </ol>
+  </section>
+
+  <div class="spacer-fill"></div>
+
+  <footer class="brandbar">
+    <img src="assets/adpedia-logo.svg" alt="adpedia">
+    <div class="ids" data-bind="company.footerIds">
+      Adpedia Films Private Limited &middot; CIN U92190KL2021PTC068241
+    </div>
+  </footer>
+</div>
+
+</body>
+</html>

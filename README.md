@@ -62,8 +62,9 @@ payroll, projects and bank reconciliation on a double-entry ledger.
 | [55 · Certificates](docs/55-certificates.md) | Form 16 and 16A — a register and a chase, because only TRACES may generate them |
 | [56 · The portal](docs/56-portal-reconciliation.md) | Both electronic ledgers and every challan CIN, compared with what the department actually holds |
 | [57 · Payslips](docs/57-payslips.md) | The document an employee asks for — and the five API routes that never asked who was reading |
+| [58 · Statements](docs/58-statements.md) | P&L, balance sheet and journal exports — and whether a statement says it can still change |
 
-**754 tests passing** · typecheck and lint clean · production build passes.
+**776 tests passing** · typecheck and lint clean · production build passes.
 
 ```bash
 cp .env.example .env     # set DATABASE_URL and JWT_SECRET

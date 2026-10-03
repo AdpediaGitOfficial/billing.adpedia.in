@@ -4,7 +4,7 @@ import { balanceSheet } from '@/server/services/reports/statements'
 import { resolvePeriod } from '@/server/services/reports/period'
 import { formatINR } from '@/lib/money'
 import { Card, PageHeader, Empty, Alert } from '@/components/ui/kit'
-import { ExportButton } from '@/components/reports/export-button'
+import { ExportButton, StatementPdfButton } from '@/components/reports/export-button'
 import { PeriodPicker } from '../period-picker'
 import type { BsSection } from '@/server/services/reports/statements'
 
@@ -19,7 +19,7 @@ export default async function BalanceSheetPage({ searchParams }: { searchParams:
   return (
     <div className="max-w-3xl space-y-5">
       <PageHeader title="Balance Sheet" sub={`As at ${period.to.toISOString().slice(0, 10)}`}
-        action={<div className="flex items-center gap-2"><ExportButton report="balance-sheet" fy={period.fyId} /><PeriodPicker options={period.options} value={period.fyId} /></div>} />
+        action={<div className="flex items-center gap-2"><StatementPdfButton statement="balance-sheet" fy={period.fyId} /><ExportButton report="balance-sheet" fy={period.fyId} /><PeriodPicker options={period.options} value={period.fyId} /></div>} />
 
       {!bs.balanced && (
         <Alert tone="critical" title={`Out of balance by ${formatINR(bs.difference)}`}>

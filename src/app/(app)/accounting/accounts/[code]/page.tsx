@@ -5,6 +5,7 @@ import { accountLedger } from '@/server/services/reports/ledger'
 import { resolvePeriod } from '@/server/services/reports/period'
 import { formatINR } from '@/lib/money'
 import { Card, PageHeader, Empty, Button, StatCard } from '@/components/ui/kit'
+import { ExportButton } from '@/components/reports/export-button'
 import { PeriodPicker } from '../../../reports/period-picker'
 
 /** Where a journal entry came from, as a link back to the document that caused it. */
@@ -36,6 +37,7 @@ export default async function AccountLedgerPage({ params, searchParams }: {
         sub={`${account.type.toLowerCase()} · ${period.label}`}
         action={
           <div className="flex gap-2">
+            <ExportButton report="ledger" fy={period.fyId} account={account.code} label="Export ledger" />
             <PeriodPicker options={period.options} value={period.fyId} />
             <Link href="/accounting/trial-balance"><Button variant="ghost">Trial balance</Button></Link>
           </div>

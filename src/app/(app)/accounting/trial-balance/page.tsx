@@ -4,7 +4,7 @@ import { trialBalance } from '@/server/services/reports/statements'
 import { resolvePeriod } from '@/server/services/reports/period'
 import { formatINR } from '@/lib/money'
 import { Card, PageHeader, Empty, Alert } from '@/components/ui/kit'
-import { ExportButton } from '@/components/reports/export-button'
+import { ExportButton, StatementPdfButton } from '@/components/reports/export-button'
 import { PeriodPicker } from '../../reports/period-picker'
 
 export default async function TrialBalancePage({ searchParams }: { searchParams: Promise<{ fy?: string }> }) {
@@ -16,7 +16,7 @@ export default async function TrialBalancePage({ searchParams }: { searchParams:
   return (
     <div className="space-y-5">
       <PageHeader title="Trial Balance" sub={`${period.label} · opening, movement and closing for every account`}
-        action={<div className="flex items-center gap-2"><ExportButton report="trial-balance" fy={period.fyId} /><PeriodPicker options={period.options} value={period.fyId} /></div>} />
+        action={<div className="flex items-center gap-2"><StatementPdfButton statement="trial-balance" fy={period.fyId} /><ExportButton report="trial-balance" fy={period.fyId} /><PeriodPicker options={period.options} value={period.fyId} /></div>} />
 
       {tb.balanced ? (
         <Alert tone="good" title="Debits equal credits">

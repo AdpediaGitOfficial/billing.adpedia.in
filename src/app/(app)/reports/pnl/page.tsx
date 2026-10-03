@@ -4,7 +4,7 @@ import { profitAndLoss } from '@/server/services/reports/statements'
 import { resolvePeriod } from '@/server/services/reports/period'
 import { formatINR } from '@/lib/money'
 import { Card, PageHeader, Empty, Pill } from '@/components/ui/kit'
-import { ExportButton } from '@/components/reports/export-button'
+import { ExportButton, StatementPdfButton } from '@/components/reports/export-button'
 import { PeriodPicker } from '../period-picker'
 import type { PnlSection } from '@/server/services/reports/statements'
 
@@ -19,7 +19,7 @@ export default async function PnlPage({ searchParams }: { searchParams: Promise<
   return (
     <div className="max-w-3xl space-y-5">
       <PageHeader title="Profit &amp; Loss" sub={`${period.label} · every figure is a sum of journal lines`}
-        action={<div className="flex items-center gap-2"><ExportButton report="pnl" fy={period.fyId} /><PeriodPicker options={period.options} value={period.fyId} /></div>} />
+        action={<div className="flex items-center gap-2"><StatementPdfButton statement="pnl" fy={period.fyId} /><ExportButton report="pnl" fy={period.fyId} /><PeriodPicker options={period.options} value={period.fyId} /></div>} />
 
       {!hasActivity ? (
         <Card><Empty icon="TrendingUp" title={`Nothing posted in ${period.label}`}

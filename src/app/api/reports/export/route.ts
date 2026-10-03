@@ -9,9 +9,16 @@ import { receivablesAgeing, payablesAgeing } from '@/server/services/reports/age
 import { clientPnl } from '@/server/services/reports/client-pnl'
 import {
   trialBalanceCsv, profitAndLossCsv, balanceSheetCsv, cashFlowCsv, ageingCsv, clientPnlCsv,
+  journalCsv, accountLedgerCsv,
 } from '@/server/services/reports/export'
+import { journalExport } from '@/server/services/reports/journal-export'
+import { accountLedger } from '@/server/services/reports/ledger'
+import { statementStanding } from '@/server/services/reports/status'
 
-const REPORTS = ['trial-balance', 'pnl', 'balance-sheet', 'cash-flow', 'ageing-ar', 'ageing-ap', 'client-pnl'] as const
+const REPORTS = [
+  'trial-balance', 'pnl', 'balance-sheet', 'cash-flow', 'ageing-ar', 'ageing-ap', 'client-pnl',
+  'journal', 'ledger',
+] as const
 type ReportKey = (typeof REPORTS)[number]
 
 export async function GET(req: Request) {
@@ -31,7 +38,10 @@ export async function GET(req: Request) {
       }),
       resolvePeriod(ctx.companyId, url.searchParams.get('fy') ?? undefined),
     ])
-    const meta = { company: company.legalName, gstin: company.gstin, period: period.label }
+    // 🔴 docs/58 — every file now says whether the books behind it are closed, locked or
+    // still open. Without it a year-to-date figure reads as a final one.
+    const standing = await statementStanding(ctx.companyId, period)
+    const meta = { company: company.legalName, gstin: company.gstin, period: period.label, standing }
 
     let csv: string
     switch (which) {
@@ -42,10 +52,20 @@ export async function GET(req: Request) {
       case 'ageing-ar':     csv = ageingCsv(meta, await receivablesAgeing(ctx), 'Receivables'); break
       case 'ageing-ap':     csv = ageingCsv(meta, await payablesAgeing(ctx), 'Payables'); break
       case 'client-pnl':    csv = clientPnlCsv(meta, await clientPnl(ctx, period)); break
+      case 'journal':       csv = journalCsv(meta, await journalExport(ctx, period)); break
+      case 'ledger': {
+        const code = url.searchParams.get('account')
+        if (!code) throw new AppError('Which account? Pass ?account=1100')
+        const led = await accountLedger(ctx, code, period)
+        if (!led) throw new AppError(`No account with code ${code}`)
+        csv = accountLedgerCsv(meta, led.account, led.lines)
+        break
+      }
     }
 
     // the filename carries the period, because a download folder full of "pnl.csv" is useless
-    const name = `adpedia-${which}-${period.fyLabel.replace('/', '-')}.csv`
+    const account = url.searchParams.get('account')
+    const name = `adpedia-${which}${which === 'ledger' && account ? `-${account}` : ''}-${period.fyLabel.replace('/', '-')}.csv`
     return new Response(csv, {
       headers: {
         'content-type': 'text/csv; charset=utf-8',

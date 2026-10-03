@@ -177,6 +177,19 @@ newest open row and jumped to it. Use `currentFinancialYear()`.
 shipped one button; the other three were unreachable for nine modules. The survey that finds
 this is a script, not a memory — `docs/49 §1`.
 
+🔴 **A statement must say whether it can still change.** Closed, locked, or open — and a lock
+that stops inside the period is a draft, not a lock. Every export before `docs/58` was silent,
+and a year-to-date figure with nothing said is read as a final one (`docs/58 §1`).
+
+🔴 **`period.to` is the financial year END, which for an open year is in the future.** A
+balance sheet headed "as at 31 Mar 2027" was prepared in October. Clamping it also changes the
+figures, because a payroll run is dated the 28th and the current month's salaries sit days
+ahead of today — so the statement names what it stopped short of (`docs/58 §2`).
+
+🔴 **`JournalLine` has no ordering column.** Order by `date, entryNo, id`: without the id the
+two sides of an entry come back in an arbitrary order, so a running balance and an export an
+auditor diffs are both irreproducible (`docs/58 §4`).
+
 🔴 **A route that takes a `companyId` never gets the chance to ask who is reading.** Five API
 routes had no authorisation check at all, and an EMPLOYEE could download every invoice. There
 was no missing argument to notice, so only a grep finds it — `tests/route-authorisation.test.ts`
@@ -207,20 +220,18 @@ docs/51 had already closed. Grouped by the module each would be, largest value f
 
 ### Worth a module each
 
-1. **Statement PDFs and ledger export.** P&L and balance sheet as PDFs, and a download on the
-   journal and account-ledger drill-throughs (`docs/36 §7`).
-2. **Attachments where the documents are.** The expense screens have no panel (`docs/38`,
+1. **Attachments where the documents are.** The expense screens have no panel (`docs/38`,
    `docs/39`), and invoice and payslip PDFs are generated per request rather than stored.
-3. **The mobile tail** (`docs/30 §7`): receipt images are queued offline but never uploaded,
+2. **The mobile tail** (`docs/30 §7`): receipt images are queued offline but never uploaded,
    swipe gestures are unwired, push is never scheduled, and the performance budget from
    `docs/13` has not been measured.
-4. **Chases that nobody sends.** The PAN register lists who is missing a card and nothing
+3. **Chases that nobody sends.** The PAN register lists who is missing a card and nothing
    asks them (`docs/47 §7`); the compliance calendar is read, never delivered.
-5. **Note amendments (table 9C)** — the same shape as `docs/52`'s 9A, against a credit or
+4. **Note amendments (table 9C)** — the same shape as `docs/52`'s 9A, against a credit or
    debit note rather than an invoice.
-6. **Refund vouchers** (s.31(3)(e)) — where an advance is returned and no supply is made
+5. **Refund vouchers** (s.31(3)(e)) — where an advance is returned and no supply is made
    (`docs/54 §7`).
-7. **Invoice-level GST reconciliation.** `docs/56` compares ledger balances and challans;
+6. **Invoice-level GST reconciliation.** `docs/56` compares ledger balances and challans;
    GSTR-2B against our own purchase register is the layer that finds *which* supplier did not
    file, and `1240` has to be split three ways first (`docs/56 §7`).
 

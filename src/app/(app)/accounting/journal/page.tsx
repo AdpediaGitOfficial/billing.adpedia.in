@@ -4,6 +4,7 @@ import { prisma } from '@/server/db'
 import { resolvePeriod } from '@/server/services/reports/period'
 import { formatINR, Decimal, ZERO } from '@/lib/money'
 import { Card, PageHeader, Empty, Pill } from '@/components/ui/kit'
+import { ExportButton } from '@/components/reports/export-button'
 import { PeriodPicker } from '../../reports/period-picker'
 
 const PAGE = 50
@@ -32,7 +33,14 @@ export default async function JournalPage({ searchParams }: {
   return (
     <div className="space-y-5">
       <PageHeader title="Journal" sub={`${total} entries in ${period.label} · the complete record, newest first`}
-        action={<PeriodPicker options={period.options} value={period.fyId} />} />
+        action={
+          <div className="flex items-center gap-2">
+            {/* 🔴 the export is the WHOLE period, not this page — docs/58. Paging is for
+                reading; a journal missing its last page is not a journal. */}
+            <ExportButton report="journal" fy={period.fyId} label="Export journal" />
+            <PeriodPicker options={period.options} value={period.fyId} />
+          </div>
+        } />
 
       {entries.length === 0 ? (
         <Card><Empty icon="BookOpen" title={`No entries in ${period.label}`}
