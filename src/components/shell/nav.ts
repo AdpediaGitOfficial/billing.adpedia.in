@@ -54,6 +54,7 @@ export const NAV: NavGroup[] = [
     { label: 'Company', href: '/settings/company', cap: 'settings.company', icon: 'Building2' },
     { label: 'LUT register', href: '/settings/lut', cap: 'settings.company', icon: 'FileCheck' },
     { label: 'Users', href: '/settings/users', cap: 'settings.users', icon: 'UserCog' },
+    { label: 'Reminders', href: '/settings/reminders', cap: 'settings.company', icon: 'BellRing' },
     { label: 'This device', href: '/settings/device', cap: 'dashboard', icon: 'Smartphone' },
     { label: 'E-invoicing', href: '/settings/e-invoice', cap: 'tax', icon: 'QrCode' },
   ]},

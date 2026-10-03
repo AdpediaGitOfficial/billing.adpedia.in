@@ -177,6 +177,17 @@ newest open row and jumped to it. Use `currentFinancialYear()`.
 shipped one button; the other three were unreachable for nine modules. The survey that finds
 this is a script, not a memory — `docs/49 §1`.
 
+🔴 **A reminder is computed at the moment of sending, never queued.** One prepared last night
+about an invoice paid this morning is the message that teaches somebody to ignore all the
+others (`docs/60 §2`).
+
+🔴 **Cadence is the design, not the delivery.** Daily is how notifications get turned off; and
+three messages at once about one overdue quarter is the same mistake in a morning
+(`docs/60 §3`).
+
+🔴 **Only a unique-constraint violation means "already sent".** A bare catch around the claim
+turns a dropped connection into a silent duplicate, and the message never goes (`docs/60 §4`).
+
 🔴 **A re-rendered document is not the document that was issued.** The template, the company's
 own details, the logo and the signature are all read live. One invoice archived and rebuilt
 seconds apart came out 433,850 bytes against 78,679, with the supplier block breaking
@@ -228,11 +239,12 @@ docs/51 had already closed. Grouped by the module each would be, largest value f
 
 ### Worth a module each
 
-1. **The mobile tail** (`docs/30 §7`): receipt images are queued offline but never uploaded,
-   swipe gestures are unwired, push is never scheduled, and the performance budget from
-   `docs/13` has not been measured.
-2. **Chases that nobody sends.** The PAN register lists who is missing a card and nothing
-   asks them (`docs/47 §7`); the compliance calendar is read, never delivered.
+1. **Chases that reach OUTSIDE the company.** `docs/60` delivers the internal reminders; the
+   PAN register still needs a human to ask a vendor for their card, and the certificate
+   register to send a Form 16A (`docs/47 §7`, `docs/55 §5`).
+2. **The rest of the mobile tail** (`docs/30 §9`): swipe gestures are unwired and the
+   performance budget from `docs/13` has not been measured. Receipt upload and push
+   scheduling are done (`docs/60`).
 3. **Note amendments (table 9C)** — the same shape as `docs/52`'s 9A, against a credit or
    debit note rather than an invoice.
 4. **Refund vouchers** (s.31(3)(e)) — where an advance is returned and no supply is made

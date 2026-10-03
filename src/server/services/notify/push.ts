@@ -105,11 +105,27 @@ export const messages = {
     url: '/bills',
   }),
 
-  taxDue: (what: string, dueOn: Date): PushMessage => ({
+  // 🔴 "is due" over a body reading "70 days late" is the sort of thing that makes a person
+  // stop reading the notifications. The title follows the fact.
+  taxDue: (what: string, dueOn: Date, daysLate = 0): PushMessage => ({
     kind: 'TAX_DUE',
-    title: `${what} is due`,
+    title: daysLate > 0 ? `${what} is overdue` : `${what} is due`,
     body: `Due ${dueOn.toISOString().slice(0, 10)}. Late deposit carries interest per month or part of a month.`,
     url: '/tax/tds',
+  }),
+
+  /**
+   * 🔴 One message instead of several of the same kind — docs/60.
+   *
+   * Three pushes in one morning about one overdue quarter is how a person turns
+   * notifications off, and then never hears the one that mattered. Past a couple, they
+   * become a single line that says how many and names the first few.
+   */
+  digest: (kind: NotificationKind, what: string, items: string[], url: string): PushMessage => ({
+    kind,
+    title: `${items.length} ${what}`,
+    body: items.slice(0, 3).join(' · ') + (items.length > 3 ? ` · and ${items.length - 3} more` : ''),
+    url,
   }),
 
   invoiceOverdue: (number: string, customer: string, days: number, invoiceId: string): PushMessage => ({

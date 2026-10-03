@@ -158,18 +158,36 @@ describe('🔴 the receipt photo uploads separately from the expense', () => {
     expect(await listQueue()).toHaveLength(0)
   })
 
-  it('gives up on a photo the server will never accept, keeping the expense', async () => {
-    // a 4xx means the file itself is unacceptable — retrying cannot fix it, and nagging
-    // forever over a photo would block a queue whose expense is already safely booked
+  it('🔴 keeps a photo the server refuses, and says why', async () => {
+    // It used to return "stop asking": the item was removed and the photo went with it, so
+    // the expense stayed booked with nothing behind it and nobody was told. After docs/59
+    // that is an input-credit claim with no evidence — exactly what that screen surfaces.
     await enqueue({ description: 'Toll' }, new Blob(['nope'], { type: 'image/svg+xml' }))
     const fetchImpl = vi.fn(async (url: string) =>
       url === '/api/expenses'
         ? new Response(JSON.stringify({ id: 'exp_11' }), { status: 200 })
-        : new Response(JSON.stringify({ error: 'cannot be stored' }), { status: 422 }))
+        : new Response(JSON.stringify({ error: 'image/svg+xml cannot be stored' }), { status: 422 }))
 
     const res = await drain(fetchImpl as unknown as typeof fetch)
-    expect(res.sent).toBe(1)
-    expect(await listQueue()).toHaveLength(0)
+    // the EXPENSE went; the photo did not
+    expect(res.sent).toBe(0)
+    expect(res.failed).toBe(1)
+
+    const [item] = await listQueue()
+    expect(item.expenseId).toBe('exp_11')
+    expect(item.status).toBe('failed')
+    expect(item.lastError).toMatch(/image\/svg\+xml cannot be stored/)
+  })
+
+  it('🔴 never re-posts the expense for a refused photo, however often it is drained', async () => {
+    let expensePosts = 0
+    const again = vi.fn(async (url: string) => {
+      if (url === '/api/expenses') { expensePosts += 1; return new Response(JSON.stringify({ id: 'x' }), { status: 200 }) }
+      return new Response(JSON.stringify({ error: 'still no' }), { status: 422 })
+    })
+    await drain(again as unknown as typeof fetch)
+    await drain(again as unknown as typeof fetch)
+    expect(expensePosts).toBe(0)
   })
 
   it('an expense with no photo is unaffected', async () => {

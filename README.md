@@ -64,8 +64,9 @@ payroll, projects and bank reconciliation on a double-entry ledger.
 | [57 · Payslips](docs/57-payslips.md) | The document an employee asks for — and the five API routes that never asked who was reading |
 | [58 · Statements](docs/58-statements.md) | P&L, balance sheet and journal exports — and whether a statement says it can still change |
 | [59 · Issued documents](docs/59-issued-documents.md) | Keeping the invoice that was actually sent, and the bill behind every input-credit claim |
+| [60 · Reminders](docs/60-reminders.md) | The deadlines, chases and approvals this system knew about and never told anyone |
 
-**786 tests passing** · typecheck and lint clean · production build passes.
+**811 tests passing** · typecheck and lint clean · production build passes.
 
 ```bash
 cp .env.example .env     # set DATABASE_URL and JWT_SECRET

@@ -1766,3 +1766,30 @@ model PortalStatementLine {
   @@index([companyId, cin])
   @@index([statementId])
 }
+
+/// docs/60 · What was actually sent, and when.
+///
+/// 🔴 A scheduler without this sends the same reminder every time it runs. Whatever triggers
+/// it — cron, a container restart, somebody curling the endpoint twice — the second run must
+/// be a no-op, and the only way to know is to have written down the first.
+///
+/// The key is (kind, subject, day): the same invoice may be chased again next week, and must
+/// not be chased twice this morning.
+model NotificationLog {
+  id         String   @id @default(cuid())
+  companyId  String
+  kind       String
+  /// the invoice, calendar item or other thing it was about
+  subjectId  String
+  /// 🔴 the DAY it relates to, at UTC midnight — not the instant it was sent
+  forDay     DateTime
+  title      String
+  body       String
+  /// how many devices it actually reached; 0 is recorded too, because "nobody has
+  /// notifications on" is a thing worth being able to see
+  recipients Int      @default(0)
+  sentAt     DateTime @default(now())
+
+  @@unique([companyId, kind, subjectId, forDay])
+  @@index([companyId, sentAt])
+}

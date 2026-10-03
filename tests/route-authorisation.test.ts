@@ -38,6 +38,9 @@ const ALLOWED_WITHOUT_A_CHECK: Record<string, string> = {
   'app/api/attachments/route.ts': 'uploadAttachment asserts expenses.own internally',
   'app/api/attachments/[id]/route.ts': 'readAttachment and detachAttachment assert internally',
   'app/api/expenses/route.ts': 'createExpense asserts expenses.own internally',
+  // 🔴 docs/60 — the only route with no signed-in user at all. It carries its own shared
+  // secret and REFUSES when CRON_SECRET is unset, rather than running open.
+  'app/api/cron/notify/route.ts': 'scheduler endpoint; authenticated by CRON_SECRET, disabled without one',
 }
 
 describe('🔴 every API route says who may call it', () => {
@@ -71,5 +74,13 @@ describe('🔴 every API route says who may call it', () => {
     for (const listed of Object.keys(ALLOWED_WITHOUT_A_CHECK)) {
       expect(listed).not.toMatch(/document/)
     }
+  })
+
+  it('🔴 the exempt scheduler route checks a secret of its own', () => {
+    const src = readFileSync(join(API, 'cron', 'notify', 'route.ts'), 'utf8')
+    expect(src).toMatch(/CRON_SECRET/)
+    // and refuses rather than running open when it is not configured
+    expect(src).toMatch(/is not set, so this endpoint is disabled/)
+    expect(src).toMatch(/timingSafeEqual/)
   })
 })

@@ -83,6 +83,21 @@ export async function pendingCount(): Promise<number> {
   return all.filter((i) => i.status === 'pending' || i.status === 'failed').length
 }
 
+/**
+ * The ones that will never go on their own — docs/60.
+ *
+ * 🔴 Reported separately from `pending`, because the two need different words. "3 waiting
+ * to sync" is reassuring and right for a queue that is merely offline; it is a lie about an
+ * item the server has already refused, which will still be there tomorrow and the day after.
+ */
+export async function stuckItems(): Promise<{ description: string; error: string }[]> {
+  const all = await listQueue()
+  return all.filter((i) => i.status === 'failed').map((i) => ({
+    description: String(i.payload?.description ?? 'An expense'),
+    error: i.lastError ?? 'It was refused and no reason was given',
+  }))
+}
+
 async function update(item: QueuedExpense) {
   await tx('readwrite', (s) => s.put(item))
 }
@@ -113,15 +128,13 @@ export async function drain(fetchImpl: typeof fetch = fetch): Promise<SyncResult
     try {
       // the expense is already booked from an earlier attempt — only the photo is left
       if (item.expenseId) {
-        if (!item.receipt || await uploadReceipt(fetchImpl, item.expenseId, item.receipt)) {
-          await remove(item.clientKey)
-          sent += 1
-        } else {
-          item.status = 'pending'
-          item.lastError = 'Expense saved; the receipt photo is still to upload'
-          await update(item)
-          failed += 1
-        }
+        if (!item.receipt) { await remove(item.clientKey); sent += 1; continue }
+        const r = await uploadReceipt(fetchImpl, item.expenseId, item.receipt)
+        if (r.ok) { await remove(item.clientKey); sent += 1; continue }
+        item.status = r.permanent ? 'failed' : 'pending'
+        item.lastError = r.error ?? 'Expense saved; the receipt photo is still to upload'
+        await update(item)
+        failed += 1
         continue
       }
 
@@ -141,9 +154,14 @@ export async function drain(fetchImpl: typeof fetch = fetch): Promise<SyncResult
         // past the POST and never books a second expense for the sake of a failed image.
         if (item.receipt && item.expenseId) {
           const uploaded = await uploadReceipt(fetchImpl, item.expenseId, item.receipt)
-          if (!uploaded) {
-            item.status = 'pending'
-            item.lastError = 'Expense saved; the receipt photo is still to upload'
+          if (!uploaded.ok) {
+            // 🔴 docs/60 — a photo the server REFUSES is kept and reported, not dropped.
+            // It used to return "stop asking", the item was removed, and the photo went
+            // with it: the expense stayed booked with no bill behind it and nobody was
+            // told why. After docs/59 that silently becomes an input-credit claim with no
+            // evidence — the exact thing that screen exists to surface.
+            item.status = uploaded.permanent ? 'failed' : 'pending'
+            item.lastError = uploaded.error ?? 'Expense saved; the receipt photo is still to upload'
             await update(item)
             failed += 1
             continue
@@ -175,8 +193,23 @@ export async function drain(fetchImpl: typeof fetch = fetch): Promise<SyncResult
   return { sent, failed, remaining: await pendingCount() }
 }
 
-/** Returns true when the photo is stored, false to leave it queued for another go. */
-async function uploadReceipt(fetchImpl: typeof fetch, expenseId: string, receipt: Blob): Promise<boolean> {
+export interface UploadOutcome {
+  ok: boolean
+  /** retrying cannot help — the file itself was refused */
+  permanent: boolean
+  error?: string
+}
+
+/**
+ * Put the photo up against an expense that already exists.
+ *
+ * 🔴 A 4xx means the file itself is unacceptable and retrying cannot fix it. That is NOT
+ * the same as success: the expense is booked and now has nothing behind it, so the item is
+ * kept as `failed` carrying the server's own words. The queue screen can then say *"that
+ * file says it is image/png but its contents are not"* instead of the photo simply
+ * vanishing from the phone.
+ */
+async function uploadReceipt(fetchImpl: typeof fetch, expenseId: string, receipt: Blob): Promise<UploadOutcome> {
   const form = new FormData()
   form.append('file', receipt, 'receipt')
   form.append('kind', 'RECEIPT')
@@ -184,11 +217,11 @@ async function uploadReceipt(fetchImpl: typeof fetch, expenseId: string, receipt
   form.append('entityId', expenseId)
   try {
     const res = await fetchImpl('/api/attachments', { method: 'POST', body: form })
-    // a 4xx here means the file itself is unacceptable — retrying cannot fix that, and the
-    // expense is already safely booked, so stop asking
-    if (!res.ok && res.status >= 400 && res.status < 500) return true
-    return res.ok
+    if (res.ok) return { ok: true, permanent: false }
+    const body = await res.json().catch(() => ({})) as { error?: string }
+    const permanent = res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 429
+    return { ok: false, permanent, error: body.error ?? `The receipt was refused (HTTP ${res.status})` }
   } catch {
-    return false
+    return { ok: false, permanent: false }
   }
 }

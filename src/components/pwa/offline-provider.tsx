@@ -1,17 +1,19 @@
 'use client'
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
-import { drain, pendingCount } from '@/lib/offline/queue'
+import { drain, pendingCount, stuckItems } from '@/lib/offline/queue'
 
 interface OfflineState {
   online: boolean
   pending: number
+  /** docs/60 — refused by the server; these will not clear by waiting */
+  stuck: { description: string; error: string }[]
   syncing: boolean
   refresh: () => Promise<void>
   syncNow: () => Promise<void>
 }
 
 const Ctx = createContext<OfflineState>({
-  online: true, pending: 0, syncing: false,
+  online: true, pending: 0, stuck: [], syncing: false,
   refresh: async () => {}, syncNow: async () => {},
 })
 
@@ -20,10 +22,14 @@ export const useOffline = () => useContext(Ctx)
 export function OfflineProvider({ children }: { children: React.ReactNode }) {
   const [online, setOnline] = useState(true)
   const [pending, setPending] = useState(0)
+  const [stuck, setStuck] = useState<{ description: string; error: string }[]>([])
   const [syncing, setSyncing] = useState(false)
 
   const refresh = useCallback(async () => {
-    try { setPending(await pendingCount()) } catch { /* IndexedDB blocked — treat as empty */ }
+    try {
+      setPending(await pendingCount())
+      setStuck(await stuckItems())
+    } catch { /* IndexedDB blocked — treat as empty */ }
   }, [])
 
   const syncNow = useCallback(async () => {
@@ -68,7 +74,7 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
   }, [refresh])
 
   return (
-    <Ctx.Provider value={{ online, pending, syncing, refresh, syncNow }}>
+    <Ctx.Provider value={{ online, pending, stuck, syncing, refresh, syncNow }}>
       {children}
       <OfflineBar />
     </Ctx.Provider>
@@ -77,8 +83,30 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
 
 /** A single honest line about connection state — never a spinner that hides what is wrong. */
 function OfflineBar() {
-  const { online, pending, syncing, syncNow } = useOffline()
+  const { online, pending, stuck, syncing, syncNow } = useOffline()
   if (online && pending === 0) return null
+
+  /**
+   * 🔴 A refused item gets its own words. "2 expenses waiting to sync" is true and
+   * reassuring for a queue that is merely offline, and a lie about a photo the server has
+   * already rejected: waiting will not clear it, and the expense it belongs to is booked
+   * with no bill behind it.
+   */
+  if (stuck.length > 0 && online) {
+    return (
+      <div role="status"
+        className="fixed inset-x-0 bottom-[var(--tabs-h,64px)] z-40 mx-3 mb-2 rounded-xl px-3.5 py-2.5 text-[12.5px] shadow-lg sm:bottom-3 sm:left-auto sm:right-3 sm:mx-0 sm:max-w-sm"
+        style={{ background: 'var(--critical-soft)', color: 'var(--critical)', border: '1px solid var(--rule)' }}>
+        <strong>
+          {stuck.length === 1 ? 'A receipt was refused' : `${stuck.length} receipts were refused`}
+        </strong>
+        <span className="mt-0.5 block" style={{ opacity: 0.9 }}>
+          {stuck[0].description}: {stuck[0].error} The expense is filed; attach the bill from the
+          expense itself.
+        </span>
+      </div>
+    )
+  }
 
   return (
     <div
