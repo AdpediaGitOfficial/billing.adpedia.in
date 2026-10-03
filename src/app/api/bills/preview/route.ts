@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { handler } from '@/app/api/_lib/handler'
 import { requireContext } from '@/server/context'
+import { assertCan } from '@/server/auth/permissions'
 import { previewBill } from '@/server/services/purchases/bill'
 
 const Body = z.object({
@@ -23,6 +24,7 @@ const Body = z.object({
 export async function POST(req: Request) {
   return handler(async () => {
     const ctx = await requireContext()
+    assertCan(ctx.role, 'bills', 'write')
     const p = await previewBill(ctx, Body.parse(await req.json()))
     return {
       vendor: p.vendor,

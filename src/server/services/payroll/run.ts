@@ -1,5 +1,5 @@
 import { prisma } from '@/server/db'
-import { Decimal, ZERO, round2 } from '@/lib/money'
+import { Decimal, ZERO, round2, formatINR } from '@/lib/money'
 import { fyQuarter } from '@/lib/fy'
 import type { RequestContext } from '@/server/context'
 import { assertCan } from '@/server/auth/permissions'
@@ -96,7 +96,7 @@ export async function previewPayroll(ctx: RequestContext, month: number, year: n
       const pt = await professionTaxFor(company.stateCode, halfYearEarnings, runDate)
       professionTax = pt.amount
       professionTaxNote = pt.slabLabel
-        ? `${halfYearOf(runDate)} half-year, slab ${pt.slabLabel} on ₹${halfYearEarnings.toFixed(0)}`
+        ? `${halfYearOf(runDate)} half-year, slab ${pt.slabLabel} on ${formatINR(halfYearEarnings, { decimals: false })}`
         : null
       if (pt.amount.isZero() && pt.slabLabel === null) {
         warnings.push(`No profession tax slab is on file for state ${company.stateCode}. Nothing will be deducted — confirm the slabs with your CA.`)
@@ -177,6 +177,9 @@ export async function approvePayroll(ctx: RequestContext, month: number, year: n
           payrollRunId: run.id, employeeId: p.employeeId,
           gross: p.gross.toFixed(2), deductions: p.deductions.toFixed(2),
           professionTax: p.professionTax.toFixed(2), tds: p.tds.toFixed(2), net: p.net.toFixed(2),
+          // 🔴 docs/57 — frozen here, because the s.192 estimate that produced this month's
+          // figure stops being true next month, and the payslip has to keep explaining it
+          tdsNote: p.tdsNote, professionTaxNote: p.professionTaxNote,
           components: { components: p.components, allocation: p.allocation.map((a) => ({ projectName: a.projectName, percent: a.percent.toFixed(2), amount: a.amount.toFixed(2) })) } as never,
         },
       })

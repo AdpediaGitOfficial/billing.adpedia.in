@@ -24,6 +24,14 @@ export default async function PayrollRunsPage({ searchParams }: { searchParams: 
 
   if (!preview) return <Card><Empty icon="CalendarX" title="Nothing to run" hint="No open financial year covers this month." /></Card>
 
+  // docs/57 — the table above is the live PREVIEW and has no payslip ids. A document can only
+  // be issued from a saved slip, so the two are matched by employee and the column appears
+  // only once the run is approved.
+  const saved = existing && existing.status !== 'DRAFT'
+    ? await prisma.payslip.findMany({ where: { payrollRunId: existing.id }, select: { id: true, employeeId: true } })
+    : []
+  const slipFor = new Map(saved.map((s) => [s.employeeId, s.id]))
+
   return (
     <div className="space-y-5">
       <PageHeader title={`Payroll — ${preview.label}`} sub={`${preview.payslips.length} on payroll`} />
@@ -66,6 +74,7 @@ export default async function PayrollRunsPage({ searchParams }: { searchParams: 
               <th className="px-4 py-2.5 text-right eyebrow">Prof. tax</th>
               <th className="px-4 py-2.5 text-right eyebrow">TDS 192</th>
               <th className="px-4 py-2.5 text-right eyebrow">Net</th>
+              {slipFor.size > 0 && <th className="px-4 py-2.5 text-right eyebrow">Payslip</th>}
             </tr></thead>
             <tbody>
               {preview.payslips.map((p) => (
@@ -86,6 +95,14 @@ export default async function PayrollRunsPage({ searchParams }: { searchParams: 
                     <span className="block text-[10.5px]" style={{ color: 'var(--text-muted)' }}>{p.tdsNote}</span>
                   </td>
                   <td className="px-4 py-3 text-right font-semibold tabular">{formatINR(p.net)}</td>
+                  {slipFor.size > 0 && (
+                    <td className="px-4 py-3 text-right">
+                      {slipFor.get(p.employeeId)
+                        ? <a href={`/api/payslips/${slipFor.get(p.employeeId)}/document`} target="_blank" rel="noreferrer"
+                            className="text-[11.5px] underline" style={{ color: 'var(--accent)' }}>download</a>
+                        : <span className="text-[11.5px]" style={{ color: 'var(--text-muted)' }}>—</span>}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

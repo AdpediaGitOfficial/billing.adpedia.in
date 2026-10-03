@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Payslip — Adpedia Films Private Limited</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* ==========================================================================
+     ADPEDIA — PAYSLIP TEMPLATE  (docs/57)
+     A4 via headless Chromium, same renderer as the invoice and the credit note.
+
+     🔴 There is no single statutory payslip format for a private company in India.
+     What the law asks for is that the employee can see what was earned and what was
+     taken off, item by item — s.50 of the Code on Wages 2019 and, until it is in force
+     everywhere, the wage-slip rules under the state shops-and-establishments Acts.
+     So every deduction here is named with the provision it is made under, and the two
+     that confuse people most carry their own sentence of explanation.
+
+     PAN — add .no-pan to .sheet when tax has been deducted and no PAN is on record.
+     🔴 Without one the deduction cannot be reported against the employee, so the standard
+     declaration about Form 26AS becomes a false statement on a document they keep.
+
+     STATUS — set ONE on .sheet:
+       .st-paid       issued and paid
+       .st-approved   approved, not yet paid
+       .st-cancelled  🔴 the run was reversed — the slip is VOID and says so
+     ========================================================================== */
+
+  :root{
+    --brand:      #4135AF;
+    --brand-deep: #332A8C;
+    --brand-tint: #EEECF9;
+    --brand-line: #D5D0F0;
+    --ink:        #1A1922;
+    --ink-soft:   #504E5C;
+    --ink-faint:  #85828F;
+    --rule:       #E4E2EC;
+    --row-alt:    #FAFAFD;
+    --warn-bg:    #FFF8E9;
+    --warn-ink:   #7A5A12;
+    --void-bg:    #FDEDED;
+    --void-ink:   #96231F;
+    --pad: 10mm;
+  }
+
+  @page { size: A4; margin: 0; }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+
+  html{ background:#6E6A7A; }
+  body{
+    font-family:'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color:var(--ink); font-size:10pt; line-height:1.5;
+    -webkit-font-smoothing:antialiased; -webkit-print-color-adjust:exact; print-color-adjust:exact;
+  }
+
+  .sheet{
+    width:210mm; min-height:297mm; margin:0 auto; background:#fff;
+    padding:var(--pad) var(--pad) 0; display:flex; flex-direction:column;
+  }
+
+  .head{ display:flex; justify-content:space-between; align-items:flex-start; gap:10mm; }
+  .logo{ height:11mm; width:auto; }
+  .doc-title{ text-align:right; }
+  .doc-title h1{
+    font-size:20pt; font-weight:700; letter-spacing:.18em; color:var(--brand);
+    text-transform:uppercase; line-height:1; white-space:nowrap;
+  }
+  .doc-title .period{ font-size:10pt; font-weight:600; color:var(--ink-soft); margin-top:1.4mm; }
+  .copy-mark{
+    display:inline-block; margin-top:2.4mm; padding:1.2mm 3mm; border:1px solid var(--brand-line);
+    background:var(--brand-tint); color:var(--brand); border-radius:1mm;
+    font-size:7.2pt; font-weight:600; letter-spacing:.10em; text-transform:uppercase;
+  }
+  .st-cancelled .copy-mark{ background:var(--void-bg); border-color:#EBB9B6; color:var(--void-ink); }
+
+  /* 🔴 A cancelled run keeps its payslips (docs/50). The slip must be unmistakably void
+     on paper as well as on screen, because paper is what gets forwarded to a bank. */
+  .panwarn{ display:none; }
+  .no-pan .panwarn{
+    display:block; margin-top:4mm; padding:3mm 3.4mm; background:var(--warn-bg);
+    border:1px solid #E6CF9A; border-radius:1.5mm; color:var(--warn-ink);
+    font-size:8.6pt; font-weight:600; line-height:1.45;
+  }
+
+  .void{ display:none; }
+  .st-cancelled .void{
+    display:block; margin-top:4mm; padding:3mm 3.4mm; background:var(--void-bg);
+    border:1px solid #EBB9B6; border-radius:1.5mm; color:var(--void-ink);
+    font-size:9pt; font-weight:600; line-height:1.45;
+  }
+
+  .meta{
+    margin-top:6mm; display:grid; grid-template-columns:repeat(4,1fr);
+    border:1px solid var(--rule); border-radius:1.5mm; overflow:hidden;
+  }
+  .meta > div{ padding:3mm 3.4mm; border-right:1px solid var(--rule); }
+  .meta > div:last-child{ border-right:0; }
+  .meta .k{ font-size:7pt; font-weight:600; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-faint); }
+  .meta .v{ font-size:9.6pt; font-weight:600; margin-top:.8mm; line-height:1.25; }
+
+  .parties{ margin-top:3mm; display:grid; grid-template-columns:1fr 1fr; gap:6mm; }
+  .party{ border:1px solid var(--rule); border-radius:1.5mm; padding:2.4mm 3mm; }
+  .party.to{ background:var(--brand-tint); border-color:var(--brand-line); }
+  .party h2{
+    font-size:7.2pt; font-weight:600; letter-spacing:.11em; text-transform:uppercase;
+    color:var(--brand); margin-bottom:1.6mm;
+  }
+  .party .name{ font-size:10pt; font-weight:600; line-height:1.25; }
+  .party address{ font-style:normal; color:var(--ink-soft); font-size:8.4pt; margin-top:1mm; line-height:1.3; }
+  .idlist{ margin-top:1.8mm; font-size:8.2pt; line-height:1.35; }
+  .idlist span{ display:inline-block; margin-right:5mm; }
+  .idlist .lbl{ color:var(--ink-faint); font-weight:500; }
+  .idlist b{ font-weight:600; }
+
+  .cols{ margin-top:3.5mm; display:grid; grid-template-columns:1fr 1fr; gap:6mm; align-items:start; }
+  table{ width:100%; border-collapse:collapse; }
+  .book thead th{
+    background:var(--brand); color:#fff; font-size:7.4pt; font-weight:600;
+    letter-spacing:.07em; text-transform:uppercase; padding:2.2mm 2.6mm; text-align:left;
+  }
+  .book thead th.num{ text-align:right; }
+  .book tbody td{ padding:1.8mm 2.6mm; border-bottom:1px solid var(--rule); font-size:9pt; vertical-align:top; }
+  .book tbody tr:nth-child(even) td{ background:var(--row-alt); }
+  .book td.num{ text-align:right; font-variant-numeric:tabular-nums; }
+  .book td .sub{ display:block; color:var(--ink-soft); font-size:7.6pt; font-weight:400; line-height:1.3; margin-top:.5mm; }
+  .book tfoot td{
+    padding:2.2mm 2.6mm; font-size:9.2pt; font-weight:600; border-top:1px solid var(--ink);
+  }
+  .book tfoot td.num{ text-align:right; font-variant-numeric:tabular-nums; }
+
+  .netband{
+    margin-top:3.5mm; background:var(--brand); color:#fff; border-radius:1.5mm;
+    padding:2.6mm 3.4mm; display:flex; justify-content:space-between; align-items:baseline; gap:6mm;
+  }
+  .netband .k{ font-size:8.6pt; font-weight:500; letter-spacing:.08em; text-transform:uppercase; opacity:.86; }
+  .netband .v{ font-size:14pt; font-weight:700; font-variant-numeric:tabular-nums; }
+  .st-cancelled .netband{ background:var(--void-ink); }
+
+  .words{ margin-top:2.2mm; font-size:9pt; font-weight:600; line-height:1.35; }
+  .words .lbl{ font-size:7pt; font-weight:600; letter-spacing:.10em; text-transform:uppercase;
+               color:var(--ink-faint); display:block; margin-bottom:1mm; }
+
+  .explain{ margin-top:3.5mm; display:grid; grid-template-columns:1fr 62mm; gap:7mm; align-items:start; }
+  .notes h3, .ytd h3{
+    font-size:7pt; font-weight:600; letter-spacing:.10em; text-transform:uppercase;
+    color:var(--brand); margin-bottom:2mm;
+  }
+  .notes p{ font-size:8.4pt; color:var(--ink-soft); line-height:1.45; }
+  .notes p + p{ margin-top:1.8mm; }
+  .notes b{ color:var(--ink); font-weight:600; }
+
+  .ytd table{ border:1px solid var(--rule); border-radius:1.5mm; overflow:hidden; }
+  .ytd td{ padding:1.5mm 3mm; font-size:8.6pt; border-bottom:1px solid var(--rule); }
+  .ytd tr:last-child td{ border-bottom:0; }
+  .ytd td.num{ text-align:right; font-weight:600; font-variant-numeric:tabular-nums; }
+  .ytd td.k{ color:var(--ink-soft); }
+
+  .bank{ margin-top:3mm; border-top:1px solid var(--rule); padding-top:2.2mm;
+         font-size:8.2pt; color:var(--ink-soft); }
+  .bank .lbl{ color:var(--ink-faint); }
+  .bank b{ color:var(--ink); font-weight:600; }
+
+  .decl{ margin-top:2.4mm; font-size:7.8pt; color:var(--ink-soft); font-style:italic; line-height:1.4; }
+  .spacer{ flex:1 1 auto; }
+
+  .brandbar{
+    margin:3mm calc(var(--pad) * -1) 0; background:var(--brand); color:#fff;
+    padding:2.6mm var(--pad); display:flex; justify-content:space-between; align-items:center;
+    font-size:7.8pt; letter-spacing:.04em; gap:8mm;
+  }
+  .brandbar img{ height:4.6mm; width:auto; filter:brightness(0) invert(1); }
+  .brandbar .ids{ opacity:.82; text-align:right; }
+
+  @media screen{ body{ padding:8mm 0; } .sheet{ box-shadow:0 2mm 8mm rgba(0,0,0,.28); } }
+  @media print{ html{ background:#fff; } .sheet{ box-shadow:none; } }
+</style>
+</head>
+<body>
+
+<!-- ============ set the status here ============ -->
+<div class="sheet st-paid" data-bind="run.status">
+
+  <header class="head">
+    <img class="logo" src="assets/adpedia-logo.svg" alt="adpedia" data-bind="company.logoUrl">
+    <div class="doc-title">
+      <h1>Payslip</h1>
+      <div class="period" data-bind="run.periodTitle">September 2026</div>
+      <div class="copy-mark" data-bind="run.statusLabel">Paid</div>
+    </div>
+  </header>
+
+  <div class="void" data-bind="run.voidNote">
+    This payroll run has been cancelled and reversed in the books. This slip is retained as a
+    record only — it is not evidence of any payment.
+  </div>
+
+  <div class="panwarn" data-bind="slip.panWarning">
+    No PAN is on record for you. Tax has been deducted from this month&rsquo;s salary, and without a
+    PAN it cannot be reported against you &mdash; it will not appear in your Form 26AS, and Form 16
+    cannot be issued. Give your PAN to whoever runs payroll.
+  </div>
+
+  <section class="meta">
+    <div><div class="k">Employee</div>    <div class="v" data-bind="employee.code">ADP-003</div></div>
+    <div><div class="k">Pay period</div>  <div class="v" data-bind="run.periodRange">01&ndash;30 Sep 2026</div></div>
+    <div><div class="k">PAN</div>         <div class="v" data-bind="employee.pan">ABCDE1234F</div></div>
+    <div><div class="k">Date of joining</div><div class="v" data-bind="employee.joinedOn">01 Apr 2024</div></div>
+  </section>
+
+  <section class="parties">
+    <div class="party from">
+      <h2>Employer</h2>
+      <div class="name" data-bind="company.legalName">Adpedia Films Private Limited</div>
+      <address data-bind="company.registeredAddress">
+        VIII/318, Chinnangath House, Thommana,<br>
+        Kaduppassery P.O., Irinjalakuda,<br>
+        Thrissur, Kerala &ndash; 680683, India
+      </address>
+      <div class="idlist">
+        <span><span class="lbl">TAN</span> <b data-bind="company.tan">TVDA00000A</b></span>
+        <span><span class="lbl">PAN</span> <b data-bind="company.pan">AAUCA9985H</b></span><br>
+        <span><span class="lbl">CIN</span> <b data-bind="company.cin">U92190KL2021PTC068241</b></span>
+      </div>
+    </div>
+
+    <div class="party to">
+      <h2>Employee</h2>
+      <div class="name" data-bind="employee.name">Maneesh Unnikuttan</div>
+      <address data-bind="employee.roleLine">
+        Senior Editor &middot; Post-production
+      </address>
+      <div class="idlist">
+        <span><span class="lbl">Code</span> <b data-bind="employee.code2">ADP-003</b></span>
+        <span><span class="lbl">Regime</span> <b data-bind="employee.regime">New</b></span>
+      </div>
+    </div>
+  </section>
+
+  <section class="cols">
+    <table class="book">
+      <thead><tr><th>Earnings</th><th class="num">Amount (&#8377;)</th></tr></thead>
+      <tbody id="earnings">
+        <tr><td>Basic</td><td class="num">50,000.00</td></tr>
+      </tbody>
+      <tfoot><tr><td>Gross earnings</td><td class="num" data-bind="slip.gross">50,000.00</td></tr></tfoot>
+    </table>
+
+    <table class="book">
+      <thead><tr><th>Deductions</th><th class="num">Amount (&#8377;)</th></tr></thead>
+      <tbody id="deductions">
+        <tr><td>Income tax deducted at source<span class="sub">Section 192</span></td><td class="num">4,000.00</td></tr>
+      </tbody>
+      <tfoot><tr><td>Total deductions</td><td class="num" data-bind="slip.deductionTotal">4,000.00</td></tr></tfoot>
+    </table>
+  </section>
+
+  <div class="netband">
+    <span class="k" data-bind="slip.netLabel">Net pay</span>
+    <span class="v" data-bind="slip.net">&#8377; 46,000.00</span>
+  </div>
+
+  <div class="words">
+    <span class="lbl">Net pay in words</span>
+    <span data-bind="slip.netInWords">Indian Rupees Forty Six Thousand only</span>
+  </div>
+
+  <section class="explain">
+    <div class="notes">
+      <h3>About the deductions</h3>
+      <p data-bind="slip.tdsExplain">
+        <b>Income tax (s.192)</b> is not a tax on this month alone. The employer estimates the
+        tax on your pay for the whole financial year and spreads it over the months remaining,
+        so the monthly figure moves whenever the estimate does.
+      </p>
+      <p data-bind="slip.ptExplain">
+        <b>Profession tax</b> is a Kerala levy charged on half-yearly earnings and deducted
+        twice a year, in September and March. Ten payslips in the year show nothing against it;
+        that is correct, not an omission.
+      </p>
+      <p data-bind="slip.otherExplain"></p>
+    </div>
+
+    <div class="ytd">
+      <h3>This financial year so far</h3>
+      <table>
+        <tbody id="ytd">
+          <tr><td class="k">Gross</td><td class="num">1,50,000.00</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="bank" data-bind="slip.bankLine">
+    <span class="lbl">Paid to</span> <b>&mdash;</b>
+  </div>
+
+  <p class="decl" data-bind="doc.declaration">
+    This is a computer-generated payslip and is valid without a signature. It states the amounts
+    earned and deducted for the period shown; the tax deducted is reported to the Income Tax
+    Department in the quarterly statement for the quarter in which it was deducted, and appears
+    in your Form 26AS and Form 16 once that statement is processed.
+  </p>
+
+  <div class="spacer"></div>
+
+  <footer class="brandbar">
+    <img src="assets/adpedia-logo.svg" alt="adpedia">
+    <div class="ids" data-bind="company.footerIds">
+      Adpedia Films Private Limited &middot; CIN U92190KL2021PTC068241
+    </div>
+  </footer>
+</div>
+
+</body>
+</html>

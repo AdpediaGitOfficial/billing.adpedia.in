@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { handler } from '@/app/api/_lib/handler'
 import { requireContext } from '@/server/context'
+import { assertCan } from '@/server/auth/permissions'
 import { dashboardSummary } from '@/server/services/dashboard'
 
 /**
@@ -17,6 +18,7 @@ import { dashboardSummary } from '@/server/services/dashboard'
 export async function GET() {
   return handler(async () => {
     const ctx = await requireContext()
+    assertCan(ctx.role, 'dashboard', 'read')
     const s = await dashboardSummary(ctx)
     if (!s) return { fy: null, message: 'No open financial year' }
 

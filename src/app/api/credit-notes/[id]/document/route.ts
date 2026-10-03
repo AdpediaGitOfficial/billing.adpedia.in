@@ -1,5 +1,6 @@
 import { prisma } from '@/server/db'
 import { requireContext } from '@/server/context'
+import { assertCan } from '@/server/auth/permissions'
 import { renderCreditNoteHtml } from '@/server/services/invoicing/render-credit-note'
 import { htmlToPdf, pdfFilename } from '@/server/services/invoicing/pdf'
 import { AppError } from '@/server/errors'
@@ -13,6 +14,8 @@ import { AppError } from '@/server/errors'
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const ctx = await requireContext()
+    // 🔴 docs/57 — same hole as the invoice document route
+    assertCan(ctx.role, 'invoices', 'read')
     const { id } = await params
     const format = new URL(req.url).searchParams.get('format')
 

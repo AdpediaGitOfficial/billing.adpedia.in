@@ -177,6 +177,14 @@ newest open row and jumped to it. Use `currentFinancialYear()`.
 shipped one button; the other three were unreachable for nine modules. The survey that finds
 this is a script, not a memory — `docs/49 §1`.
 
+🔴 **A route that takes a `companyId` never gets the chance to ask who is reading.** Five API
+routes had no authorisation check at all, and an EMPLOYEE could download every invoice. There
+was no missing argument to notice, so only a grep finds it — `tests/route-authorisation.test.ts`
+is that grep, and every new route must pass it (`docs/57 §1`).
+
+🔴 **An unmatched identity means NO.** `payroll.own` resolves an employee by email; when the
+lookup finds nothing the answer is refusal, never "therefore allow" (`docs/57 §2`).
+
 🔴 **Two balances with the same name are not the same quantity.** Our credit ledger is credit
 the books accrued; the portal's is credit a filed return claimed. Subtracting one from the
 other reports a frightening hole every month that means nothing, and after three of those
@@ -199,22 +207,20 @@ docs/51 had already closed. Grouped by the module each would be, largest value f
 
 ### Worth a module each
 
-1. **Payslip documents.** `htmlToPdf` is waiting; there is no payslip template (`docs/33`),
-   and payslips are the one document an employee actually asks for.
-2. **Statement PDFs and ledger export.** P&L and balance sheet as PDFs, and a download on the
+1. **Statement PDFs and ledger export.** P&L and balance sheet as PDFs, and a download on the
    journal and account-ledger drill-throughs (`docs/36 §7`).
-3. **Attachments where the documents are.** The expense screens have no panel (`docs/38`,
+2. **Attachments where the documents are.** The expense screens have no panel (`docs/38`,
    `docs/39`), and invoice and payslip PDFs are generated per request rather than stored.
-4. **The mobile tail** (`docs/30 §7`): receipt images are queued offline but never uploaded,
+3. **The mobile tail** (`docs/30 §7`): receipt images are queued offline but never uploaded,
    swipe gestures are unwired, push is never scheduled, and the performance budget from
    `docs/13` has not been measured.
-5. **Chases that nobody sends.** The PAN register lists who is missing a card and nothing
+4. **Chases that nobody sends.** The PAN register lists who is missing a card and nothing
    asks them (`docs/47 §7`); the compliance calendar is read, never delivered.
-6. **Note amendments (table 9C)** — the same shape as `docs/52`'s 9A, against a credit or
+5. **Note amendments (table 9C)** — the same shape as `docs/52`'s 9A, against a credit or
    debit note rather than an invoice.
-7. **Refund vouchers** (s.31(3)(e)) — where an advance is returned and no supply is made
+6. **Refund vouchers** (s.31(3)(e)) — where an advance is returned and no supply is made
    (`docs/54 §7`).
-8. **Invoice-level GST reconciliation.** `docs/56` compares ledger balances and challans;
+7. **Invoice-level GST reconciliation.** `docs/56` compares ledger balances and challans;
    GSTR-2B against our own purchase register is the layer that finds *which* supplier did not
    file, and `1240` has to be split three ways first (`docs/56 §7`).
 

@@ -1063,6 +1063,17 @@ model Payslip {
   tds           Decimal    @default(0) @db.Decimal(18, 2) // s.192
   net           Decimal    @db.Decimal(18, 2)
   components    Json
+
+  /// docs/57 · 🔴 Snapshotted when the run is approved, never recomputed.
+  ///
+  /// s.192 TDS is an estimate of the year's liability spread over the months that are left,
+  /// so the reason for October's figure stops being true in November. The payslip is a
+  /// statement to the employee: what it says has to be what was true when it was issued, or
+  /// a slip reprinted in March explains a deduction that was made in October with arithmetic
+  /// that did not exist yet.
+  tdsNote           String?
+  professionTaxNote String?
+
   pdfUrl        String?
 
   @@unique([payrollRunId, employeeId])

@@ -1,6 +1,6 @@
 import { prisma } from '@/server/db'
 import type { Tx } from '@/server/db'
-import { Decimal, ZERO } from '@/lib/money'
+import { Decimal, ZERO, formatINR } from '@/lib/money'
 
 /**
  * Kerala profession tax.
@@ -63,7 +63,11 @@ export async function professionTaxFor(
     const to = s.toAmount ? new Decimal(s.toAmount.toString()) : null
     best = {
       amount: new Decimal(s.amount.toString()),
-      label: to ? `₹${from.toFixed(0)}–₹${to.toFixed(0)}` : `above ₹${from.toFixed(0)}`,
+      // 🔴 docs/57 — grouped. This label reaches a payslip, where "₹12500" reads as a
+      // figure nobody checked and "₹1,25,000" reads as one somebody did.
+      label: to
+        ? `${formatINR(from, { decimals: false })}–${formatINR(to, { decimals: false })}`
+        : `above ${formatINR(from, { decimals: false })}`,
     }
   }
   return best ? { amount: best.amount, slabLabel: best.label } : { amount: ZERO, slabLabel: null }

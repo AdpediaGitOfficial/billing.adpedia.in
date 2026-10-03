@@ -68,8 +68,10 @@ describe('Kerala profession tax', () => {
 
   it('names the band it applied, so a payslip can be explained', async () => {
     const d = new Date('2026-09-28')
-    expect((await professionTaxFor('32', new Decimal('50000'), d)).slabLabel).toBe('₹45000–₹59999')
-    expect((await professionTaxFor('32', new Decimal('480000'), d)).slabLabel).toBe('above ₹125000')
+    // 🔴 grouped — docs/57. This label is printed on a payslip, and ₹45000 reads as a
+    // figure nobody checked where ₹45,000 reads as one somebody did.
+    expect((await professionTaxFor('32', new Decimal('50000'), d)).slabLabel).toBe('₹45,000–₹59,999')
+    expect((await professionTaxFor('32', new Decimal('480000'), d)).slabLabel).toBe('above ₹1,25,000')
   })
 
   it('🔴 never exceeds ₹2,500 across both halves of a year', async () => {
