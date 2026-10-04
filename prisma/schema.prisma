@@ -339,6 +339,10 @@ enum SourceType {
   GST_SET_OFF
   /// a GSTR-1 table 9A amendment to an invoice already filed — docs/52
   GST_AMENDMENT
+  /// docs/69 — s.31(3)(e), returning an advance. It posted under RECEIPT and the advance's own
+  /// id until then, which made it unfindable to cancel and swept it up in the receipt's
+  /// cancellation.
+  REFUND_VOUCHER
   BANK_TXN
   MANUAL
   OPENING_BALANCE

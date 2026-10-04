@@ -8,6 +8,9 @@ import { CancelReceiptButton } from './cancel-button'
 import { AdjustAdvance } from './adjust-advance'
 import { RefundAdvance } from './refund-advance'
 import { openAdvances } from '@/server/services/sales/advance'
+import { listRefundVouchers } from '@/server/services/sales/refund'
+import { ReverseButton } from '@/components/corrections/reverse-button'
+import { cancelRefundVoucherAction } from './actions'
 
 export default async function ReceiptsPage() {
   const ctx = await requireContext()
@@ -26,6 +29,8 @@ export default async function ReceiptsPage() {
 
   // docs/54 — advances with something left to absorb, and the invoices that could absorb them
   const advances = await openAdvances(ctx)
+  // docs/69 — the vouchers had no list at all; `listRefundVouchers` had tests and no caller
+  const vouchers = await listRefundVouchers(ctx)
   const openInvoices = advances.length === 0 ? [] : await prisma.invoice.findMany({
     where: {
       companyId: ctx.companyId,
@@ -79,7 +84,8 @@ export default async function ReceiptsPage() {
         const adv = advances.find((a) => a.id === r.id)
         if (adv) {
           return (
-            <>
+            // 🔴 a gap. Side by side with none, the two links read as one word — "adjustrefund it"
+            <span className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
             <AdjustAdvance receiptId={r.id} open={adv.open.toFixed(2)}
               invoices={openInvoices
                 .filter((i) => i.customerId === r.customerId)
@@ -94,7 +100,7 @@ export default async function ReceiptsPage() {
                 .filter((i) => i.outstanding.gt('0.5'))
                 .map((i) => ({ id: i.id, number: i.number, outstanding: formatINR(i.outstanding) }))} />
             <RefundAdvance receiptId={r.id} open={adv.open.toFixed(2)} />
-            </>
+            </span>
           )
         }
         return <CancelReceiptButton receiptId={r.id} number={r.number} />
@@ -118,7 +124,7 @@ export default async function ReceiptsPage() {
 
       <div className="grid gap-4 sm:grid-cols-3">
         <StatCard label="Collected" value={formatINR(collected, { decimals: false })}
-          foot={`${live.length} receipts${receipts.length !== live.length ? ` · ${receipts.length - live.length} cancelled` : ''}`} />
+          foot={`${live.length} receipt${live.length === 1 ? '' : 's'}${receipts.length !== live.length ? ` · ${receipts.length - live.length} cancelled` : ''}`} />
         <StatCard label="TDS withheld by clients" value={formatINR(tdsOnReceipts, { decimals: false })}
           foot="claimable only once it reaches Form 26AS" />
         <StatCard label="Still outstanding" value={ar ? formatINR(ar.total, { decimals: false }) : '—'}
@@ -137,6 +143,8 @@ export default async function ReceiptsPage() {
         </Card>
       )}
 
+      {vouchers.length > 0 && <RefundRegister vouchers={vouchers} />}
+
       <Card className="p-4">
         <p className="eyebrow">Where receipts come from</p>
         <p className="mt-1.5 text-[12.5px] leading-relaxed" style={{ color: 'var(--text-muted)' }}>
@@ -147,5 +155,81 @@ export default async function ReceiptsPage() {
         </p>
       </Card>
     </div>
+  )
+}
+
+/**
+ * Refund vouchers — docs/69.
+ *
+ * 🔴 Here rather than with the credit notes, because this is where somebody looks for them: a
+ * refund voucher refunds a RECEIPT. s.31(3)(e) gives it its own document precisely because
+ * there is no invoice to credit, and filing it beside the notes would repeat the mistake the
+ * document exists to prevent.
+ */
+function RefundRegister({ vouchers }: { vouchers: Awaited<ReturnType<typeof listRefundVouchers>> }) {
+  const live = vouchers.filter((v) => !v.cancelledAt)
+  const total = live.reduce((a, v) => a.plus(v.amount.toString()), ZERO as Decimal)
+  const taxBack = live.reduce((a, v) => a.plus(v.cgst.toString()).plus(v.sgst.toString()).plus(v.igst.toString()), ZERO as Decimal)
+
+  type V = (typeof vouchers)[number]
+  const cols: Column<V>[] = [
+    { key: 'num', header: 'Voucher', width: '16%', mobile: 'primary',
+      cell: (v) => (
+        <span className="flex items-center gap-2">
+          <span className="font-semibold tabular"
+            style={v.cancelledAt ? { textDecoration: 'line-through', color: 'var(--text-muted)' } : undefined}>
+            {v.number}
+          </span>
+          {v.cancelledAt && <Pill tone="neutral">cancelled</Pill>}
+        </span>
+      ) },
+    { key: 'against', header: 'Against', width: '22%', mobile: 'secondary',
+      cell: (v) => (
+        <>
+          {/* rule 51 — the document carries the receipt voucher's number and date on its face */}
+          <span className="block tabular">{v.receipt.number}</span>
+          <span className="block text-[11.5px]" style={{ color: 'var(--text-muted)' }}>{v.customer.name}</span>
+        </>
+      ) },
+    { key: 'date', header: 'Date', width: '12%', mobile: false,
+      cell: (v) => <span style={{ color: 'var(--text-secondary)' }}>{v.date.toISOString().slice(0, 10)}</span> },
+    { key: 'reason', header: 'Reason', width: '24%', mobile: false,
+      cell: (v) => <span className="text-[12px]" style={{ color: 'var(--text-muted)' }}>{v.reason}</span> },
+    { key: 'tax', header: 'GST back', width: '13%', align: 'right', mobile: 'tag',
+      cell: (v) => {
+        const t = new Decimal(v.cgst.toString()).plus(v.sgst.toString()).plus(v.igst.toString())
+        return t.isZero()
+          ? <span style={{ color: 'var(--text-muted)' }}>none</span>
+          : <span className="tabular">{formatINR(t)}</span>
+      } },
+    { key: 'amount', header: 'Refunded', width: '14%', align: 'right', mobile: 'value',
+      cell: (v) => <span className="font-semibold tabular"
+        style={v.cancelledAt ? { textDecoration: 'line-through', color: 'var(--text-muted)' } : undefined}>
+        {formatINR(v.amount.toString())}
+      </span> },
+    { key: 'cancel', header: '', width: '12%', align: 'right', mobile: 'action',
+      cell: (v) => v.cancelledAt
+        ? <span className="text-[11.5px]" style={{ color: 'var(--text-muted)' }}>reversed</span>
+        : <ReverseButton action={cancelRefundVoucherAction} idName="voucherId" id={v.id}
+            prompt={`Why is ${v.number} being reversed?`} /> },
+  ]
+
+  return (
+    <Card flush className="overflow-hidden">
+      <div className="flex flex-wrap items-baseline justify-between gap-2 border-b px-4 py-3"
+           style={{ borderColor: 'var(--rule)', background: 'var(--surface)' }}>
+        <span className="eyebrow">Refund vouchers · s.31(3)(e)</span>
+        <span className="text-[12px]" style={{ color: 'var(--text-muted)' }}>
+          {formatINR(total, { decimals: false })} returned
+          {taxBack.gt(0) && <> · {formatINR(taxBack, { decimals: false })} of it tax declared when it arrived</>}
+        </span>
+      </div>
+      <DataTable columns={cols} rows={vouchers} keyOf={(v) => v.id} noun="vouchers" />
+      <p className="px-4 py-3 text-[11.5px] leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+        An advance returned without a supply is not a credit note — there is no invoice to credit. The tax
+        declared on it under s.13(2) comes back as an adjustment of advances in GSTR-1 table 11B, and
+        cancelling a voucher is refused once that return is filed.
+      </p>
+    </Card>
   )
 }

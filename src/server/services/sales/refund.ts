@@ -173,11 +173,19 @@ export async function createRefundVoucher(ctx: RequestContext, input: RefundInpu
       },
     })
 
-    // the exact mirror of the receipt: the liability and the tax come off, the bank pays out
+    /**
+     * The exact mirror of the receipt: the liability and the tax come off, the bank pays out.
+     *
+     * 🔴 Filed under the VOUCHER, not the advance it refunds — docs/69. It posted as
+     * `sourceType: 'RECEIPT'` against the receipt's own id until then, because `SourceType`
+     * had no member for it, and that made `cancelReceipt` reverse the refund along with the
+     * advance while leaving the voucher live and still in GSTR-1 table 11B. A document's
+     * postings belong to the document, or nothing can find them to undo.
+     */
     await postJournal(ctx, {
       date,
       narration: `Refund voucher ${number} — advance ${receipt.number} returned to ${p.customerName}`,
-      sourceType: 'RECEIPT', sourceId: receipt.id,
+      sourceType: 'REFUND_VOUCHER', sourceId: voucher.id,
       postings: [
         { accountCode: ADVANCE_ACCOUNT, debit: p.taxableValue, customerId: receipt.customerId },
         ...(p.cgst.gt(0) ? [{ accountCode: OUTPUT.cgst, debit: p.cgst, customerId: receipt.customerId }] : []),

@@ -57,6 +57,29 @@ export async function cancelReceipt(ctx: RequestContext, receiptId: string, reas
     if (!receipt) throw new NotFound('Receipt not found')
     if (receipt.cancelledAt) throw new AppError(`Receipt ${receipt.number} is already cancelled`)
 
+    /**
+     * 🔴 An advance that has been refunded cannot be cancelled — docs/69.
+     *
+     * The refund voucher is a document in its own right: it carries a number from its own
+     * series, it went to the customer under rule 51, and it is in GSTR-1 table 11B. Cancelling
+     * the receipt behind it would leave that voucher refunding an advance the books say never
+     * arrived. Cancel the voucher first — `cancelRefundVoucher` — and then the receipt.
+     *
+     * This used to happen silently and the other way round: the refund's journal entry was
+     * filed under the receipt's id, so cancelling the receipt reversed the refund too, while
+     * the voucher stayed live and stayed in the return.
+     */
+    const refunds = await tx.refundVoucher.findMany({
+      where: { companyId: ctx.companyId, receiptId: receipt.id, cancelledAt: null },
+      select: { number: true },
+    })
+    if (refunds.length > 0) {
+      throw new AppError(
+        `${receipt.number} has been refunded on ${refunds.map((r) => r.number).join(', ')}. ` +
+        'A refund voucher is a document of its own and the customer has it — cancel it first, then this receipt.',
+      )
+    }
+
     const claimed = await tx.tdsReceivable.findFirst({
       where: {
         companyId: ctx.companyId, reversedAt: null,
@@ -568,6 +591,73 @@ export async function cancelGstSetOff(ctx: RequestContext, setOffId: string, rea
     await audit(ctx, {
       entity: 'GstSetOff', entityId: setOff.id, action: 'CANCEL',
       before: { period: setOff.periodLabel, byCredit: setOff.creditUsed.toString(), inCash: setOff.cashUsed.toString() },
+      after: { reason: reason.trim() },
+    }, tx)
+
+    return cancelled
+  })
+}
+
+/* ── refund vouchers ─────────────────────────────────────────────────────────── */
+
+/**
+ * Cancel a refund voucher — docs/69, and the member docs/51's family was missing.
+ *
+ * It was modelled for since docs/65 — `cancelledAt`, `cancelReason`, and a GSTR-1 that already
+ * excludes cancelled ones — and could not be written, because the voucher's journal entry was
+ * filed under the advance's identity and nothing could find it.
+ *
+ * 🔴 Refused once the GSTR-1 that declared it has been filed, but **not for the credit note's
+ * reason**. A credit note sits in table 9B, reaches the customer's GSTR-2B and reduces the
+ * credit they may claim; a refund voucher sits in 11B, which is an adjustment of the
+ * supplier's own advances and has no counterpart on the recipient's side at all. What filing
+ * it does is tell the government that tax declared in an earlier period has been taken back.
+ * Withdrawing that here would put the liability back into a period whose return is closed,
+ * and the first anybody would know is a demand. The remedy is the same shape — report it in a
+ * later return — but saying "the customer is holding a reversal" would be untrue, and a
+ * refusal that gives the wrong reason sends somebody to fix the wrong thing.
+ */
+export async function cancelRefundVoucher(ctx: RequestContext, voucherId: string, reason: string, on = new Date()) {
+  assertCan(ctx.role, 'receipts', 'write')
+  requireReason(reason)
+  await assertPostable(ctx.companyId, on)
+
+  const voucher = await prisma.refundVoucher.findFirst({
+    where: { id: voucherId, companyId: ctx.companyId },
+    include: { receipt: { select: { number: true } }, customer: { select: { name: true } } },
+  })
+  if (!voucher) throw new NotFound('Refund voucher not found')
+  if (voucher.cancelledAt) throw new AppError(`Refund voucher ${voucher.number} is already cancelled`)
+
+  const { period, filed } = await filedReturnFor(ctx.companyId, voucher.date, 'GSTR1')
+  if (filed) {
+    throw new AppError(
+      `GSTR-1 for ${period.label} was filed on ${filed.filedOn!.toISOString().slice(0, 10)}, declaring ${voucher.number} ` +
+      'in table 11B as an adjustment of advances. Withdrawing it here would put the tax back into a period that is ' +
+      'closed, with nothing in any return to say so. Report the correction in a later return instead.',
+    )
+  }
+
+  const entries = await prisma.journalEntry.findMany({
+    where: { companyId: ctx.companyId, sourceType: 'REFUND_VOUCHER', sourceId: voucher.id, reversalOfId: null },
+  })
+
+  return prisma.$transaction(async (tx) => {
+    for (const e of entries) await reverseJournal(ctx, e.id, on, reason, tx)
+
+    /**
+     * Nothing else to put back. The advance's available balance is DERIVED — `advanceAvailable`
+     * counts only refunds with `cancelledAt: null` — so cancelling the voucher restores it by
+     * itself, and there is no stored figure to drift.
+     */
+    const cancelled = await tx.refundVoucher.update({
+      where: { id: voucher.id },
+      data: { cancelledAt: on, cancelReason: reason.trim() },
+    })
+
+    await audit(ctx, {
+      entity: 'RefundVoucher', entityId: voucher.id, action: 'CANCEL',
+      before: { number: voucher.number, against: voucher.receipt.number, amount: voucher.amount.toString() },
       after: { reason: reason.trim() },
     }, tx)
 

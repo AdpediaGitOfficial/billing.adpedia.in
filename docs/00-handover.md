@@ -1,6 +1,6 @@
 # 00 · Handover — read this first
 
-Adpedia Films Private Limited's internal finance ERP. **920 tests** (397 unit + 523
+Adpedia Films Private Limited's internal finance ERP. **925 tests** (397 unit + 528
 integration), typecheck and lint clean, production build passes.
 
 Everything below is either hard-won or non-obvious. The per-module detail is in `docs/20`
@@ -232,6 +232,23 @@ and the bill was typed `EX-300`; a literal comparison reports the whole purchase
 unavailable credit. Amount is a fallback only — two invoices from one supplier for one amount
 in one month is a retainer, and matching on amount crosses them over (`docs/62 §3`).
 
+🔴 **A document's postings belong to the document.** A refund voucher's journal entry was
+filed under `sourceType: 'RECEIPT'` and the ADVANCE's id, because `SourceType` had no member
+of its own. So cancelling a refunded advance silently reversed the refund too — money back in
+the bank, liability back in 2400 — while the voucher stayed live and stayed in GSTR-1 table
+11B; and nothing could find a voucher's entry, which is why the cancellation `docs/65 §7` left
+open was not merely unwritten but unwritable. A feature that cannot be built is usually a model
+that is wrong somewhere else (`docs/69 §1`).
+
+🔴 **An advance that has been refunded cannot be cancelled.** The voucher carries its own
+number, went to the customer under rule 51 and is in the return. Cancel it first, then the
+receipt — the only order in which both documents stay true (`docs/69 §2`).
+
+🔴 **A refusal has to give its OWN reason.** A credit note is refused after filing because it
+reached the customer's GSTR-2B; a refund voucher never does — table 11B adjusts the supplier's
+own advances and has no counterpart on the recipient's side. Same shape of refusal, different
+statute, and the wrong wording sends somebody to fix the wrong thing (`docs/69 §3`).
+
 🔴 **A budget made of timings does not catch bytes.** `lucide-react` was imported as a
 namespace and looked up by string, so every route shipped all 1,544 icons — 518 kB, in the
 layout's chunk, for sixty-seven modules. FCP did not move by a millisecond, because the HTML is
@@ -350,14 +367,11 @@ job is no longer to find a class of gap, it is to close the remaining ones and t
   catalogue were done in `docs/67`; invitations are a module, not a field, because inviting a
   user is creating a credential and wants an email path and an expiry.
 - **Invoice draft editing** — a draft must be cancelled and re-raised (`docs/41`)
-- **Credit- and debit-note register** — they are listed on their invoice and the *series* is at
-  `/settings/series` (`docs/64`), but there is no list of the notes themselves (`docs/48 §5`)
 - **Advance tax instalments on the calendar** (`docs/43 §7`), and **ROC filings**, which need
   the AGM date
 - **Opening balances as explicit entries** at year-end close (`docs/37 §7`)
 - **IRN and QR on the invoice template** — the fields persist, the template ignores them
   (`docs/31 §7`)
-- **Cancelling a refund voucher** — modelled for it, no service (`docs/65 §7`)
 - **Splitting account 1240** — only if a domestic s.9(3) reverse charge ever occurs, which has
   never been confirmed (`docs/63 §3`)
 - **Server-side pagination** on the three 100-row lists — invoices, bills and receipts. The

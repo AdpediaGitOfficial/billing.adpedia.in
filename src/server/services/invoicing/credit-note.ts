@@ -259,11 +259,26 @@ export async function createCreditNote(ctx: RequestContext, input: CreditNoteInp
   return note
 }
 
+/**
+ * The register — docs/69.
+ *
+ * 🔴 Credit and debit notes share a table and differ by `noteType`, so one list is right: they
+ * are the same document in the law's shape, taken in opposite directions, and a reader
+ * comparing the two needs them side by side. What they do NOT share is the deadline — s.34(2)
+ * time-bars a credit note and nothing bars a debit note — which is why `gstAdjusted` is on
+ * the row rather than inferred from the type.
+ *
+ * It existed with no caller at all, not even a test, for twenty-seven modules (docs/49's
+ * class); the notes were reachable only from their own invoice.
+ */
 export async function listCreditNotes(ctx: RequestContext) {
   assertCan(ctx.role, 'invoices', 'read')
   return prisma.creditNote.findMany({
     where: { companyId: ctx.companyId },
-    include: { invoice: { select: { id: true, number: true, customer: { select: { name: true } } } } },
-    orderBy: { date: 'desc' },
+    include: {
+      invoice: { select: { id: true, number: true, date: true, customer: { select: { name: true } } } },
+      amendments: { select: { id: true, periodLabel: true, revisedGrandTotal: true }, orderBy: { date: 'desc' } },
+    },
+    orderBy: [{ date: 'desc' }, { number: 'desc' }],
   })
 }

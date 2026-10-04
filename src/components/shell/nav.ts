@@ -17,6 +17,8 @@ export const NAV: NavGroup[] = [
     { label: 'Customers', href: '/customers', cap: 'customers', icon: 'Users' },
     { label: 'Projects', href: '/projects', cap: 'projects', icon: 'FolderKanban' },
     { label: 'Invoices', href: '/invoices', cap: 'invoices', icon: 'FileText' },
+    // docs/69 — the notes have always been reachable from their invoice and nowhere else
+    { label: 'Credit & debit notes', href: '/notes', cap: 'invoices', icon: 'FileStack' },
     { label: 'Receipts', href: '/receipts', cap: 'receipts', icon: 'Receipt' },
   ]},
   { label: 'Purchases', items: [

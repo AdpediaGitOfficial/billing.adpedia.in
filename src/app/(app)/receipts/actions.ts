@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { requireContext } from '@/server/context'
 import { createReceipt } from '@/server/services/sales/receipt'
-import { cancelReceipt } from '@/server/services/accounting/corrections'
+import { cancelReceipt, cancelRefundVoucher } from '@/server/services/accounting/corrections'
 import { AppError } from '@/server/errors'
 
 const Schema = z.object({
@@ -62,5 +62,27 @@ export async function cancelReceiptAction(_prev: { error?: string; ok?: string }
   }
   revalidatePath('/receipts')
   revalidatePath('/invoices')
+  return { ok: 'Cancelled and reversed' }
+}
+
+/**
+ * Cancel a refund voucher — docs/69.
+ *
+ * The last member of docs/51's family to get a button. It was modelled for since docs/65 and
+ * had no service; the service could not be written while the voucher's journal entry was
+ * filed under the advance's id, because nothing could find it.
+ */
+export async function cancelRefundVoucherAction(_prev: { error?: string; ok?: string } | null, form: FormData) {
+  const ctx = await requireContext()
+  const id = String(form.get('voucherId') ?? '')
+  const reason = String(form.get('reason') ?? '')
+  try {
+    await cancelRefundVoucher(ctx, id, reason)
+  } catch (e) {
+    // the GSTR-1 refusal IS the decision — show it in full rather than reducing it
+    return { error: e instanceof AppError ? e.message : 'Could not cancel that refund voucher' }
+  }
+  revalidatePath('/receipts')
+  revalidatePath('/tax/gst')
   return { ok: 'Cancelled and reversed' }
 }
