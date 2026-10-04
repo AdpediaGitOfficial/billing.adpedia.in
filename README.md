@@ -69,8 +69,9 @@ payroll, projects and bank reconciliation on a double-entry ledger.
 | [62 · GSTR-2B](docs/62-gstr2b.md) | Which supplier did not file — input credit matched invoice by invoice |
 | [63 · Reverse charge](docs/63-reverse-charge.md) | A caveat that said the figures could not be trusted, when they could |
 | [64 · Document series](docs/64-document-series.md) | Every number issued, the holes in the run, and the rule-46 check nothing called |
+| [65 · Refund vouchers](docs/65-refund-vouchers.md) | Giving an advance back, and recovering the GST declared when it arrived |
 
-**864 tests passing** · typecheck and lint clean · production build passes.
+**880 tests passing** · typecheck and lint clean · production build passes.
 
 ```bash
 cp .env.example .env     # set DATABASE_URL and JWT_SECRET

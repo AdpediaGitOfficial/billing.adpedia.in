@@ -1,4 +1,5 @@
 import { prisma } from '@/server/db'
+import { refundsInPeriod } from '@/server/services/sales/refund'
 import { Decimal, ZERO } from '@/lib/money'
 import { amendmentsForPeriod } from './gst-amendment'
 import { advanceTaxPosted } from '@/server/services/sales/advance'
@@ -81,6 +82,12 @@ export interface Gstr1 {
    */
   advancesReceived: { number: string; date: Date; customerName: string; placeOfSupply: string; rate: number; grossAdvance: Decimal; taxableValue: Decimal; cgst: Decimal; sgst: Decimal; igst: Decimal }[]
   advancesAdjusted: { number: string; date: Date; customerName: string; againstInvoice: string; amount: Decimal; cgst: Decimal; sgst: Decimal; igst: Decimal }[]
+  /**
+   * docs/65 — advances RETURNED, where no supply was made. They belong in 11B with the
+   * adjustments, because both do the same thing to the same liability: take back tax
+   * declared in 11A of an earlier period.
+   */
+  advancesRefunded: { number: string; date: Date; customerName: string; againstReceipt: string; amount: Decimal; cgst: Decimal; sgst: Decimal; igst: Decimal }[]
   hsn: HsnRow[]
   docs: { type: string; from: string; to: string; total: number; cancelled: number }[]
   totals: { taxableValue: Decimal; cgst: Decimal; sgst: Decimal; igst: Decimal; invoiceValue: Decimal }
@@ -234,6 +241,34 @@ export async function buildGstr1(companyId: string, from: Date, to: Date, label:
     }
   })
 
+  /**
+   * 🔴 A refund is an adjustment of an advance, not a credit note.
+   *
+   * There is no invoice to credit — the supply never happened — so s.34 has nothing to work
+   * on. What the tax paid under s.13(2) needs is to come back out of the liability, and
+   * table 11B is where the return does that. ⚠️ Confirm the presentation with the CA: the
+   * portal labels 11B "adjustment of advances" and does not say the word refund, so some
+   * advisers amend 11A of the original period instead.
+   */
+  const refunds = await refundsInPeriod(companyId, from, to)
+  const advancesRefunded = refunds.map((r) => ({
+    number: r.number, date: r.date,
+    customerName: r.customer.name, againstReceipt: r.receipt.number,
+    amount: new Decimal(r.amount.toString()),
+    cgst: new Decimal(r.cgst.toString()),
+    sgst: new Decimal(r.sgst.toString()),
+    igst: new Decimal(r.igst.toString()),
+  }))
+
+  if (advancesRefunded.length > 0) {
+    warnings.push(
+      `${advancesRefunded.length} refund voucher${advancesRefunded.length === 1 ? '' : 's'} in table 11B. ` +
+      'An advance returned without a supply is not a credit note — there is no invoice to credit — so the ' +
+      'tax declared when it arrived is taken back as an adjustment of advances. ⚠️ Confirm the presentation ' +
+      'with the CA.',
+    )
+  }
+
   if (advancesReceived.length > 0) {
     warnings.push(
       `${advancesReceived.length} advance${advancesReceived.length === 1 ? '' : 's'} in table 11A — GST on an ` +
@@ -308,7 +343,7 @@ export async function buildGstr1(companyId: string, from: Date, to: Date, label:
     period: { label, from, to },
     gstin: company.gstin ?? '',
     b2b, b2cs: [...b2csMap.values()], exports, creditNotes, amendedInvoices,
-    advancesReceived, advancesAdjusted,
+    advancesReceived, advancesAdjusted, advancesRefunded,
     hsn: [...hsnMap.values()].sort((a, b) => a.sac.localeCompare(b.sac)),
     docs, totals, warnings,
   }

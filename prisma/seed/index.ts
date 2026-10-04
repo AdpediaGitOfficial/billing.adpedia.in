@@ -94,6 +94,7 @@ export async function seedAll(prisma: PrismaClient, opts: SeedOptions = {}) {
     ['RECEIPT', 'ADPR/{FY}/{SEQ:4}'],
     ['SELF_INVOICE', 'ADPS/{FY}/{SEQ:4}'],
     ['PROFORMA', 'ADPP/{FY}/{SEQ:4}'],
+    ['REFUND_VOUCHER', 'ADPF/{FY}/{SEQ:4}'],   // ADPF/26-27/0001  (15) — docs/65
   ] as const) {
     await prisma.documentSeries.upsert({
       where: { companyId_financialYearId_docType: { companyId: company.id, financialYearId: currentFy.id, docType } },
@@ -107,7 +108,7 @@ export async function seedAll(prisma: PrismaClient, opts: SeedOptions = {}) {
     const check = validateInvoiceNumber(sample)
     if (!check.ok) throw new Error(`Series ${series.docType}: ${check.reason}`)
   }
-  log('  series       ADP/26-27/0026 next, + ADPX / ADPC / ADPR / ADPS / ADPP  (all Rule 46 compliant)')
+  log('  series       ADP/26-27/0026 next, + ADPX / ADPC / ADPD / ADPR / ADPS / ADPP / ADPF  (all Rule 46 compliant)')
 
   // ── chart of accounts ──
   const nAccounts = await seedAccounts(prisma, company.id)

@@ -1,7 +1,9 @@
 'use server'
+import { z } from 'zod'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { requireContext } from '@/server/context'
+import { createRefundVoucher } from '@/server/services/sales/refund'
 import { createAdvanceReceipt, adjustAdvance } from '@/server/services/sales/advance'
 import { AppError } from '@/server/errors'
 import { formatINR } from '@/lib/money'
@@ -49,5 +51,35 @@ export async function adjustAdvanceAction(_prev: { error?: string; ok?: string }
     }
   } catch (e) {
     return { error: e instanceof AppError ? e.message : 'Could not adjust that advance' }
+  }
+}
+
+const RefundSchema = z.object({
+  receiptId: z.string().min(1),
+  date: z.string().min(8, 'Pick the date the money went back'),
+  amount: z.string().min(1, 'How much is being returned?'),
+  reason: z.string().min(5, 'Rule 51 requires the reason on the voucher — say why in a few words'),
+})
+
+/**
+ * Issue a refund voucher — docs/65.
+ *
+ * 🔴 Separate from `adjustAdvanceAction` on purpose. Adjusting an advance against an invoice
+ * and giving it back are opposite outcomes, and a single form with a mode switch is how
+ * somebody refunds a client who was actually invoiced.
+ */
+export async function refundAdvanceAction(
+  _prev: { error?: string; ok?: string } | null, formData: FormData,
+) {
+  const ctx = await requireContext()
+  const parsed = RefundSchema.safeParse(Object.fromEntries(formData))
+  if (!parsed.success) return { error: parsed.error.issues[0].message }
+
+  try {
+    const v = await createRefundVoucher(ctx, parsed.data)
+    revalidatePath('/receipts'); revalidatePath('/tax/gst')
+    return { ok: `Refund voucher ${v.number} issued — the tax on it comes back in this period's return.` }
+  } catch (e) {
+    return { error: e instanceof AppError ? e.message : 'Could not issue that refund voucher' }
   }
 }

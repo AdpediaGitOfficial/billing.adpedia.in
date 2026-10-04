@@ -368,7 +368,14 @@ export async function openAdvances(ctx: RequestContext, customerId?: string) {
   assertCan(ctx.role, 'receipts', 'read')
   const rows = await prisma.receipt.findMany({
     where: { companyId: ctx.companyId, isAdvance: true, cancelledAt: null, ...(customerId ? { customerId } : {}) },
-    include: { customer: { select: { name: true } }, allocations: true },
+    include: {
+      customer: { select: { name: true } },
+      allocations: true,
+      // 🔴 docs/65 — refunds count as spent. Without this a fully refunded advance stays
+      // "open": the screen offers to adjust money that has already gone back to the client,
+      // and the service would let it, taking output tax out of accounts twice.
+      refunds: { where: { cancelledAt: null } },
+    },
     orderBy: { date: 'desc' },
   })
   return rows
@@ -377,9 +384,10 @@ export async function openAdvances(ctx: RequestContext, customerId?: string) {
       const adjusted = r.allocations.reduce(
         (a, x) => a.plus(x.amount.toString()).plus(x.tdsAmount.toString()), ZERO,
       )
+      const refunded = r.refunds.reduce((a, x) => a.plus(x.amount.toString()), ZERO)
       return {
         id: r.id, number: r.number, date: r.date, customerName: r.customer.name,
-        gross, adjusted, open: gross.minus(adjusted),
+        gross, adjusted, refunded, open: gross.minus(adjusted).minus(refunded),
       }
     })
     .filter((r) => r.open.gt('0.5'))

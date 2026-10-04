@@ -77,6 +77,16 @@ export function gstr1ToCsv(r: Gstr1): string {
     }
   }
 
+  // docs/65 — a refunded advance belongs with the adjustments: both take back tax declared
+  // in 11A of an earlier period. It is given its own block so the CA can see which is which.
+  if (r.advancesRefunded.length > 0) {
+    section('atadj — Advances REFUNDED, no supply made (table 11B · s.31(3)(e))')
+    out.push(row(['Refund Voucher', 'Date', 'Customer', 'Against Receipt Voucher', 'Amount Refunded', 'CGST', 'SGST', 'IGST']))
+    for (const a of r.advancesRefunded) {
+      out.push(row([a.number, a.date, a.customerName, a.againstReceipt, d2(a.amount), d2(a.cgst), d2(a.sgst), d2(a.igst)]))
+    }
+  }
+
   section('hsn — HSN/SAC summary')
   out.push(row(['HSN/SAC', 'Description', 'UQC', 'Total Quantity', 'Total Taxable Value', 'IGST', 'CGST', 'SGST', 'Cess']))
   for (const h of r.hsn) {

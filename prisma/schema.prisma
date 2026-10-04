@@ -192,6 +192,8 @@ enum DocType {
   DEBIT_NOTE
   RECEIPT
   SELF_INVOICE
+  /// docs/65 — s.31(3)(e), where an advance is returned and no supply was made
+  REFUND_VOUCHER
   PAYMENT_ADVICE
 }
 
@@ -398,6 +400,7 @@ model Customer {
   projects Project[]
   invoices Invoice[]
   receipts Receipt[]
+  refundVouchers RefundVoucher[]
   isActive Boolean   @default(true)
 
   @@index([companyId, name])
@@ -649,6 +652,8 @@ model Receipt {
   bankAccountId    String?
   isAdvance        Boolean             @default(false)
   allocations      ReceiptAllocation[]
+  /// docs/65 — refunds of this advance, where no supply was made
+  refunds          RefundVoucher[]
   bankTransaction  BankTransaction?
 
   /// 🔴 Cancelled, never deleted — the number stays allocated so the series has no gap,
@@ -1618,6 +1623,8 @@ enum AttachmentKind {
   TAX_INVOICE
   /// docs/59 — a credit or debit note as issued
   CREDIT_NOTE
+  /// docs/65 — a receipt or refund voucher as issued
+  VOUCHER
   PAYSLIP
   FORM_26AS
   CHALLAN
@@ -1864,4 +1871,47 @@ model Gst2bLine {
 
   @@index([companyId, supplierGstin, docKey])
   @@index([statementId])
+}
+
+
+/// docs/65 · A refund voucher under s.31(3)(e) and rule 51.
+///
+/// 🔴 Issued where an advance was taken, tax was paid on it, and the supply never happened.
+/// It is not a credit note: there is no invoice to credit. The tax paid under s.13(2) on the
+/// receipt is recovered by adjusting it in the return, and this document is what the
+/// recipient is entitled to — rule 51 fixes its contents down to the receipt-voucher number
+/// it refunds against.
+model RefundVoucher {
+  id              String   @id @default(cuid())
+  companyId       String
+  financialYearId String
+  /// the advance it refunds — a receipt with isAdvance
+  receiptId       String
+  receipt         Receipt  @relation(fields: [receiptId], references: [id])
+  customerId      String
+  customer        Customer @relation(fields: [customerId], references: [id])
+
+  number String
+  date   DateTime
+  reason String
+
+  /// the gross amount returned to the customer
+  amount       Decimal @db.Decimal(18, 2)
+  /// 🔴 split out of the gross the same way rule 50 split it going in — the advance was
+  /// tax-inclusive, so the refund is too
+  taxableValue Decimal @db.Decimal(18, 2)
+  cgst         Decimal @default(0) @db.Decimal(18, 2)
+  sgst         Decimal @default(0) @db.Decimal(18, 2)
+  igst         Decimal @default(0) @db.Decimal(18, 2)
+
+  bankAccountId String?
+
+  /// docs/51 treatment — reversed in the ledger, kept on file with its number
+  cancelledAt  DateTime?
+  cancelReason String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([companyId, number])
+  @@index([companyId, receiptId])
 }

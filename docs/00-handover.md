@@ -181,6 +181,18 @@ newest open row and jumped to it. Use `currentFinancialYear()`.
 shipped one button; the other three were unreachable for nine modules. The survey that finds
 this is a script, not a memory — `docs/49 §1`.
 
+🔴 **A refund of an advance is not a credit note.** s.34 credits an invoice; a refunded
+advance has none. s.31(3)(e) and rule 51 give it its own document, carrying the number and
+date of the receipt voucher it refunds (`docs/65 §1`).
+
+🔴 **Postgres will not use a new enum value in the transaction that added it.** An `ALTER TYPE
+… ADD VALUE` and any `INSERT` referencing it must be separate migration files, because Prisma
+runs each file in one transaction (`docs/65 §6`).
+
+🔴 **A new document type needs its series backfilled.** The seed only runs on a fresh install,
+and `allocateNumber` refuses with an instruction pointing at a Settings screen that does not
+exist (`docs/65 §6`).
+
 🔴 **A pure function can be as unreachable as a service.** `validateInvoiceNumber` had five
 tests and no caller for fifty-four modules; `docs/49`'s sweep missed it because it was looking
 for services, and an unused function leaves no dead screen behind to notice (`docs/64 §1`).
@@ -280,9 +292,7 @@ docs/51 had already closed. Grouped by the module each would be, largest value f
    scheduling are done (`docs/60`).
 2. **Note amendments (table 9C)** — the same shape as `docs/52`'s 9A, against a credit or
    debit note rather than an invoice.
-3. **Refund vouchers** (s.31(3)(e)) — where an advance is returned and no supply is made
-   (`docs/54 §7`).
-4. **Service-item CRUD** — see the smaller list below; this is the largest of them.
+3. **Service-item CRUD** — see the smaller list below; this is the largest of them.
 
 ### Smaller, and mostly one screen each
 

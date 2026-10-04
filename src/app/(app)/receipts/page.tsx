@@ -6,6 +6,7 @@ import { arSummary } from '@/server/services/sales/receivables'
 import { Card, PageHeader, StatCard, Pill, Empty, Button, DataTable, type Column } from '@/components/ui/kit'
 import { CancelReceiptButton } from './cancel-button'
 import { AdjustAdvance } from './adjust-advance'
+import { RefundAdvance } from './refund-advance'
 import { openAdvances } from '@/server/services/sales/advance'
 
 export default async function ReceiptsPage() {
@@ -78,6 +79,7 @@ export default async function ReceiptsPage() {
         const adv = advances.find((a) => a.id === r.id)
         if (adv) {
           return (
+            <>
             <AdjustAdvance receiptId={r.id} open={adv.open.toFixed(2)}
               invoices={openInvoices
                 .filter((i) => i.customerId === r.customerId)
@@ -91,6 +93,8 @@ export default async function ReceiptsPage() {
                 // not enough: an invoice settled by a receipt may still read PARTIALLY_PAID.
                 .filter((i) => i.outstanding.gt('0.5'))
                 .map((i) => ({ id: i.id, number: i.number, outstanding: formatINR(i.outstanding) }))} />
+            <RefundAdvance receiptId={r.id} open={adv.open.toFixed(2)} />
+            </>
           )
         }
         return <CancelReceiptButton receiptId={r.id} number={r.number} />

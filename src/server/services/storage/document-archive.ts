@@ -84,7 +84,9 @@ export async function archivedDocument(companyId: string, entityType: string, en
   return prisma.attachment.findFirst({
     where: {
       companyId, entityType, entityId, detachedAt: null,
-      kind: { in: ['TAX_INVOICE', 'CREDIT_NOTE', 'PAYSLIP'] },
+      // 🔴 the issued-document kinds only. A file somebody uploaded against the same record
+      // is evidence of something else and must not be served as "the document as issued".
+      kind: { in: ['TAX_INVOICE', 'CREDIT_NOTE', 'VOUCHER', 'PAYSLIP'] },
     },
     orderBy: { createdAt: 'asc' },
   })
