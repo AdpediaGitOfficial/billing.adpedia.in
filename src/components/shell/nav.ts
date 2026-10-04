@@ -41,6 +41,8 @@ export const NAV: NavGroup[] = [
     { label: 'TDS receivable', href: '/tax/tds-receivable', cap: 'tax', icon: 'HandCoins' },
     { label: 'PAN register', href: '/tax/pan', cap: 'tax', icon: 'IdCard' },
     { label: 'The portal', href: '/tax/portal', cap: 'tax', icon: 'ShieldCheck' },
+    // docs/71 — s.211 instalments, and the estimate they are a percentage of
+    { label: 'Advance tax', href: '/tax/advance', cap: 'tax', icon: 'Scale' },
     { label: 'Calendar', href: '/tax/calendar', cap: 'tax', icon: 'CalendarClock' },
   ]},
   { label: 'Accounting', items: [

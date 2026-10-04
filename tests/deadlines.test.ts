@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest'
 import {
   tdsDepositDue, tdsReturnDue, form16aDue, form16Due,
   gstr1Due, gstr3bDue, pmt06Due, gstr9Due,
-  professionTaxDue, advanceTaxDue, ADVANCE_TAX_SCHEDULE, lutRenewalDue, itrDue,
+  professionTaxDue, advanceTaxDue, ADVANCE_TAX_SCHEDULE, ADVANCE_TAX_INTEREST_PCT_PER_MONTH,
+  lutRenewalDue, itrDue,
 } from '@/server/services/compliance/deadlines'
 
 const d = (x: Date) => x.toISOString().slice(0, 10)
@@ -101,5 +102,38 @@ describe('other obligations', () => {
 
   it('files the company ITR by 31 October', () => {
     expect(d(itrDue(2026))).toBe('2027-10-31')
+  })
+})
+
+/**
+ * 🔴 docs/71 — the s.234C safe harbour is not a rounding of the instalment percentage.
+ *
+ * The provisos to s.234C(1) forgive the interest on a near miss for the first two instalments
+ * only: 12% by 15 June and 36% by 15 September against required cumulatives of 15% and 45%.
+ * A system that charges interest from 15% produces a plausible, legal-looking figure that is
+ * simply wrong — and nobody re-checks a tax computation that looks reasonable.
+ */
+describe('🔴 the s.234C provisos', () => {
+  it('forgives a near miss on the first two instalments only', () => {
+    const by = Object.fromEntries(ADVANCE_TAX_SCHEDULE.map((s) => [s.by, s]))
+    expect(by.JUN.safeHarbourPct).toBe(12)
+    expect(by.SEP.safeHarbourPct).toBe(36)
+    // and NOT on the third and fourth, where the harbour is the requirement itself
+    expect(by.DEC.safeHarbourPct).toBe(by.DEC.cumulativePct)
+    expect(by.MAR.safeHarbourPct).toBe(by.MAR.cumulativePct)
+  })
+
+  /**
+   * 🔴 Three months for the first three instalments, one for the last — fixed by the statute,
+   * not counted from the delay. It is not s.234B's "month or part of a month", and it does not
+   * stop when the money is eventually paid; computing it from elapsed time gives a different,
+   * larger number every day.
+   */
+  it('charges a fixed number of months, not the delay', () => {
+    expect(ADVANCE_TAX_SCHEDULE.map((s) => s.interestMonths)).toEqual([3, 3, 3, 1])
+  })
+
+  it('runs at 1% a month', () => {
+    expect(ADVANCE_TAX_INTEREST_PCT_PER_MONTH).toBe(1)
   })
 })

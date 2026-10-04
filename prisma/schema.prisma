@@ -337,6 +337,8 @@ enum SourceType {
   GST_PAYMENT
   /// the GSTR-3B table 6.1 entry that debits the electronic cash and credit ledgers — docs/46
   GST_SET_OFF
+  /// docs/71 — an advance-tax instalment under s.211, an asset until the return settles it
+  ADVANCE_TAX
   /// a GSTR-1 table 9A amendment to an invoice already filed — docs/52
   GST_AMENDMENT
   /// docs/69 — s.31(3)(e), returning an advance. It posted under RECEIPT and the advance's own
@@ -1015,6 +1017,57 @@ model SalaryTaxEstimate {
   createdAt          DateTime  @default(now())
 
   @@index([companyId, employeeId, financialYearId])
+}
+
+/// docs/71 · The CA's estimate of the COMPANY's income-tax liability for a financial year.
+///
+/// 🔴 The system cannot derive this, and must not pretend to. Taxable income is not book
+/// profit — depreciation is computed differently, disallowances under s.40 and s.43B apply,
+/// and the rate itself depends on which regime was elected (22% under s.115BAA against the
+/// 25%/30% slabs, with cess and surcharge on top). What the books hold is profit before tax,
+/// which is useful CONTEXT for the conversation and is not the number.
+///
+/// Superseded, never edited — the mirror of `SalaryTaxEstimate`. An instalment paid against
+/// an earlier estimate was correct when it was paid, and s.234C is computed against the
+/// estimate standing at the time.
+model CompanyTaxEstimate {
+  id                 String    @id @default(cuid())
+  companyId          String
+  financialYearId    String
+  estimatedAnnualTax Decimal   @db.Decimal(18, 2)
+  /// who supplied it and on what basis — an audit trail for a number nobody can derive
+  source             String?
+  note               String?
+  supersededAt       DateTime?
+  createdAt          DateTime  @default(now())
+
+  @@index([companyId, financialYearId])
+}
+
+/// docs/71 · An advance-tax instalment actually paid — ITNS 280.
+///
+/// Dr 1350 Advance Income Tax Paid, Cr the bank. It is an ASSET until the return is filed and
+/// the year's liability is finally settled against it; it is not an expense, and booking it as
+/// one understates the year's profit by whatever has been paid on account.
+model AdvanceTaxPayment {
+  id              String    @id @default(cuid())
+  companyId       String
+  financialYearId String
+  paidOn          DateTime
+  amount          Decimal   @db.Decimal(18, 2)
+  /// the challan, the same shape as a TDS one — docs/56 §3 on how a CIN is constructed
+  bsrCode         String
+  challanSerial   String
+  cin             String?
+  bankAccountId   String?
+  note            String?
+  /// docs/51 treatment — reversed in the ledger, kept on file
+  cancelledAt     DateTime?
+  cancelReason    String?
+  createdAt       DateTime  @default(now())
+
+  @@unique([companyId, bsrCode, challanSerial, paidOn])
+  @@index([companyId, financialYearId])
 }
 
 /// Kerala levies profession tax by salary slab, half-yearly, to the local body.

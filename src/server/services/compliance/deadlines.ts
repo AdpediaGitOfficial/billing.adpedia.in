@@ -96,13 +96,38 @@ export function professionTaxDue(half: 'H1' | 'H2', fyStartYear: number): Date {
  * The percentages are CUMULATIVE, not per instalment — by 15 September the total paid must
  * reach 45% of the year's liability, not 45% on top of June's 15%. Reading them as separate
  * instalments under-pays every quarter and accrues interest under s.234C.
+ *
+ * 🔴 `safeHarbourPct` is NOT a rounding of `cumulativePct`, and the two differ on purpose —
+ * docs/71. The provisos to s.234C(1) say that no interest is charged for the first instalment
+ * if at least **12%** has been paid by 15 June, and none for the second if at least **36%**
+ * has been paid by 15 September. The shortfall that must be made up is still measured against
+ * 15% and 45%; what the proviso forgives is the INTEREST on a near miss, and only for those
+ * two. A system that charges interest from 15% has a plausible, legal-looking figure that is
+ * simply wrong, and nobody checks a tax computation that looks reasonable.
  */
-export const ADVANCE_TAX_SCHEDULE: { by: 'JUN' | 'SEP' | 'DEC' | 'MAR'; cumulativePct: number }[] = [
-  { by: 'JUN', cumulativePct: 15 },
-  { by: 'SEP', cumulativePct: 45 },
-  { by: 'DEC', cumulativePct: 75 },
-  { by: 'MAR', cumulativePct: 100 },
+export const ADVANCE_TAX_SCHEDULE: {
+  by: 'JUN' | 'SEP' | 'DEC' | 'MAR'
+  cumulativePct: number
+  /** below this, s.234C interest runs for the instalment; at or above it, none does */
+  safeHarbourPct: number
+  /**
+   * 🔴 Months of interest, FIXED by the statute rather than counted from the delay.
+   *
+   * s.234C charges three months for each of the first three instalments and one month for the
+   * last, whatever the actual delay — it is not the "month or part of a month" of s.234B, and
+   * it does not stop when the money is eventually paid. Computing it from elapsed time gives a
+   * different, larger number every day that passes.
+   */
+  interestMonths: number
+}[] = [
+  { by: 'JUN', cumulativePct: 15, safeHarbourPct: 12, interestMonths: 3 },
+  { by: 'SEP', cumulativePct: 45, safeHarbourPct: 36, interestMonths: 3 },
+  { by: 'DEC', cumulativePct: 75, safeHarbourPct: 75, interestMonths: 3 },
+  { by: 'MAR', cumulativePct: 100, safeHarbourPct: 100, interestMonths: 1 },
 ]
+
+/** s.234C runs at 1% a month on the shortfall. */
+export const ADVANCE_TAX_INTEREST_PCT_PER_MONTH = 1
 
 export function advanceTaxDue(by: 'JUN' | 'SEP' | 'DEC' | 'MAR', fyStartYear: number): Date {
   switch (by) {

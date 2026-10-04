@@ -1,6 +1,6 @@
 # 00 · Handover — read this first
 
-Adpedia Films Private Limited's internal finance ERP. **932 tests** (397 unit + 535
+Adpedia Films Private Limited's internal finance ERP. **946 tests** (400 unit + 546
 integration), typecheck and lint clean, production build passes.
 
 Everything below is either hard-won or non-obvious. The per-module detail is in `docs/20`
@@ -232,6 +232,17 @@ and the bill was typed `EX-300`; a literal comparison reports the whole purchase
 unavailable credit. Amount is a fallback only — two invoices from one supplier for one amount
 in one month is a retainer, and matching on amount crosses them over (`docs/62 §3`).
 
+🔴 **The s.234C safe harbour is not a rounding of the instalment percentage.** 12% by 15 June
+and 36% by 15 September forgive the INTEREST on a near miss, for the first two instalments
+only; the shortfall still has to be made up. Charging interest from 15% gives a plausible,
+legal-looking, wrong number, and nobody re-checks a tax computation that looks reasonable. The
+months are fixed by the statute too — three, three, three, one — not counted from the delay
+(`docs/71 §2`).
+
+🔴 **A figure that is not yet owed must not be shown as a shortfall.** December's gap, in
+October, in red, under the word "short", is docs/56 §2's frightening monthly hole in a new
+place (`docs/71 §4`).
+
 🔴 **A draft that moves across 1 April must move financial year with it.** `sendInvoice`
 takes its number from the series for the invoice's `financialYearId`, so a draft edited to an
 April date while keeping its old year would be numbered out of the previous year's series —
@@ -378,8 +389,8 @@ job is no longer to find a class of gap, it is to close the remaining ones and t
 - **User invitations** — still unwired (`docs/35 §6`). Company details and the service
   catalogue were done in `docs/67`; invitations are a module, not a field, because inviting a
   user is creating a credential and wants an email path and an expiry.
-- **Advance tax instalments on the calendar** (`docs/43 §7`), and **ROC filings**, which need
-  the AGM date
+- **ROC filings** (AOC-4, MGT-7), which need the AGM date the system does not hold
+- **Cancelling an advance-tax payment** — modelled for it, no service (`docs/71 §5`)
 - **Opening balances as explicit entries** at year-end close (`docs/37 §7`)
 - **IRN and QR on the invoice template** — the fields persist, the template ignores them
   (`docs/31 §7`)

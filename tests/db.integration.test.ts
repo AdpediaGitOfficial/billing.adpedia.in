@@ -35,9 +35,9 @@ describe('seed', () => {
     expect((c.registeredAddress as { line1: string }).line1).toContain('VIII/318')
   })
 
-  it('seeded 60 ledger accounts, all system-locked', async () => {
-    // 55 from docs/12, plus the five electronic-cash-ledger accounts in docs/46
-    expect(await prisma.account.count({ where: { companyId } })).toBe(60)
+  it('seeded 61 ledger accounts, all system-locked', async () => {
+    // 55 from docs/12, the five electronic-cash-ledger accounts in docs/46, and 1350 in docs/71
+    expect(await prisma.account.count({ where: { companyId } })).toBe(61)
     expect(await prisma.account.count({ where: { companyId, isSystem: false } })).toBe(0)
   })
 

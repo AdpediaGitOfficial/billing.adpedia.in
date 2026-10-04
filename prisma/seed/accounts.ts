@@ -24,6 +24,10 @@ export const CHART: Row[] = [
   { code: '1300', name: 'TDS Receivable', type: 'ASSET' },
   { code: '1310', name: 'TDS Receivable — 194J', type: 'ASSET', subType: 'TDS_REC', parent: '1300' },
   { code: '1320', name: 'TDS Receivable — 194C', type: 'ASSET', subType: 'TDS_REC', parent: '1300' },
+  // docs/71 — advance tax is money paid on account against a liability the return has not
+  // settled. An ASSET: booking it as an expense understates the year's profit by whatever has
+  // been paid, and then double-counts when the final tax is provided for.
+  { code: '1350', name: 'Advance Income Tax Paid', type: 'ASSET' },
   { code: '1400', name: 'Advances to Vendors', type: 'ASSET' },
   { code: '1500', name: 'Fixed Assets', type: 'ASSET' },
 

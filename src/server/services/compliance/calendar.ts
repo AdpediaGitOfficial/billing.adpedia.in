@@ -9,6 +9,7 @@ import { filedTdsQuarters, formForSectionCode } from '@/server/services/tax/tds-
 import { certificatesOutstanding } from '@/server/services/tax/tds-certificate'
 import { periodFor } from '@/server/services/tax/periods'
 import { currentFinancialYear } from '@/server/services/accounting/period'
+import { advanceTaxPosition } from '@/server/services/tax/advance-tax'
 import {
   tdsDepositDue, tdsReturnDue, form16aDue, form16Due,
   gstr1Due, gstr3bDue, gstr9Due, professionTaxDue, lutRenewalDue, itrDue,
@@ -310,6 +311,56 @@ export async function complianceCalendar(ctx: RequestContext, now = new Date()):
       penalty: 'Without it the supply is taxable — IGST becomes payable on every export',
       done: !!lut,
       href: '/settings/lut',
+    })
+  }
+
+  /* ── advance tax, s.211 ───────────────────────────────────────────────────── */
+
+  /**
+   * 🔴 On the calendar whether or not an estimate exists — docs/71.
+   *
+   * The dates are statutory and do not wait for the CA. Leaving the instalments off until
+   * somebody enters a liability means the one thing that would prompt them to go and get one
+   * is the thing that is missing, and 15 June passes in silence.
+   *
+   * Where there is no estimate the item says so instead of showing a figure. Where there is,
+   * the shortfall and the s.234C interest come with it — and an instalment inside the proviso
+   * (12% by June, 36% by September) counts as DONE, because no interest is running on it even
+   * though it is short.
+   */
+  const advance = await advanceTaxPosition(ctx, fy.id, now)
+  for (const i of advance.instalments) {
+    const short = i.shortfall.gt(0) && !i.withinSafeHarbour
+    push({
+      id: `advance-tax-${i.by}`,
+      obligation: 'ADVANCE_TAX',
+      title: `Advance tax — ${i.cumulativePct}% of FY ${fy.label} by this date`,
+      detail: advance.estimate
+        ? short
+          /**
+           * 🔴 "short" before the date has passed is not a shortfall, it is a plan.
+           *
+           * Nothing is owed until 15 December; calling ₹3,60,000 a shortfall in October is the
+           * frightening-figure-that-means-nothing of docs/56 §2, and after three of those
+           * nobody reads the screen.
+           */
+          ? i.passed
+            ? `${formatINR(i.paid)} paid of ${formatINR(i.required)} required — ${formatINR(i.shortfall)} short`
+            : `${formatINR(i.paid)} paid so far; ${formatINR(i.shortfall)} still to pay by then`
+          : i.withinSafeHarbour
+            ? `${formatINR(i.paid)} paid, short of ${formatINR(i.required)} but inside the s.234C proviso at ${i.safeHarbourPct}%`
+            : `${formatINR(i.paid)} paid of ${formatINR(i.required)} required`
+        : 'No estimate of this year’s tax has been recorded, so the amount cannot be computed — the date is statutory either way',
+      dueOn: i.dueOn,
+      // 🔴 the fixed months of s.234C, not a per-day or per-part-month accrual
+      penalty: short
+        ? `1% a month for ${i.interestMonths} month${i.interestMonths === 1 ? '' : 's'} under s.234C` +
+          (i.passed ? ` — ${formatINR(i.interest)}` : ', if it is still short on the day')
+        : undefined,
+      // the figure is highlighted only once it is actually owed
+      amount: advance.estimate && short && i.passed ? i.shortfall : undefined,
+      href: '/tax/advance',
+      done: Boolean(advance.estimate) && (i.shortfall.isZero() || i.withinSafeHarbour),
     })
   }
 

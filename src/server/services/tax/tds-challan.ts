@@ -137,7 +137,7 @@ export function oltasCin(bsrCode: string, depositedOn: Date, challanSerial: stri
 }
 
 /** BSR code is 7 digits; the challan serial is 5. Both are printed on the counterfoil. */
-function validateChallanRefs(bsrCode: string, challanSerial: string) {
+export function validateChallanRefs(bsrCode: string, challanSerial: string) {
   if (!/^\d{7}$/.test(bsrCode)) throw new AppError(`BSR code must be 7 digits — "${bsrCode}" is ${bsrCode.length}`)
   if (!/^\d{1,5}$/.test(challanSerial)) throw new AppError(`Challan serial must be up to 5 digits — "${challanSerial}" is not`)
 }
