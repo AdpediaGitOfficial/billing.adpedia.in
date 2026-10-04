@@ -288,28 +288,38 @@ binding appearing more than once — `docs/48 §3`.
 
 ## 7. The largest remaining gaps
 
-🔴 Deduplicated on 02 Oct 2026 — it had drifted, listing debit notes three times and an item
-docs/51 had already closed. Grouped by the module each would be, largest value first.
+🔴 Deduplicated on 02 Oct 2026 and again on 04 Oct, after module 66 — it drifts every time an
+item is struck off and the numbering is edited rather than rewritten. If you strike one off,
+**rewrite this section**, do not renumber it.
 
-### Worth a module each
+**Sixty-six modules in, nothing module-sized is left except the mobile tail.** Everything
+below is a screen or a field. That is itself worth knowing: the next session's job is no
+longer to find a class of gap, it is to close the remaining ones and then stop.
 
-1. **The rest of the mobile tail** (`docs/30 §9`): swipe gestures are unwired and the
-   performance budget from `docs/13` has not been measured. Receipt upload and push
-   scheduling are done (`docs/60`).
-2. **Service-item CRUD** — see the smaller list below; this is the largest of them.
+### Worth a module
 
-### Smaller, and mostly one screen each
+1. **The rest of the mobile tail** (`docs/30 §9`): swipe gestures (right = primary, left =
+   secondary, with Undo) are unwired and the card UIs work by tap; the performance budget
+   from `docs/13` (FCP < 1.5s on 4G, virtualised lists past 50 rows) has never been measured.
+   Receipt upload and push scheduling are done — `docs/60 §5` corrected the stale note.
 
-- **Service-item CRUD** — the catalogue is seeded and used, with no screen (`docs/34`, `docs/35`)
+### A screen or a field each
+
+- 🔴 **Service-item CRUD** — the catalogue is seeded and used on every invoice, and there is
+  no screen, so adding a service means editing the database (`docs/34`, `docs/35`). The
+  largest of these and the one that bites most often.
 - **Company details and user invitations** — deliberately unwired in `docs/35 §6`
 - **Invoice draft editing** — a draft must be cancelled and re-raised (`docs/41`)
+- **Credit- and debit-note register** — they are listed on their invoice and the *series* is at
+  `/settings/series` (`docs/64`), but there is no list of the notes themselves (`docs/48 §5`)
 - **Advance tax instalments on the calendar** (`docs/43 §7`), and **ROC filings**, which need
   the AGM date
 - **Opening balances as explicit entries** at year-end close (`docs/37 §7`)
-- **Credit-note register** — they are listed on their invoice and the series is now at
-  `/settings/series` (`docs/64`), but there is still no list of the notes themselves
 - **IRN and QR on the invoice template** — the fields persist, the template ignores them
   (`docs/31 §7`)
+- **Cancelling a refund voucher** — modelled for it, no service (`docs/65 §7`)
+- **Splitting account 1240** — only if a domestic s.9(3) reverse charge ever occurs, which has
+  never been confirmed (`docs/63 §3`)
 
 ### Deliberate non-goals
 
