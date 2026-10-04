@@ -181,6 +181,15 @@ newest open row and jumped to it. Use `currentFinancialYear()`.
 shipped one button; the other three were unreachable for nine modules. The survey that finds
 this is a script, not a memory — `docs/49 §1`.
 
+🔴 **A pure function can be as unreachable as a service.** `validateInvoiceNumber` had five
+tests and no caller for fifty-four modules; `docs/49`'s sweep missed it because it was looking
+for services, and an unused function leaves no dead screen behind to notice (`docs/64 §1`).
+
+🔴 **Not every missing number is missing.** The invoice series opened at 26 because
+twenty-five were raised by hand first, and a cancelled document keeps its number by design —
+so neither is a gap. Only a number taken from the series with nothing behind it is
+(`docs/64 §2`).
+
 🔴 **A caveat is a claim, and has to be true.** `docs/56` warned every month that the
 head-wise credit comparison was approximate because reverse-charge credit "is split across
 heads". In this system every reverse charge is an import of services and therefore IGST, so
@@ -283,8 +292,8 @@ docs/51 had already closed. Grouped by the module each would be, largest value f
 - **Advance tax instalments on the calendar** (`docs/43 §7`), and **ROC filings**, which need
   the AGM date
 - **Opening balances as explicit entries** at year-end close (`docs/37 §7`)
-- **Credit-note register** — they are listed on their invoice, but there is no view of the
-  series (`docs/48 §5`)
+- **Credit-note register** — they are listed on their invoice and the series is now at
+  `/settings/series` (`docs/64`), but there is still no list of the notes themselves
 - **IRN and QR on the invoice template** — the fields persist, the template ignores them
   (`docs/31 §7`)
 

@@ -1,6 +1,6 @@
 import type { Tx } from '@/server/db'
 import type { DocType } from '@prisma/client'
-import { NotFound } from '@/server/errors'
+import { NotFound, AppError } from '@/server/errors'
 import { shortFy } from '@/lib/fy'
 
 /**
@@ -34,6 +34,26 @@ export async function allocateNumber(
 
   const seq = series.nextSeq
   const number = renderPattern(series.pattern, { FY: shortFy(args.fyLabel), SEQ: seq })
+
+  /**
+   * 🔴 docs/64 — checked HERE, at the moment the number comes into existence.
+   *
+   * `validateInvoiceNumber` has existed since docs/10 with tests and no caller. A series
+   * configured with a longer prefix would have produced a number breaching rule 46(b) on
+   * every invoice for the year, and nothing anywhere would have said so — the validator sat
+   * beside the allocator the whole time.
+   *
+   * It fails the allocation rather than warning, because the alternative is a document
+   * issued to a client with a defective number on it, which cannot be taken back.
+   */
+  const verdict = validateInvoiceNumber(number)
+  if (!verdict.ok) {
+    throw new AppError(
+      `The ${args.docType} series for FY ${args.fyLabel} would produce "${number}". ${verdict.reason}. ` +
+      'Rule 46(b) limits the number to sixteen characters, and allows only letters, digits, / and - — ' +
+      'shorten the pattern in the series before issuing anything else.',
+    )
+  }
 
   await tx.documentSeries.update({ where: { id: series.id }, data: { nextSeq: seq + 1 } })
   return { number, seq }
