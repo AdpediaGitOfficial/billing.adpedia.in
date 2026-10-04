@@ -1,5 +1,5 @@
 'use client'
-import { useActionState, useEffect, useState, useCallback } from 'react'
+import { useActionState, useEffect, useRef, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { createInvoiceAction } from '../actions'
 import { Card, Field, Button, Pill, inputClass, inputStyle } from '@/components/ui/kit'
@@ -29,19 +29,52 @@ interface Preview {
 const blank = (): Line => ({ description: '', sacCode: '', quantity: '1', rate: '', gstRatePct: '18', serviceItemId: null })
 const inr = (v: string) => new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2 }).format(Number(v))
 
-export function InvoiceForm({ customers, projects, items }: { customers: Customer[]; projects: Project[]; items: Item[] }) {
-  const [state, action, pending] = useActionState(createInvoiceAction, null)
-  const [customerId, setCustomerId] = useState('')
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
-  const [tdsSection, setTdsSection] = useState('')
-  const [lines, setLines] = useState<Line[]>([blank()])
+/** What an existing draft arrives with — docs/70. */
+export interface InvoiceDraft {
+  customerId: string
+  projectId: string
+  date: string
+  customerRef: string
+  milestone: string
+  tdsSection: string
+  lines: Line[]
+}
+
+export function InvoiceForm({ customers, projects, items, draft, submit, backHref = '/invoices' }: {
+  customers: Customer[]
+  projects: Project[]
+  items: Item[]
+  /** present when editing an existing draft */
+  draft?: InvoiceDraft
+  /** where Cancel goes back to; the list when creating, the draft itself when editing */
+  backHref?: string
+  /** the server action; defaults to creating */
+  submit?: (prev: { error?: string } | null, form: FormData) => Promise<{ error?: string } | null>
+}) {
+  const [state, action, pending] = useActionState(submit ?? createInvoiceAction, null)
+  const [customerId, setCustomerId] = useState(draft?.customerId ?? '')
+  const [date, setDate] = useState(draft?.date ?? new Date().toISOString().slice(0, 10))
+  const [tdsSection, setTdsSection] = useState(draft?.tdsSection ?? '')
+  const [lines, setLines] = useState<Line[]>(draft?.lines.length ? draft.lines : [blank()])
   const [preview, setPreview] = useState<Preview | null>(null)
 
   const customer = customers.find((c) => c.id === customerId)
   const customerProjects = projects.filter((p) => p.customerId === customerId)
 
-  // adopt the customer's usual TDS section when one is picked
-  useEffect(() => { if (customer) setTdsSection(customer.defaultTdsSection ?? '') }, [customerId]) // eslint-disable-line react-hooks/exhaustive-deps
+  /**
+   * Adopt the customer's usual TDS section when one is PICKED.
+   *
+   * 🔴 Not on the first render. Opening a draft to fix a typo sets `customerId` from the
+   * draft, which fires this and quietly replaces whatever section the draft was saved with by
+   * the customer's default — a TDS change nobody made and nobody would see, on a document
+   * about to be sent. The guard is a ref rather than a dependency list, because the effect
+   * must still fire on a genuine change to the same customer field.
+   */
+  const settled = useRef(!draft)
+  useEffect(() => {
+    if (!settled.current) { settled.current = true; return }
+    if (customer) setTdsSection(customer.defaultTdsSection ?? '')
+  }, [customerId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const refresh = useCallback(async () => {
     if (!customerId || !lines.some((l) => l.rate)) { setPreview(null); return }
@@ -72,7 +105,7 @@ export function InvoiceForm({ customers, projects, items }: { customers: Custome
           </Field>
 
           <Field label="Project">
-            <select name="projectId" className={inputClass} style={inputStyle} disabled={!customerId}>
+            <select name="projectId" defaultValue={draft?.projectId ?? ''} className={inputClass} style={inputStyle} disabled={!customerId}>
               <option value="">None</option>
               {customerProjects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
@@ -83,7 +116,7 @@ export function InvoiceForm({ customers, projects, items }: { customers: Custome
           </Field>
 
           <Field label="Your reference / PO">
-            <input name="customerRef" className={inputClass} style={inputStyle} />
+            <input name="customerRef" defaultValue={draft?.customerRef ?? ''} className={inputClass} style={inputStyle} />
           </Field>
         </div>
 
@@ -173,7 +206,7 @@ export function InvoiceForm({ customers, projects, items }: { customers: Custome
               <option value="194C">194C — 2%</option>
             </select>
           </Field>
-          <Field label="Milestone"><input name="milestone" className={inputClass} style={inputStyle} placeholder="3 of 4" /></Field>
+          <Field label="Milestone"><input name="milestone" defaultValue={draft?.milestone ?? ''} className={inputClass} style={inputStyle} placeholder="3 of 4" /></Field>
         </div>
 
         {preview && (
@@ -198,11 +231,15 @@ export function InvoiceForm({ customers, projects, items }: { customers: Custome
         )}
 
         <div className="mt-5 flex gap-2">
-          <Button type="submit" disabled={pending || !preview}>{pending ? 'Saving…' : 'Save as draft'}</Button>
-          <Link href="/invoices"><Button variant="ghost" type="button">Cancel</Button></Link>
+          <Button type="submit" disabled={pending || !preview}>
+            {pending ? 'Saving…' : draft ? 'Save the draft' : 'Save as draft'}
+          </Button>
+          <Link href={backHref}><Button variant="ghost" type="button">Cancel</Button></Link>
         </div>
         <p className="mt-2 text-[11.5px]" style={{ color: 'var(--text-muted)' }}>
-          Saving creates a draft. The invoice number is allocated when you send it.
+          {draft
+            ? 'This invoice has not been sent, so it has no number yet and nothing has been posted. The number is allocated when you send it.'
+            : 'Saving creates a draft. The invoice number is allocated when you send it.'}
         </p>
       </Card>
     </form>

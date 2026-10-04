@@ -61,6 +61,10 @@ export default async function InvoiceDetail({ params }: { params: Promise<{ id: 
             <a href={`/api/invoices/${inv.id}/document`} target="_blank" rel="noreferrer">
               <Button variant="ghost">{archived ? 'The invoice as issued' : 'View document'}</Button>
             </a>
+            {/* docs/70 — a draft can be corrected now rather than cancelled and re-raised */}
+            {isDraft && (
+              <Link href={`/invoices/${inv.id}/edit`}><Button variant="ghost" icon="Pencil">Edit</Button></Link>
+            )}
             {!isDraft && (
               <ShareInvoice invoiceId={inv.id} number={inv.number}
                 customerName={inv.customer.name} total={money(inv.grandTotal.toString())} />

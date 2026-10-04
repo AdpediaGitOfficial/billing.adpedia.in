@@ -74,8 +74,9 @@ payroll, projects and bank reconciliation on a double-entry ledger.
 | [67 · Master data](docs/67-master-data.md) | The service catalogue and the company's own details — and the field nothing could set |
 | [68 · The mobile tail](docs/68-mobile-tail.md) | Swipe with a real Undo, and the performance budget measured for the first time |
 | [69 · Note registers](docs/69-note-registers.md) | The documents nothing listed, and a refund voucher filed under the advance's identity |
+| [70 · Draft editing](docs/70-draft-editing.md) | Correcting a draft instead of cancelling it, and the financial year that moves with the date |
 
-**925 tests passing** · typecheck and lint clean · production build passes.
+**932 tests passing** · typecheck and lint clean · production build passes.
 
 ```bash
 cp .env.example .env     # set DATABASE_URL and JWT_SECRET

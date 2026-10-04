@@ -1,6 +1,6 @@
 # 00 · Handover — read this first
 
-Adpedia Films Private Limited's internal finance ERP. **925 tests** (397 unit + 528
+Adpedia Films Private Limited's internal finance ERP. **932 tests** (397 unit + 535
 integration), typecheck and lint clean, production build passes.
 
 Everything below is either hard-won or non-obvious. The per-module detail is in `docs/20`
@@ -232,6 +232,18 @@ and the bill was typed `EX-300`; a literal comparison reports the whole purchase
 unavailable credit. Amount is a fallback only — two invoices from one supplier for one amount
 in one month is a retainer, and matching on amount crosses them over (`docs/62 §3`).
 
+🔴 **A draft that moves across 1 April must move financial year with it.** `sendInvoice`
+takes its number from the series for the invoice's `financialYearId`, so a draft edited to an
+April date while keeping its old year would be numbered out of the previous year's series —
+well-formed, from a real series, out of order, and invisible until somebody reconciles the
+register (`docs/70 §3`).
+
+🔴 **A form must not adopt a default on arrival.** The invoice form adopts the customer's usual
+TDS section when a customer is picked; opening a draft sets the customer, which fired it and
+silently replaced the section the draft was saved with. The guard is a ref consumed on the
+first run, not a change to the dependency list, because the effect must still fire on a real
+re-pick (`docs/70 §4`).
+
 🔴 **A document's postings belong to the document.** A refund voucher's journal entry was
 filed under `sourceType: 'RECEIPT'` and the ADVANCE's id, because `SourceType` had no member
 of its own. So cancelling a refunded advance silently reversed the refund too — money back in
@@ -366,7 +378,6 @@ job is no longer to find a class of gap, it is to close the remaining ones and t
 - **User invitations** — still unwired (`docs/35 §6`). Company details and the service
   catalogue were done in `docs/67`; invitations are a module, not a field, because inviting a
   user is creating a credential and wants an email path and an expiry.
-- **Invoice draft editing** — a draft must be cancelled and re-raised (`docs/41`)
 - **Advance tax instalments on the calendar** (`docs/43 §7`), and **ROC filings**, which need
   the AGM date
 - **Opening balances as explicit entries** at year-end close (`docs/37 §7`)

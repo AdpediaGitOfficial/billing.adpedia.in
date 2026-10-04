@@ -217,6 +217,131 @@ export async function createInvoice(ctx: RequestContext, input: CreateInvoiceInp
 }
 
 /**
+ * Edit a draft — docs/70.
+ *
+ * Until now a wrong draft had to be cancelled and re-raised. The numbering was safe either
+ * way, because a draft has no number; what was not safe was the habit, since cancelling is
+ * the act this system reserves for documents that have been ISSUED, and performing it on a
+ * typo teaches that a cancellation means nothing much.
+ *
+ * 🔴 Only a DRAFT, and the check is the status rather than the number. `isDraftNumber` exists
+ * and would have been the obvious thing to ask; it is a rendering detail, and a document that
+ * has been sent and then cancelled still has a real number and must not be editable either.
+ *
+ * 🔴 Everything is recomputed, not patched. Changing the customer changes the tax mode, the
+ * place of supply, the currency and the document TYPE — a domestic draft re-pointed at a
+ * foreign client is an export invoice, drawn from a different series, needing an LUT. Copying
+ * the new customer's id over the old one and leaving the rest would produce a draft that is
+ * internally impossible, and nothing downstream would question it.
+ */
+export async function updateInvoiceDraft(ctx: RequestContext, invoiceId: string, input: CreateInvoiceInput) {
+  assertCan(ctx.role, 'invoices', 'write')
+  if (input.lines.length === 0) throw new AppError('An invoice needs at least one line')
+
+  const existing = await prisma.invoice.findFirst({
+    where: { id: invoiceId, companyId: ctx.companyId },
+    include: { lines: true },
+  })
+  if (!existing) throw new NotFound('Invoice not found')
+  if (existing.status !== 'DRAFT') {
+    throw new AppError(
+      `${existing.number} has been issued — it cannot be edited. Raise a credit or debit note against it, ` +
+      'or cancel it and raise a new one.',
+    )
+  }
+
+  const { company, customer, taxMode } = await loadCustomerAndMode(ctx.companyId, input.customerId)
+  const date = new Date(input.date)
+  /**
+   * 🔴 The financial year is re-resolved from the new date, not carried over.
+   *
+   * A draft moved across 1 April keeps its old `financialYearId` under any patch-the-fields
+   * edit, and `sendInvoice` takes the number from the series for THAT year — so a draft dated
+   * April 2027 would be numbered out of the 2026-27 series, out of order, in a year it does
+   * not belong to. Nothing downstream would notice: the number is well-formed, the series is
+   * real, and the gap only becomes visible when somebody reconciles the register.
+   */
+  const fy = await assertPostable(ctx.companyId, date)
+
+  const totals = computeInvoice(toLineInputs(input.lines), taxMode)
+  const tds = computeInvoiceTds({
+    taxableValue: totals.taxableValue,
+    grandTotal: totals.grandTotal,
+    section: input.tdsSection ?? null,
+    ratePct: defaultRateFor(input.tdsSection ?? null),
+    mode: taxMode,
+  })
+
+  const dueDate = input.dueDate
+    ? new Date(input.dueDate)
+    : new Date(date.getTime() + (customer.paymentTermDays ?? company.defaultPaymentDays) * 86_400_000)
+
+  return prisma.$transaction(async (tx) => {
+    // a draft's lines are referenced by nothing — no journal line, no return, no document
+    await tx.invoiceLine.deleteMany({ where: { invoiceId: existing.id } })
+
+    const updated = await tx.invoice.update({
+      where: { id: existing.id },
+      data: {
+        financialYearId: fy.id,
+        customerId: customer.id,
+        projectId: input.projectId ?? null,
+        docType: taxMode === 'EXPORT' ? 'EXPORT_INVOICE' : 'TAX_INVOICE',
+        date,
+        dueDate,
+        customerRef: input.customerRef ?? null,
+        milestone: input.milestone ?? null,
+        taxMode,
+        placeOfSupply: taxMode === 'EXPORT' ? '96' : (customer.stateCode ?? company.stateCode),
+        currency: invoiceCurrency(taxMode, customer.currency),
+        taxableValue: totals.taxableValue.toFixed(2),
+        cgst: totals.cgst.toFixed(2),
+        sgst: totals.sgst.toFixed(2),
+        igst: totals.igst.toFixed(2),
+        roundOff: totals.roundOff.toFixed(2),
+        grandTotal: totals.grandTotal.toFixed(2),
+        tdsSection: tds.section,
+        tdsRatePct: tds.section ? tds.ratePct.toFixed(2) : null,
+        tdsAmount: tds.tdsAmount.toFixed(2),
+        netPayable: tds.netPayable.toFixed(2),
+        lines: {
+          create: totals.lines.map((l, i) => ({
+            position: i + 1,
+            description: l.description,
+            detail: input.lines[i].detail,
+            serviceItemId: input.lines[i].serviceItemId,
+            sacCode: l.sacCode,
+            quantity: l.quantity.toFixed(3),
+            rate: l.rate.toFixed(2),
+            discountPct: (l.discountPct ?? ZERO).toFixed(2),
+            taxableValue: l.taxableValue.toFixed(2),
+            gstRatePct: l.gstRatePct.toFixed(2),
+            cgst: l.cgst.toFixed(2),
+            sgst: l.sgst.toFixed(2),
+            igst: l.igst.toFixed(2),
+          })),
+        },
+      },
+      include: { lines: true },
+    })
+
+    await audit(ctx, {
+      entity: 'Invoice', entityId: existing.id, action: 'UPDATE',
+      before: {
+        total: existing.grandTotal.toString(), taxMode: existing.taxMode,
+        date: existing.date.toISOString().slice(0, 10), lines: existing.lines.length,
+      },
+      after: {
+        total: totals.grandTotal.toFixed(2), taxMode,
+        date: date.toISOString().slice(0, 10), lines: updated.lines.length,
+      },
+    }, tx)
+
+    return updated
+  })
+}
+
+/**
  * Send: allocate the real number, guard the LUT, post to the ledger, freeze the document.
  * 🔴 This is the only place an invoice number is created.
  */

@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { requireContext } from '@/server/context'
-import { createInvoice, sendInvoice, cancelInvoice } from '@/server/services/invoicing/invoice'
+import { createInvoice, updateInvoiceDraft, sendInvoice, cancelInvoice } from '@/server/services/invoicing/invoice'
 import { AppError } from '@/server/errors'
 
 const LineSchema = z.object({
@@ -55,6 +55,40 @@ export async function createInvoiceAction(_prev: { error?: string } | null, form
   }
   revalidatePath('/invoices')
   redirect(`/invoices/${id}`)
+}
+
+/**
+ * Edit a draft — docs/70. Bound to the invoice id by the page, so the form's own
+ * `useActionState` signature is unchanged.
+ */
+export async function updateInvoiceAction(invoiceId: string, _prev: { error?: string } | null, formData: FormData) {
+  const ctx = await requireContext()
+  const parsed = Schema.safeParse(Object.fromEntries(formData))
+  if (!parsed.success) return { error: parsed.error.issues[0].message }
+
+  let lines: z.infer<typeof LineSchema>[]
+  try {
+    lines = z.array(LineSchema).min(1, 'Add at least one line').parse(JSON.parse(parsed.data.lines))
+  } catch {
+    return { error: 'Add at least one line with a description and a rate' }
+  }
+
+  try {
+    await updateInvoiceDraft(ctx, invoiceId, {
+      customerId: parsed.data.customerId,
+      projectId: parsed.data.projectId || undefined,
+      date: parsed.data.date,
+      customerRef: parsed.data.customerRef || undefined,
+      milestone: parsed.data.milestone || undefined,
+      tdsSection: (parsed.data.tdsSection || null) as '194J' | '194C' | null,
+      lines,
+    })
+  } catch (e) {
+    return { error: e instanceof AppError ? e.message : 'Could not save the draft' }
+  }
+  revalidatePath('/invoices')
+  revalidatePath(`/invoices/${invoiceId}`)
+  redirect(`/invoices/${invoiceId}`)
 }
 
 export async function sendInvoiceAction(invoiceId: string) {

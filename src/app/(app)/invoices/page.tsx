@@ -86,9 +86,15 @@ export default async function InvoicesPage() {
     const pdf: SwipeSpec['left'] = r.status === 'DRAFT' ? undefined
       : { kind: 'link', label: 'PDF', legend: 'for the invoice PDF', icon: 'Download', tone: 'info', href: `/api/invoices/${r.id}/document` }
     if (r.status === 'DRAFT') {
-      if (!maySend) return undefined
-      return { right: { kind: 'commit', label: 'Send', legend: 'to send it', icon: 'Send', tone: 'accent',
-        done: `Sending to ${r.customer.name}`, run: sendInvoiceAction.bind(null, r.id) } }
+      return {
+        right: maySend
+          ? { kind: 'commit', label: 'Send', legend: 'to send it', icon: 'Send', tone: 'accent',
+              done: `Sending to ${r.customer.name}`, run: sendInvoiceAction.bind(null, r.id) }
+          : undefined,
+        // docs/70 — the draft is editable now, so the gesture has somewhere useful to go
+        left: { kind: 'link', label: 'Edit', legend: 'to edit the draft', icon: 'Pencil',
+          tone: 'info', href: `/invoices/${r.id}/edit` },
+      }
     }
     if (r.status === 'PAID') return { left: pdf }
     return {

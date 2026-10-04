@@ -74,7 +74,8 @@ reverse charge applies.
 
 - **Vendor and project edit screens.** The services (`updateVendor`) and the audit are done;
   only the pages are missing, and they follow the customer pattern exactly.
-- **Invoice drafts cannot be edited** — a draft has to be cancelled and re-raised. The
-  numbering is safe either way, since a draft has no number.
+- ~~**Invoice drafts cannot be edited**~~ — done in `docs/70`. The numbering was safe either
+  way; the habit was not, since cancelling is what this system reserves for documents that
+  have been issued.
 - **Unmatching a bank line** still has a service and no button (carried from docs/40).
 - **Payroll runs and TDS challans** still cannot be cancelled (carried from docs/40).
