@@ -2,6 +2,10 @@ import { requireContext } from '@/server/context'
 import { prisma } from '@/server/db'
 import { CAPABILITIES, can, type Capability } from '@/server/auth/permissions'
 import { Card, PageHeader, Pill, Alert, FigureCard, FigureList } from '@/components/ui/kit'
+import { listInvitations } from '@/server/services/auth/invitation'
+import { ReverseButton } from '@/components/corrections/reverse-button'
+import { InviteForm } from './invite-form'
+import { revokeInvitationAction } from './actions'
 import type { Role } from '@prisma/client'
 
 const ROLES: Role[] = ['OWNER', 'ACCOUNTANT', 'PROJECT_MANAGER', 'EMPLOYEE', 'AUDITOR']
@@ -31,16 +35,20 @@ export default async function UsersPage() {
     orderBy: { role: 'asc' },
   })
   const live = members.filter((m) => m.user.isActive)
+  const mayInvite = can(ctx.role, 'settings.users', 'write')
+  const invitations = await listInvitations(ctx)
+  const now = new Date()
+  const openInvites = invitations.filter((i) => !i.acceptedAt && !i.revokedAt && i.expiresAt > now)
 
   return (
     <div className="max-w-3xl space-y-5">
       <PageHeader title="Users &amp; roles"
         sub="Who can see and do what. The server enforces this independently of what the menu shows." />
 
-      <Alert tone="info" title="Read-only for now">
-        Inviting and removing users is not wired up yet. Roles are enforced on every request by
-        the server, so this page describes the rules rather than being where they live &mdash;
-        hiding a menu item has never been the control.
+      <Alert tone="info" title="Roles are enforced by the server, not by this page">
+        Every request is checked against the matrix below, whoever is asking and whatever the menu
+        shows &mdash; hiding a menu item has never been the control. Removing somebody is still done by
+        deactivating their account; what this page can do is bring somebody in.
       </Alert>
 
       <Card flush className="overflow-hidden">
@@ -85,6 +93,63 @@ export default async function UsersPage() {
           ))}
         </div>
       </Card>
+
+      {mayInvite && (
+        <Card>
+          <p className="eyebrow mb-1">Invite somebody</p>
+          <p className="mb-4 text-[12px] leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+            An invitation is a credential, so it is treated like one: the link is high-entropy, only its
+            hash is kept, it lasts a week and it can be used once. Accepting it sets a password and nothing
+            else &mdash; it does not sign anybody in, because a link in an inbox that logs you in is a password
+            in an inbox.
+          </p>
+          <InviteForm />
+        </Card>
+      )}
+
+      {invitations.length > 0 && (
+        <Card flush className="overflow-hidden">
+          <div className="flex flex-wrap items-baseline justify-between gap-2 border-b px-4 py-2.5"
+               style={{ borderColor: 'var(--rule)', background: 'var(--surface)' }}>
+            <span className="eyebrow">Invitations</span>
+            <span className="text-[11.5px]" style={{ color: 'var(--text-muted)' }}>
+              {openInvites.length} open of {invitations.length}
+            </span>
+          </div>
+          <div className="divide-y" style={{ borderColor: 'var(--rule)' }}>
+            {invitations.map((i) => {
+              const state = i.acceptedAt ? 'accepted' : i.revokedAt ? 'revoked' : i.expiresAt <= now ? 'expired' : 'open'
+              return (
+                <div key={i.id} className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1.5 px-4 py-3">
+                  <div className="min-w-0">
+                    <span className="text-[13px] font-medium" style={state === 'open' ? undefined : { color: 'var(--text-muted)' }}>
+                      {i.name}
+                    </span>
+                    <span className="block truncate text-[11.5px]" style={{ color: 'var(--text-muted)' }}>{i.email}</span>
+                    <span className="block text-[11.5px]" style={{ color: 'var(--text-muted)' }}>
+                      {state === 'accepted' ? `accepted ${i.acceptedAt!.toISOString().slice(0, 10)}`
+                        : state === 'revoked' ? `revoked — ${i.revokeReason}`
+                        : state === 'expired' ? `expired ${i.expiresAt.toISOString().slice(0, 10)}`
+                        : `good until ${i.expiresAt.toISOString().slice(0, 10)}`}
+                    </span>
+                  </div>
+                  <div className="flex w-full shrink-0 flex-wrap items-center justify-end gap-2 sm:w-auto">
+                    <Pill tone={state === 'open' ? 'accent' : state === 'accepted' ? 'good' : 'neutral'}>
+                      {i.role.replace('_', ' ').toLowerCase()}
+                    </Pill>
+                    {/* 🔴 The link is not here, and cannot be. Only its hash was kept. */}
+                    {state === 'open' && mayInvite && (
+                      <ReverseButton action={revokeInvitationAction} idName="invitationId" id={i.id}
+                        label="revoke" confirmLabel="Revoke it" busyLabel="Revoking…"
+                        prompt={`Why is the invitation to ${i.email} being withdrawn?`} />
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </Card>
+      )}
 
       <Card flush className="overflow-hidden">
         <div className="border-b px-4 py-2.5" style={{ borderColor: 'var(--rule)', background: 'var(--surface)' }}>

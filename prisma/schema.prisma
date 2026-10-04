@@ -61,6 +61,7 @@ model Company {
   gstFilingFrequency GstFilingFrequency @default(QUARTERLY)
 
   bankAccounts    CompanyBankAccount[]
+  invitations     Invitation[]
   luts            CompanyLut[]
   financialYears  FinancialYear[]
   series          DocumentSeries[]
@@ -229,6 +230,36 @@ model User {
   pushSubs      PushSubscription[]
   refreshTokens RefreshToken[]
   createdAt     DateTime           @default(now())
+}
+
+/// docs/73 · An invitation to join this company.
+///
+/// 🔴 An invitation is a CREDENTIAL, and is held like one. The token is high-entropy random
+/// bytes; only its sha256 is stored, so a database leak cannot be replayed and nobody — not
+/// even the owner who sent it — can read it back afterwards. It is shown once, at creation.
+///
+/// 🔴 Accepting it does not create a session. A link in an email that signs you in IS a
+/// password: forwarded, logged by a proxy, and sitting in a mailbox for years. Accepting sets
+/// a password and ends; the person then signs in like anybody else.
+model Invitation {
+  id          String    @id @default(cuid())
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id])
+  email       String
+  name        String
+  /// fixed by the inviter, never chosen by the invitee
+  role        Role
+  /// sha256 of the opaque token — the plaintext is never stored
+  tokenHash   String    @unique
+  invitedById String
+  expiresAt   DateTime
+  acceptedAt     DateTime?
+  acceptedUserId String?
+  revokedAt      DateTime?
+  revokeReason   String?
+  createdAt   DateTime  @default(now())
+
+  @@index([companyId, email])
 }
 
 /// Refresh tokens are stored hashed and rotated on every use.

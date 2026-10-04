@@ -77,8 +77,9 @@ payroll, projects and bank reconciliation on a double-entry ledger.
 | [70 · Draft editing](docs/70-draft-editing.md) | Correcting a draft instead of cancelling it, and the financial year that moves with the date |
 | [71 · Advance tax](docs/71-advance-tax.md) | s.211 instalments, the s.234C proviso, and a liability the books cannot derive |
 | [72 · ROC filings](docs/72-roc-filings.md) | The AGM date every company-law deadline runs from, and which year it is about |
+| [73 · Invitations](docs/73-invitations.md) | Inviting a user is creating a credential, and is held like one |
 
-**961 tests passing** · typecheck and lint clean · production build passes.
+**983 tests passing** · typecheck and lint clean · production build passes.
 
 ```bash
 cp .env.example .env     # set DATABASE_URL and JWT_SECRET

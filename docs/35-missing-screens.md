@@ -91,7 +91,8 @@ because its invoice was never tagged to it. Both fixed; Nuvé now reads ₹2,00,
 
 ## 8. Still open
 
-- **Editing** company details and inviting users (§6) — deliberately not wired.
+- ~~**Editing** company details and inviting users (§6) — deliberately not wired.~~ Company
+  details were done in `docs/67`, invitations in `docs/73`.
 - **Project status changes** have a server action but no UI control yet.
 - **Service items** still have no CRUD screen; the catalogue is seeded and used by the
   invoice form.

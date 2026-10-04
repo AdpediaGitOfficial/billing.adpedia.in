@@ -1,6 +1,6 @@
 # 00 · Handover — read this first
 
-Adpedia Films Private Limited's internal finance ERP. **961 tests** (404 unit + 557
+Adpedia Films Private Limited's internal finance ERP. **983 tests** (411 unit + 572
 integration), typecheck and lint clean, production build passes.
 
 Everything below is either hard-won or non-obvious. The per-module detail is in `docs/20`
@@ -232,6 +232,17 @@ and the bill was typed `EX-300`; a literal comparison reports the whole purchase
 unavailable credit. Amount is a fallback only — two invoices from one supplier for one amount
 in one month is a retainer, and matching on amount crosses them over (`docs/62 §3`).
 
+🔴 **An invitation is a credential.** 32 random bytes, only the sha256 stored, not in the audit
+log, single-use, expiring — and accepting it creates NO session, because a link in an inbox that
+signs you in is a password in an inbox. The public half gives one refusal for unknown, expired,
+revoked and already-accepted alike, or it is an oracle; the inviter's half refuses by name,
+because they can already read the list (`docs/73`).
+
+🔴 **The middleware matcher is where a route silently disappears.** docs/30 §8 found the service
+worker being redirected to /login, killing the offline queue, and left nothing behind to catch
+it again. `tests/public-routes.test.ts` now checks both halves — whether the middleware RUNS for
+a path, and whether it redirects (`docs/73 §5`).
+
 🔴 **An annual obligation is about the year that has ENDED.** The AGM for FY 2026-27 is held
 in 2027; what is live in October 2026 is FY 2025-26's, which was due five days ago. Keying it
 off `currentFinancialYear` shows a date a year away and omits the one already late — docs/49
@@ -401,9 +412,8 @@ job is no longer to find a class of gap, it is to close the remaining ones and t
 
 ### A screen or a field each
 
-- **User invitations** — still unwired (`docs/35 §6`). Company details and the service
-  catalogue were done in `docs/67`; invitations are a module, not a field, because inviting a
-  user is creating a credential and wants an email path and an expiry.
+- **Removing a user, and changing a role** — both are one field and the same guard, and
+  neither has a screen (`docs/73 §7`)
 - **ITR and GSTR-9 on the calendar read the current financial year**, so they show next
   year's dates rather than the ones falling due now (`docs/72 §2`). Worth fixing together with
   a way to mark them filed, which is what `docs/43 §5` has wanted all along
