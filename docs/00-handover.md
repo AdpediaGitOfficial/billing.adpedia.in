@@ -428,14 +428,17 @@ binding appearing more than once — `docs/48 §3`.
 
 ## 7. The largest remaining gaps
 
-🔴 Rewritten on 04 Oct 2026, after module 68 — it drifts every time an item is struck off and
+🔴 Rewritten on 05 Oct 2026, after module 76 — it drifts every time an item is struck off and
 the numbering is edited rather than rewritten. If you strike one off, **rewrite this section**,
-do not renumber it.
+do not renumber it. And strike one off the moment it is done: `docs/76 §3` found a note that had
+been stale since `docs/44`, standing as an invitation to build something that already existed.
 
-**Sixty-eight modules in, nothing module-sized is left.** The mobile tail was the last one, and
-it is done: the gestures are wired, the budget is measured (`scripts/perf.mts`), and what
-measuring it found is in `docs/68`. Everything below is a screen or a field. The next session's
-job is no longer to find a class of gap, it is to close the remaining ones and then stop.
+**Seventy-six modules in, three things are left and none of them is a module.** Nine were built
+on 04–05 Oct (`docs/68`–`docs/76`); what they mostly found was that the gaps worth having were
+in what the existing code *claimed*, not in what it was missing — a mock IRN that printed like a
+real one, a refund voucher filed under the advance's identity, an annual obligation computed for
+the wrong year, a budget nobody had measured. The next session's job is to close what is below
+and then stop building.
 
 ### A screen or a field each
 
