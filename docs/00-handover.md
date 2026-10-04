@@ -181,6 +181,12 @@ newest open row and jumped to it. Use `currentFinancialYear()`.
 shipped one button; the other three were unreachable for nine modules. The survey that finds
 this is a script, not a memory — `docs/49 §1`.
 
+🔴 **A credit note has two deadlines and a debit note has one.** s.37(3) says when an
+amendment may be REPORTED (30 Nov following the note's financial year); s.34(2) says whether
+the relief is available at all (30 Nov following the INVOICE's). They come apart whenever a
+note is issued in a later year than its invoice, and increasing a credit note past s.34(2) is
+refused however open the reporting window is (`docs/66 §1`).
+
 🔴 **A refund of an advance is not a credit note.** s.34 credits an invoice; a refunded
 advance has none. s.31(3)(e) and rule 51 give it its own document, carrying the number and
 date of the receipt voucher it refunds (`docs/65 §1`).
@@ -290,9 +296,7 @@ docs/51 had already closed. Grouped by the module each would be, largest value f
 1. **The rest of the mobile tail** (`docs/30 §9`): swipe gestures are unwired and the
    performance budget from `docs/13` has not been measured. Receipt upload and push
    scheduling are done (`docs/60`).
-2. **Note amendments (table 9C)** — the same shape as `docs/52`'s 9A, against a credit or
-   debit note rather than an invoice.
-3. **Service-item CRUD** — see the smaller list below; this is the largest of them.
+2. **Service-item CRUD** — see the smaller list below; this is the largest of them.
 
 ### Smaller, and mostly one screen each
 

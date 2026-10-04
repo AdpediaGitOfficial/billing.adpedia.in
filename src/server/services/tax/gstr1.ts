@@ -1,5 +1,6 @@
 import { prisma } from '@/server/db'
 import { refundsInPeriod } from '@/server/services/sales/refund'
+import { noteAmendmentsForPeriod } from './gst-note-amendment'
 import { Decimal, ZERO } from '@/lib/money'
 import { amendmentsForPeriod } from './gst-amendment'
 import { advanceTaxPosted } from '@/server/services/sales/advance'
@@ -80,6 +81,11 @@ export interface Gstr1 {
    * 🔴 The pair is what stops the same supply being taxed twice: 11A declares the tax when
    * the money arrives, 11B takes it back when the invoice declares its own.
    */
+  /**
+   * docs/66 — table 9C: amendments to credit and debit notes already filed. The mirror of
+   * 9A, and reported separately because the portal keeps them in separate tables.
+   */
+  amendedNotes: { number: string; noteDate: Date; noteType: string; againstInvoice: string | null; originalPeriod: string; gstin: string | null; placeOfSupply: string | null; original: { taxableValue: Decimal; cgst: Decimal; sgst: Decimal; igst: Decimal }; revised: { taxableValue: Decimal; cgst: Decimal; sgst: Decimal; igst: Decimal } }[]
   advancesReceived: { number: string; date: Date; customerName: string; placeOfSupply: string; rate: number; grossAdvance: Decimal; taxableValue: Decimal; cgst: Decimal; sgst: Decimal; igst: Decimal }[]
   advancesAdjusted: { number: string; date: Date; customerName: string; againstInvoice: string; amount: Decimal; cgst: Decimal; sgst: Decimal; igst: Decimal }[]
   /**
@@ -277,6 +283,36 @@ export async function buildGstr1(companyId: string, from: Date, to: Date, label:
     )
   }
 
+  // ── Table 9C: amendments to notes filed earlier ─────────────────────────────
+  const noteAmendments = await noteAmendmentsForPeriod(companyId, from, to)
+  const amendedNotes = noteAmendments.map((a) => ({
+    number: a.note.number,
+    noteDate: a.note.date,
+    noteType: a.note.noteType,
+    againstInvoice: a.note.invoice?.number ?? null,
+    originalPeriod: a.originalPeriod,
+    gstin: a.note.invoice?.billToGstin ?? null,
+    placeOfSupply: a.note.invoice?.placeOfSupply ?? null,
+    original: {
+      taxableValue: new Decimal(a.originalTaxableValue.toString()),
+      cgst: new Decimal(a.originalCgst.toString()),
+      sgst: new Decimal(a.originalSgst.toString()),
+      igst: new Decimal(a.originalIgst.toString()),
+    },
+    revised: {
+      taxableValue: new Decimal(a.revisedTaxableValue.toString()),
+      cgst: new Decimal(a.revisedCgst.toString()),
+      sgst: new Decimal(a.revisedSgst.toString()),
+      igst: new Decimal(a.revisedIgst.toString()),
+    },
+  }))
+  if (amendedNotes.length > 0) {
+    warnings.push(
+      `${amendedNotes.length} note amendment${amendedNotes.length === 1 ? '' : 's'} in table 9C. Each quotes the ` +
+      'original note number and date and supersedes what was filed — the original stays as it was reported.',
+    )
+  }
+
   // ── Table 9A: amendments to invoices filed earlier ──────────────────────────
   const amendments = await amendmentsForPeriod(companyId, from, to)
   const amendedInvoices = amendments.map((a) => ({
@@ -343,6 +379,7 @@ export async function buildGstr1(companyId: string, from: Date, to: Date, label:
     period: { label, from, to },
     gstin: company.gstin ?? '',
     b2b, b2cs: [...b2csMap.values()], exports, creditNotes, amendedInvoices,
+    amendedNotes,
     advancesReceived, advancesAdjusted, advancesRefunded,
     hsn: [...hsnMap.values()].sort((a, b) => a.sac.localeCompare(b.sac)),
     docs, totals, warnings,

@@ -631,6 +631,8 @@ model CreditNote {
   /// adds up — taxableValue + taxNotAdjusted = grandTotal — and so the cost is visible.
   taxNotAdjusted  Decimal   @default(0) @db.Decimal(18, 2)
   pdfUrl          String?
+  /// docs/66 — amendments reported against this note in table 9C
+  amendments      GstNoteAmendment[]
 
   @@unique([companyId, number])
 }
@@ -1914,4 +1916,44 @@ model RefundVoucher {
 
   @@unique([companyId, number])
   @@index([companyId, receiptId])
+}
+
+
+/// docs/66 · An amendment to a credit or debit note already reported in a filed GSTR-1
+/// (table 9C).
+///
+/// 🔴 The mirror of `GstAmendment`, and deliberately a separate table rather than a nullable
+/// column on it. 9A and 9C are different tables of the return, the deadlines that govern them
+/// are different statutes, and a model that served both would need every rule written as
+/// "unless it is a note" — which is how the rule that matters gets lost.
+model GstNoteAmendment {
+  id              String     @id @default(cuid())
+  companyId       String
+  financialYearId String
+  noteId          String
+  note            CreditNote @relation(fields: [noteId], references: [id])
+  /// the period the original note was filed in — what table 9C quotes
+  originalPeriod  String
+  /// the period this amendment is reported in
+  periodLabel     String
+  date            DateTime
+  reason          String
+
+  /// revised particulars, as they should have been reported
+  revisedTaxableValue Decimal @db.Decimal(18, 2)
+  revisedCgst         Decimal @default(0) @db.Decimal(18, 2)
+  revisedSgst         Decimal @default(0) @db.Decimal(18, 2)
+  revisedIgst         Decimal @default(0) @db.Decimal(18, 2)
+  revisedGrandTotal   Decimal @db.Decimal(18, 2)
+
+  /// what was reported before this, kept so the pair reads without re-deriving it
+  originalTaxableValue Decimal @db.Decimal(18, 2)
+  originalCgst         Decimal @default(0) @db.Decimal(18, 2)
+  originalSgst         Decimal @default(0) @db.Decimal(18, 2)
+  originalIgst         Decimal @default(0) @db.Decimal(18, 2)
+
+  createdAt DateTime @default(now())
+
+  @@index([companyId, periodLabel])
+  @@index([companyId, noteId])
 }

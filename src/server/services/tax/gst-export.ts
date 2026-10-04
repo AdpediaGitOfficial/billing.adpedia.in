@@ -61,6 +61,23 @@ export function gstr1ToCsv(r: Gstr1): string {
     }
   }
 
+  // docs/66 — 9C sits next to 9A, because the CA reconciles the pair together
+  if (r.amendedNotes.length > 0) {
+    section('cdnra — Amended credit/debit notes (table 9C)')
+    out.push(row([
+      'Note No.', 'Note Date', 'Type', 'Against Invoice', 'Originally Filed In', 'Recipient GSTIN', 'POS',
+      'Original Taxable', 'Original CGST', 'Original SGST', 'Original IGST',
+      'Revised Taxable', 'Revised CGST', 'Revised SGST', 'Revised IGST',
+    ]))
+    for (const a of r.amendedNotes) {
+      out.push(row([
+        a.number, a.noteDate, a.noteType, a.againstInvoice ?? '', a.originalPeriod, a.gstin ?? '', a.placeOfSupply ?? '',
+        d2(a.original.taxableValue), d2(a.original.cgst), d2(a.original.sgst), d2(a.original.igst),
+        d2(a.revised.taxableValue), d2(a.revised.cgst), d2(a.revised.sgst), d2(a.revised.igst),
+      ]))
+    }
+  }
+
   if (r.advancesReceived.length > 0) {
     section('at — Advances received on which tax is payable (table 11A)')
     out.push(row(['Voucher No.', 'Date', 'Customer', 'Place of Supply', 'Rate', 'Gross Advance', 'Taxable Value', 'CGST', 'SGST', 'IGST']))

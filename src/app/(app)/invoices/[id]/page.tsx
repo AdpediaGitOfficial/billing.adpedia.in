@@ -220,8 +220,13 @@ export default async function InvoiceDetail({ params }: { params: Promise<{ id: 
                       </a>
                       {c.cancelledAt
                         ? <span className="text-[11.5px]" style={{ color: 'var(--text-muted)' }}>cancelled</span>
-                        : <ReverseButton action={cancelCreditNoteAction} idName="noteId" id={c.id}
-                            prompt={`Why is ${c.number} being reversed?`} />}
+                        : <>
+                            {/* docs/66 — once the note has been filed it is amended, not edited */}
+                            <Link href={`/notes/${c.id}/amend`}
+                              className="text-[11.5px] underline" style={{ color: 'var(--text-muted)' }}>amend</Link>
+                            <ReverseButton action={cancelCreditNoteAction} idName="noteId" id={c.id}
+                              prompt={`Why is ${c.number} being reversed?`} />
+                          </>}
                     </span>
                   </td>
                 </tr>
