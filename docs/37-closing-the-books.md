@@ -98,5 +98,6 @@ design out.
   settled that it must not: every report reads cumulatively, so an entry would double every
   balance-sheet figure, silently. What `docs/74` did build is the opening position of the
   FIRST year, which is the one thing here that cannot be derived.
-- **GST return filing does not advance the lock automatically** — the comment in
-  `period.ts` says it should, and that wiring is not in yet.
+- ~~**GST return filing does not advance the lock automatically**~~ — it has since `docs/44`,
+  inside `recordGstFiling`'s own transaction and only ever forward, with a test. This note went
+  stale when that module landed; `docs/76 §3` struck it off.

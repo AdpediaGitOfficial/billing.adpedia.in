@@ -267,14 +267,6 @@ export async function complianceCalendar(ctx: RequestContext, now = new Date()):
       })
     }
 
-    push({
-      id: 'gstr9',
-      obligation: 'GSTR9',
-      title: `File the GST annual return for FY ${fy.label}`,
-      detail: 'GSTR-9, reconciling the year against what was filed',
-      dueOn: gstr9Due(fyStartYear),
-      href: '/tax/gst',
-    })
   }
 
   /* ── profession tax ───────────────────────────────────────────────────────── */
@@ -438,11 +430,57 @@ export async function complianceCalendar(ctx: RequestContext, now = new Date()):
     }
   }
 
+  /* ── the two annual tax returns ───────────────────────────────────────────── */
+
+  /**
+   * 🔴 About the year that has ENDED, like the registrar's forms — docs/76, closing what
+   * docs/72 §2 wrote down and left.
+   *
+   * Both were keyed off `currentFinancialYear`, so in October 2026 the calendar showed the ITR
+   * for FY 2026-27 due on 31 October 2027 — and said nothing about FY 2025-26's, which was due
+   * that same week. The item that was present was the one that did not matter.
+   *
+   * 🔴 And both need a fact that clears them, or they nag for ever once the date passes, which
+   * is what docs/43 §1 says destroys a calendar. Neither portal is one this system talks to, so
+   * the filing is recorded by hand beside the ROC dates.
+   */
+  if (reported) {
+    if (company.gstin) {
+      push({
+        id: 'gstr9',
+        obligation: 'GSTR9',
+        title: `File the GST annual return for FY ${reported.label}`,
+        detail: reported.gstr9FiledOn
+          ? `Filed on ${reported.gstr9FiledOn.toISOString().slice(0, 10)}${reported.gstr9Arn ? ` · ARN ${reported.gstr9Arn}` : ''}`
+          : 'GSTR-9, reconciling the year against what was filed',
+        dueOn: gstr9Due(reported.startsOn.getUTCFullYear()),
+        href: '/tax/gst',
+        done: Boolean(reported.gstr9FiledOn),
+      })
+    }
+
+    push({
+      id: 'itr',
+      obligation: 'ITR',
+      title: `File the company income tax return for FY ${reported.label}`,
+      detail: reported.itrFiledOn
+        ? `Filed on ${reported.itrFiledOn.toISOString().slice(0, 10)}${reported.itrAckNo ? ` · ack ${reported.itrAckNo}` : ''}`
+        : 'With the tax audit report, where one is required',
+      dueOn: itrDue(reported.startsOn.getUTCFullYear()),
+      href: '/settings/company',
+      done: Boolean(reported.itrFiledOn),
+    })
+  }
+
+  /**
+   * The CURRENT year's two, kept as scheduled items so the year ahead is visible. They cannot
+   * be filed yet and are never overdue, because their dates are after the year has ended.
+   */
   push({
-    id: 'itr',
+    id: 'itr-current',
     obligation: 'ITR',
     title: `File the company income tax return for FY ${fy.label}`,
-    detail: 'With the tax audit report, where one is required',
+    detail: 'Not until the year has ended — shown so the date is on the calendar',
     dueOn: itrDue(fyStartYear),
     href: '/reports/pnl',
   })

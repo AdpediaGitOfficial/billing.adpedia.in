@@ -5,6 +5,7 @@ import { Card, PageHeader, Pill, Alert } from '@/components/ui/kit'
 import { CompanyEditForm } from './edit-form'
 import { RocForm } from './roc-form'
 import { rocYears } from '@/server/services/compliance/roc'
+import { gstr9Due, itrDue } from '@/server/services/compliance/deadlines'
 
 interface Addr { line1?: string; line2?: string; city?: string; state?: string; pincode?: string; country?: string }
 
@@ -142,9 +143,11 @@ export default async function CompanySettingsPage() {
 
       {roc.length > 0 && (
         <Card flush className="overflow-hidden">
-          <Section title="Registrar of Companies" />
+          <Section title="Annual filings" />
           <p className="px-4 pt-3 text-[12px] leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-            AOC-4 and MGT-7 run from the date the AGM was <em>held</em> — thirty days and sixty under
+            Everything about a year that has <em>ended</em>, and none of it on a portal this system talks to —
+            so each is recorded here, because an annual item with nothing able to clear it nags for ever once
+            its date passes. AOC-4 and MGT-7 run from the date the AGM was <em>held</em> — thirty days and sixty under
             s.137(1) and s.92(4) — not from the 30 September it could have been held by. A meeting held
             early makes both forms due early. Late costs ₹100 a day, per form, with no upper limit since
             the 2018 amendment to s.403.
@@ -161,6 +164,12 @@ export default async function CompanySettingsPage() {
                   agmSource: y.agmSource ?? '',
                   aoc4FiledOn: iso(y.aoc4FiledOn),
                   mgt7FiledOn: iso(y.mgt7FiledOn),
+                  gstr9FiledOn: iso(y.gstr9FiledOn),
+                  gstr9Arn: y.gstr9Arn ?? '',
+                  gstr9Due: iso(gstr9Due(y.startsOn.getUTCFullYear())),
+                  itrFiledOn: iso(y.itrFiledOn),
+                  itrAckNo: y.itrAckNo ?? '',
+                  itrDue: iso(itrDue(y.startsOn.getUTCFullYear())),
                 }} />
               </div>
             ))}

@@ -55,6 +55,10 @@ export async function recordRocDatesAction(_prev: { error?: string; ok?: string 
       agmSource: String(form.get('agmSource') ?? ''),
       aoc4FiledOn: String(form.get('aoc4FiledOn') ?? '') || null,
       mgt7FiledOn: String(form.get('mgt7FiledOn') ?? '') || null,
+      gstr9FiledOn: String(form.get('gstr9FiledOn') ?? '') || null,
+      gstr9Arn: String(form.get('gstr9Arn') ?? ''),
+      itrFiledOn: String(form.get('itrFiledOn') ?? '') || null,
+      itrAckNo: String(form.get('itrAckNo') ?? ''),
     })
   } catch (e) {
     return { error: e instanceof AppError ? e.message : 'Could not save those dates' }

@@ -171,6 +171,13 @@ model FinancialYear {
   /// its date passes, and a calendar that nags is one people stop reading (docs/43 §1).
   aoc4FiledOn DateTime?
   mgt7FiledOn DateTime?
+  /// docs/76 · the two annual TAX returns, for the same reason and in the same place. Both are
+  /// filed on a government portal this system does not talk to, and both are about a year that
+  /// has ENDED — which is the question docs/72 §2 left open.
+  gstr9FiledOn DateTime?
+  gstr9Arn     String?
+  itrFiledOn   DateTime?
+  itrAckNo     String?
 
   journalEntries JournalEntry[]
   invoices       Invoice[]

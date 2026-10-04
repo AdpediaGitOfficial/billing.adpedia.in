@@ -83,6 +83,7 @@ would make it wallpaper.
 - ~~**ROC filings** (AOC-4, MGT-7) are company-law obligations keyed to the AGM date, which the
   system does not hold.~~ Done in `docs/72`, which also found that the calendar was asking
   about the wrong financial year.
-- **Nothing is marked done by hand.** An item clears when the data says so — a challan linked,
-  a LUT on file. A return that was filed on the portal has no corresponding fact in the
-  system, so GSTR-1 and GSTR-3B never read as done.
+- ~~**Nothing is marked done by hand.**~~ GSTR-1 and GSTR-3B were given filing records in
+  `docs/44`; the four ANNUAL filings — AOC-4, MGT-7, GSTR-9 and the ITR — in `docs/72` and
+  `docs/76`. An item still clears from the data wherever the data can say so; what is recorded
+  by hand is only what happened on a portal this system does not talk to.

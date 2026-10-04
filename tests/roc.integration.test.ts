@@ -142,3 +142,53 @@ describe('cancelling an advance-tax payment', () => {
       .rejects.toThrow(/already cancelled/)
   })
 })
+
+/**
+ * docs/76 — the two annual TAX returns, closing what docs/72 §2 wrote down and left.
+ *
+ * 🔴 Both were keyed off the CURRENT financial year, so in October 2026 the calendar showed the
+ * ITR for FY 2026-27 due in October 2027 and said nothing about FY 2025-26's, which was due that
+ * same week. The item that was present was the one that did not matter.
+ */
+describe('🔴 the annual tax returns', () => {
+  it('are about the year that has ended, and the current year is shown as scheduled', async () => {
+    const items = await complianceCalendar(ctx, new Date('2026-10-05'))
+
+    const itr = item(items, 'itr')
+    expect(itr.title).toContain('2025-26')
+    expect(itr.dueOn.toISOString().slice(0, 10)).toBe('2026-10-31')
+    // 26 days away, so outside the 14-day "soon" window — due, not imminent
+    expect(itr.state).toBe('DUE')
+
+    const gstr9 = item(items, 'gstr9')
+    expect(gstr9.title).toContain('2025-26')
+    expect(gstr9.dueOn.toISOString().slice(0, 10)).toBe('2026-12-31')
+
+    // and the year we are in is on the calendar too, as a date rather than a task
+    const ahead = item(items, 'itr-current')
+    expect(ahead.title).toContain('2026-27')
+    expect(ahead.dueOn.toISOString().slice(0, 10)).toBe('2027-10-31')
+    expect(ahead.state).not.toBe('OVERDUE')
+  })
+
+  /** 🔴 Without a fact that clears them they nag for ever — docs/43 §1's whole premise. */
+  it('clear when the filing is recorded, with its reference', async () => {
+    await recordRocDates(ctx, {
+      financialYearId: fy2526,
+      itrFiledOn: '2026-10-20', itrAckNo: '123456789012345',
+      gstr9FiledOn: '2026-12-15', gstr9Arn: 'aa3206260012345',
+    })
+    const items = await complianceCalendar(ctx, new Date('2027-01-05'))
+
+    expect(item(items, 'itr').state).toBe('DONE')
+    expect(item(items, 'itr').detail).toMatch(/ack 123456789012345/)
+    expect(item(items, 'gstr9').state).toBe('DONE')
+    // the ARN is normalised the way every other reference on this system is
+    expect(item(items, 'gstr9').detail).toMatch(/ARN AA3206260012345/)
+  })
+
+  it('refuses a filing dated before the year it reports on ended', async () => {
+    await expect(recordRocDates(ctx, { financialYearId: fy2526, itrFiledOn: '2026-01-01' }))
+      .rejects.toThrow(/did not exist yet/)
+  })
+})

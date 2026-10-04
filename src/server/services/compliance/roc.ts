@@ -19,6 +19,11 @@ export async function recordRocDates(ctx: RequestContext, input: {
   agmSource?: string
   aoc4FiledOn?: string | null
   mgt7FiledOn?: string | null
+  /** docs/76 — the two annual tax returns, recorded in the same place for the same reason */
+  gstr9FiledOn?: string | null
+  gstr9Arn?: string
+  itrFiledOn?: string | null
+  itrAckNo?: string
 }) {
   assertCan(ctx.role, 'settings.company', 'write')
 
@@ -49,6 +54,8 @@ export async function recordRocDates(ctx: RequestContext, input: {
   const agmHeldOn = date(input.agmHeldOn, 'The AGM date')
   const aoc4FiledOn = date(input.aoc4FiledOn, 'The AOC-4 filing date')
   const mgt7FiledOn = date(input.mgt7FiledOn, 'The MGT-7 filing date')
+  const gstr9FiledOn = date(input.gstr9FiledOn, 'The GSTR-9 filing date')
+  const itrFiledOn = date(input.itrFiledOn, 'The ITR filing date')
 
   /**
    * 🔴 A form cannot be filed before the meeting it reports. s.137(1) and s.92(4) both run
@@ -72,6 +79,10 @@ export async function recordRocDates(ctx: RequestContext, input: {
       ...(input.agmSource !== undefined ? { agmSource: input.agmSource.trim() || null } : {}),
       ...(aoc4FiledOn !== undefined ? { aoc4FiledOn } : {}),
       ...(mgt7FiledOn !== undefined ? { mgt7FiledOn } : {}),
+      ...(gstr9FiledOn !== undefined ? { gstr9FiledOn } : {}),
+      ...(input.gstr9Arn !== undefined ? { gstr9Arn: input.gstr9Arn.trim().toUpperCase() || null } : {}),
+      ...(itrFiledOn !== undefined ? { itrFiledOn } : {}),
+      ...(input.itrAckNo !== undefined ? { itrAckNo: input.itrAckNo.trim() || null } : {}),
     },
   })
 
@@ -81,18 +92,22 @@ export async function recordRocDates(ctx: RequestContext, input: {
       agmHeldOn: fy.agmHeldOn?.toISOString().slice(0, 10) ?? null,
       aoc4FiledOn: fy.aoc4FiledOn?.toISOString().slice(0, 10) ?? null,
       mgt7FiledOn: fy.mgt7FiledOn?.toISOString().slice(0, 10) ?? null,
+      gstr9FiledOn: fy.gstr9FiledOn?.toISOString().slice(0, 10) ?? null,
+      itrFiledOn: fy.itrFiledOn?.toISOString().slice(0, 10) ?? null,
     },
     after: {
       agmHeldOn: updated.agmHeldOn?.toISOString().slice(0, 10) ?? null,
       aoc4FiledOn: updated.aoc4FiledOn?.toISOString().slice(0, 10) ?? null,
       mgt7FiledOn: updated.mgt7FiledOn?.toISOString().slice(0, 10) ?? null,
+      gstr9FiledOn: updated.gstr9FiledOn?.toISOString().slice(0, 10) ?? null,
+      itrFiledOn: updated.itrFiledOn?.toISOString().slice(0, 10) ?? null,
     },
   })
 
   return updated
 }
 
-/** The years a registrar's filing could be outstanding for: every year that has ended. */
+/** The years an annual filing could be outstanding for: every year that has ended. */
 export async function rocYears(ctx: RequestContext, now = new Date()) {
   assertCan(ctx.role, 'settings.company', 'read')
   const years = await prisma.financialYear.findMany({
