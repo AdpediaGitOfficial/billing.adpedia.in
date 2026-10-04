@@ -135,10 +135,62 @@ describe('🔴 the electronic credit ledger is not the same quantity', () => {
     expect(r.notYetClaimed.igst.toFixed(2)).toBe('9000.00')
   })
 
-  it('names the reverse-charge account as the reason the head-wise lines are approximate', async () => {
+  it('🔴 does not hedge over reverse-charge credit that is IGST by construction', async () => {
+    /**
+     * docs/63 — this used to say the head-wise lines were approximate whenever 1240 held
+     * anything, which was every month a foreign supplier billed. The only reverse charge
+     * this system can produce is an import of services, which is IGST, so folding 1240 into
+     * the IGST head is exact and the caveat was telling the owner not to trust a figure
+     * they could trust.
+     */
+    // 🔴 reverse charge is DERIVED — `deriveRcm` sets it from a non-Indian country with no
+    // GSTIN. It cannot be switched on by hand, which is part of why the head is knowable.
+    const vendor = await createVendor(ctx, {
+      // no TDS section: a deduction here would feed the challan fixtures further down and
+      // change which challans those tests are reasoning about
+      name: 'DigitalOcean LLC', vendorType: 'SUPPLIER', country: 'US',
+    })
+    expect(vendor.rcmApplicable).toBe(true)
+    await approveBill(ctx, (await createBill(ctx, {
+      vendorId: vendor.id, billNumber: 'DO/771', billDate: '2026-08-05',
+      lines: [{ description: 'Droplets', sacCode: '998315', quantity: '1', rate: '20000', expenseAccountCode: '5310' }],
+    })).id)
+
     const r = await reconcileLedger(ctx, 'GST_CREDIT_LEDGER')
-    // nothing has posted to 1240 in this fixture, so the comparison is exact
-    expect(r.approximate).toBeNull()
+    const held = await prisma.account.findFirstOrThrow({ where: { companyId, code: '1240' } })
+    const rcm = await prisma.journalLine.aggregate({
+      where: { accountId: held.id }, _sum: { debit: true },
+    })
+    expect(Number(rcm._sum.debit ?? 0)).toBeGreaterThan(0)   // 1240 really does hold something
+    expect(r.approximate).toBeNull()                          // and it is still exact
+  })
+
+  it('🔴 brings the caveat back by itself if anything else ever lands in 1240', async () => {
+    // a domestic reverse charge under s.9(3) is CGST + SGST, and would break the invariant
+    // silently. The check reads the account's own entries rather than trusting the rule.
+    const account = await prisma.account.findFirstOrThrow({ where: { companyId, code: '1240' } })
+    const bank = await prisma.account.findFirstOrThrow({ where: { companyId, code: '1010' } })
+    const fy = await prisma.financialYear.findFirstOrThrow({ where: { companyId, label: '2026-27' } })
+    const entry = await prisma.journalEntry.create({
+      data: {
+        companyId, financialYearId: fy.id, entryNo: 999_001, date: new Date('2026-08-06'),
+        narration: 'A reverse charge that is not an import', sourceType: 'MANUAL',
+        lines: {
+          create: [
+            { accountId: account.id, debit: '900', credit: '0' },
+            { accountId: bank.id, debit: '0', credit: '900' },
+          ],
+        },
+      },
+    })
+    const r = await reconcileLedger(ctx, 'GST_CREDIT_LEDGER')
+    expect(r.approximate).toMatch(/not import self-invoices/)
+    expect(r.approximate).toMatch(/CGST \+ SGST/)
+
+    // 🔴 and it stays. The first version of this test tidied up after itself and the database
+    // refused — the append-only trigger does not allow a journal entry to be deleted, which
+    // is the rule this whole system is built on. The probe entry is left where it is.
+    expect(entry.id).toBeTruthy()
   })
 })
 

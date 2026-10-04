@@ -474,9 +474,20 @@ export async function reconcileLedger(
         other: balances.get(CASH_LEDGER_ACCOUNTS.other)!,
       }
     : {
-        // 🔴 RCM credit is a separate ACCOUNT here (1240) and is NOT a separate head on the
-        // portal: it is credited to IGST or to CGST+SGST according to the supply. One
-        // account cannot say which, so it is folded into IGST and §approximate says so.
+        /**
+         * 🔴 Reverse-charge credit is a separate ACCOUNT here (1240) and is not a separate
+         * head on the portal, so it is folded into IGST — and docs/63 established that this
+         * is EXACT rather than approximate.
+         *
+         * Every reverse charge this system can produce is an import of services: the only
+         * trigger is `vendor.rcmApplicable`, which `docs/04 §2` confirmed with the client
+         * means a foreign supplier with no Indian GSTIN. The liability is modelled as a
+         * single `rcmIgst` field, `postRcmSelfInvoice` posts one IGST line, and the chart of
+         * accounts has called 1240 "Input IGST — RCM" since it was seeded.
+         *
+         * The hedge this replaces told the owner, every time they opened the screen, that
+         * their head-wise comparison could not be trusted. It could.
+         */
         igst: balances.get(GST_ACCOUNTS.inputIgst)!.plus(balances.get(GST_ACCOUNTS.rcmItc)!),
         cgst: balances.get(GST_ACCOUNTS.inputCgst)!,
         sgst: balances.get(GST_ACCOUNTS.inputSgst)!,
@@ -550,10 +561,28 @@ export async function reconcileLedger(
     difference: sumOf((h) => h.difference),
   }
 
+  /**
+   * 🔴 Derived from the data, not assumed.
+   *
+   * The invariant in `ours` above holds because the only writer to 1240 is the import
+   * self-invoice. Rather than trust that for ever — a domestic reverse charge under s.9(3)
+   * would post CGST+SGST and break it silently — the account's own entries are checked, and
+   * the caveat comes back by itself if anything else ever lands there.
+   */
   const rcmItc = isCash ? ZERO : balances.get(GST_ACCOUNTS.rcmItc)!
-  const approximate = !isCash && rcmItc.gt(0)
-    ? `${formatINR(rcmItc)} of reverse-charge credit sits in one account here and is split across heads on the portal. ` +
-      'The head-wise lines below are approximate while that is true; the total is exact.'
+  const foreignRcm = isCash ? [] : await prisma.journalLine.findMany({
+    where: {
+      account: { companyId: ctx.companyId, code: GST_ACCOUNTS.rcmItc },
+      journalEntry: { companyId: ctx.companyId, date: { lte: at }, sourceType: { not: 'SELF_INVOICE' } },
+    },
+    select: { id: true, journalEntry: { select: { sourceType: true } } },
+    take: 5,
+  })
+  const approximate = foreignRcm.length > 0
+    ? `${formatINR(rcmItc)} of reverse-charge credit includes entries from ` +
+      `${[...new Set(foreignRcm.map((l) => l.journalEntry.sourceType))].join(', ')}, which are not import ` +
+      'self-invoices. A domestic reverse charge is CGST + SGST, not IGST, so the head-wise lines below ' +
+      'are approximate until 1240 is split — the total stays exact.'
     : null
 
   const notes: string[] = []

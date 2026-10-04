@@ -36,6 +36,10 @@ re-derive these.**
 - Exports: yes · Shinelal is a director paid **as salary** (s.192) · Akash, Deepak, Kiran are
   employees · everyone else is a freelancer
 - AWS India and GoDaddy India are normal ITC; **DigitalOcean is foreign → reverse charge**
+- ⚠️ **Never asked: does any s.9(3) domestic reverse charge apply?** A goods transport agency,
+  an advocate's fee, sponsorship or security services would all be reverse charge at
+  **CGST + SGST**, not IGST, and nothing in this system can produce one. Nothing in the books
+  suggests it has happened; it has also never been put to the CA — `docs/63 §3`.
 
 ## 3. 🔴 Design rules that must not be broken
 
@@ -177,6 +181,13 @@ newest open row and jumped to it. Use `currentFinancialYear()`.
 shipped one button; the other three were unreachable for nine modules. The survey that finds
 this is a script, not a memory — `docs/49 §1`.
 
+🔴 **A caveat is a claim, and has to be true.** `docs/56` warned every month that the
+head-wise credit comparison was approximate because reverse-charge credit "is split across
+heads". In this system every reverse charge is an import of services and therefore IGST, so
+the figures were exact — and a reader who learns to discount one figure discounts the next
+(`docs/63 §1`). The hedge is now derived from `1240`'s own entries, so it returns by itself if
+a domestic reverse charge ever lands there.
+
 🔴 **ITC is matched on GSTIN and the NORMALISED invoice number.** A supplier files `EX/300`
 and the bill was typed `EX-300`; a literal comparison reports the whole purchase register as
 unavailable credit. Amount is a fallback only — two invoices from one supplier for one amount
@@ -262,9 +273,7 @@ docs/51 had already closed. Grouped by the module each would be, largest value f
    debit note rather than an invoice.
 3. **Refund vouchers** (s.31(3)(e)) — where an advance is returned and no supply is made
    (`docs/54 §7`).
-4. **Splitting account 1240.** Reverse-charge credit is one balance here and three heads on
-   the portal, so `docs/56`'s head-wise credit comparison stays approximate while any is held.
-   It is a chart-of-accounts change plus a reclassification entry (`docs/62 §7`).
+4. **Service-item CRUD** — see the smaller list below; this is the largest of them.
 
 ### Smaller, and mostly one screen each
 
