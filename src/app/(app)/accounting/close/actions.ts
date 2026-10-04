@@ -3,6 +3,7 @@ import { revalidatePath } from 'next/cache'
 import { requireContext } from '@/server/context'
 import { lockPeriod, unlockPeriod, closeYear, reopenYear, createNextFinancialYear } from '@/server/services/accounting/close'
 import { AppError } from '@/server/errors'
+import { setOpeningBalances } from '@/server/services/accounting/opening'
 
 type Result = { error?: string; ok?: string } | null
 
@@ -58,4 +59,31 @@ export async function createNextFyAction(): Promise<Result> {
     revalidatePath('/accounting/close')
     return { ok: `FY ${r.label} opened, with ${r.seriesCopied} numbering series carried over` }
   } catch (e) { return fail(e) }
+}
+
+/**
+ * Opening balances — docs/74. Replaces whatever stands by reversing it, so this is both the
+ * "set" and the "restate" path.
+ */
+export async function setOpeningBalancesAction(_prev: Result, form: FormData): Promise<Result> {
+  const ctx = await requireContext()
+  let lines: { accountCode: string; debit?: string; credit?: string }[]
+  try {
+    lines = JSON.parse(String(form.get('lines') ?? '[]'))
+  } catch {
+    return { error: 'Could not read those lines' }
+  }
+  try {
+    await setOpeningBalances(ctx, {
+      financialYearId: String(form.get('financialYearId') ?? ''),
+      lines,
+      note: String(form.get('note') ?? ''),
+    })
+  } catch (e) {
+    return { error: e instanceof AppError ? e.message : 'Could not post the opening entry' }
+  }
+  revalidatePath('/accounting/close')
+  revalidatePath('/reports/balance-sheet')
+  revalidatePath('/accounting/trial-balance')
+  return { ok: 'Posted' }
 }

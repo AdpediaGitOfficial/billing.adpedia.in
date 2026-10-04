@@ -2,6 +2,8 @@ import { requireContext } from '@/server/context'
 import { prisma } from '@/server/db'
 import { can } from '@/server/auth/permissions'
 import { closingPreflight } from '@/server/services/accounting/close'
+import { openingPosition } from '@/server/services/accounting/opening'
+import { OpeningForm } from './opening-form'
 import { formatINR } from '@/lib/money'
 import { Card, PageHeader, Pill, Alert, Empty } from '@/components/ui/kit'
 import { CloseControls } from './controls'
@@ -26,6 +28,14 @@ export default async function ClosePage({ searchParams }: { searchParams: Promis
   }
 
   const pre = await closingPreflight(ctx, selected.id)
+  // docs/74 — the one position this system cannot derive, in the one year it belongs to
+  const opening = await openingPosition(ctx, selected.id)
+  const accounts = opening.eligible
+    ? await prisma.account.findMany({
+        where: { companyId: ctx.companyId, isActive: true, type: { notIn: ['INCOME', 'EXPENSE'] } },
+        orderBy: { code: 'asc' }, select: { code: true, name: true, type: true },
+      })
+    : []
 
   return (
     <div className="max-w-2xl space-y-5">
@@ -109,6 +119,44 @@ export default async function ClosePage({ searchParams }: { searchParams: Promis
           needsNextFy={!pre.checks.find((c) => c.label === 'A following year exists')?.ok}
         />
       )}
+
+      <Card>
+        <p className="eyebrow mb-1">Opening balances · FY {opening.fyLabel}</p>
+        <p className="mb-4 text-[12px] leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+          {opening.why}
+        </p>
+        {opening.eligible ? (
+          <>
+            {opening.entryId && (
+              <div className="mb-4 rounded-lg px-3 py-2.5 text-[12px]" style={{ background: 'var(--surface)' }}>
+                An opening entry is already posted, dated {opening.postedOn!.toISOString().slice(0, 10)} —{' '}
+                {opening.lines.length} lines, {formatINR(opening.totalDebit)} each side. Posting again restates it:
+                the entry standing now is reversed and both stay in the journal.
+              </div>
+            )}
+            {mayLock ? (
+              <OpeningForm accounts={accounts}
+                initial={opening.lines.map((l) => ({
+                  accountCode: l.code,
+                  debit: l.debit.isZero() ? '' : l.debit.toFixed(2),
+                  credit: l.credit.isZero() ? '' : l.credit.toFixed(2),
+                }))} />
+            ) : (
+              <p className="text-[12.5px]" style={{ color: 'var(--text-muted)' }}>
+                Posting one needs the owner&rsquo;s approval rights.
+              </p>
+            )}
+          </>
+        ) : (
+          <p className="text-[12.5px]" style={{ color: 'var(--text-muted)' }}>
+            Closing a year does not write an opening entry into the next one, and deliberately: every report
+            here reads cumulatively, so a balance-sheet account carries forward by itself. An entry would be
+            added to a balance that already includes it and every figure would double — silently, because it
+            would still balance. The opening position of any later year is the trial balance&rsquo;s own opening
+            columns.
+          </p>
+        )}
+      </Card>
 
       <Card className="p-4">
         <p className="eyebrow">What locking actually does</p>

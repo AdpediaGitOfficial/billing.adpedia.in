@@ -94,8 +94,9 @@ design out.
 
 - **No UI to edit a financial year** beyond creating the next one — dates and labels are
   seeded.
-- **Closing does not carry forward opening balances** as explicit entries; the balance sheet
-  reads cumulative movement instead, which is equivalent and simpler, but a CA expecting a
-  formal opening-balance journal in the new year will not find one.
+- **Closing does not carry forward opening balances** as explicit entries, and `docs/74`
+  settled that it must not: every report reads cumulatively, so an entry would double every
+  balance-sheet figure, silently. What `docs/74` did build is the opening position of the
+  FIRST year, which is the one thing here that cannot be derived.
 - **GST return filing does not advance the lock automatically** — the comment in
   `period.ts` says it should, and that wiring is not in yet.
