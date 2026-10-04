@@ -4,8 +4,20 @@ import { Decimal, ZERO } from '@/lib/money'
 import { PageHeader, Card, Empty } from '@/components/ui/kit'
 import { ReceiptForm } from './form'
 
-export default async function NewReceiptPage() {
+/**
+ * `?invoice=` preselects the customer and settles that invoice in full — docs/68 §3. It is
+ * where the invoice list's swipe lands, and it is also just the obvious thing to support
+ * from any "record a receipt" link.
+ *
+ * 🔴 It preselects; it does not post. The amount a client actually sent is net of whatever
+ * they withheld and nobody here knows that until the money lands, so the proposal is
+ * `lib/settlement.ts`'s and the person still presses the button.
+ */
+export default async function NewReceiptPage({ searchParams }: {
+  searchParams: Promise<{ invoice?: string }>
+}) {
   const ctx = await requireContext()
+  const { invoice: wantedInvoiceId } = await searchParams
 
   const [invoices, banks] = await Promise.all([
     prisma.invoice.findMany({
@@ -51,7 +63,8 @@ export default async function NewReceiptPage() {
     <div className="max-w-2xl">
       <PageHeader title="Record a receipt"
         sub="For money that did not come through a bank line — a cheque, cash, or a payment you are booking ahead of the statement." />
-      <ReceiptForm invoices={open} banks={banks} />
+      <ReceiptForm invoices={open} banks={banks}
+        preselect={open.some((i) => i.id === wantedInvoiceId) ? wantedInvoiceId : undefined} />
     </div>
   )
 }

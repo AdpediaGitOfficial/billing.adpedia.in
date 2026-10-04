@@ -6,6 +6,7 @@ import { Card, PageHeader, Pill, Empty, Button, Alert, DataTable, type Column } 
 import { formatINR as inr } from '@/lib/money'
 import { ReverseButton } from '@/components/corrections/reverse-button'
 import { cancelExpenseAction } from './actions'
+import type { SwipeSpec } from '@/components/ui/swipe'
 
 export default async function ExpensesPage() {
   const ctx = await requireContext()
@@ -53,12 +54,25 @@ export default async function ExpensesPage() {
       ) },
     // 🔴 An expense captured twice from a phone used to be uncorrectable, and it had already
     // claimed input credit — so the claim stood in the GST position with nothing able to undo it.
-    { key: 'undo', header: '', width: '10%', align: 'right', mobile: false,
+    { key: 'undo', header: '', width: '10%', align: 'right', mobile: 'action',
       cell: (r) => r.cancelledAt
         ? <span className="text-[11.5px]" style={{ color: 'var(--text-muted)' }}>cancelled</span>
         : <ReverseButton action={cancelExpenseAction} idName="expenseId" id={r.id}
             prompt={`Why is "${r.description}" being reversed?`} /> },
   ]
+
+  /**
+   * docs/68 §3. Both sides are links: attaching a bill means picking a file, and reversing
+   * needs a reason in words — neither is something a gesture can supply, so the swipe takes
+   * you to where it is done rather than pretending to do it.
+   */
+  const swipe = (r: Row): SwipeSpec | undefined => {
+    if (r.cancelledAt) return undefined
+    return {
+      right: { kind: 'link', label: 'The bill', legend: 'for the bill behind it', icon: 'Upload',
+        tone: noEvidence.has(r.id) ? 'warn' : 'info', href: `/expenses/${r.id}` },
+    }
+  }
 
   return (
     <div>
@@ -75,7 +89,7 @@ export default async function ExpensesPage() {
         </div>
       )}
       <Card flush className="overflow-hidden">
-        <DataTable columns={cols} rows={expenses} keyOf={(r) => r.id}
+        <DataTable columns={cols} rows={expenses} keyOf={(r) => r.id} swipe={swipe} noun="expenses"
           empty={<Empty icon="CreditCard" title="No expenses yet"
             hint="Input credit eligibility follows the category — food, cabs and out-of-state hotels are blocked under s.17(5), and overriding needs a reason."
             action={<Link href="/expenses/new"><Button>Record the first expense</Button></Link>} />} />

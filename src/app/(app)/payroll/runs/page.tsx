@@ -2,7 +2,7 @@ import { requireContext } from '@/server/context'
 import { prisma } from '@/server/db'
 import { previewPayroll } from '@/server/services/payroll/run'
 import { formatINR } from '@/lib/money'
-import { Card, CardHeader, PageHeader, StatCard, Pill, Alert, Empty } from '@/components/ui/kit'
+import { Card, CardHeader, PageHeader, StatCard, Pill, Alert, Empty, FigureCard, FigureList } from '@/components/ui/kit'
 import { RunActions } from './actions-client'
 import { ReverseButton } from '@/components/corrections/reverse-button'
 import { cancelRunAction } from '../actions'
@@ -66,7 +66,27 @@ export default async function PayrollRunsPage({ searchParams }: { searchParams: 
 
       <Card flush className="overflow-hidden">
         <CardHeader title="Payslips" className="p-5 pb-4" sub={preview.label} />
-        <div className="overflow-x-auto">
+        {/* docs/68 §7 — a phone gets the same five figures, wrapped */}
+        <FigureList noun="people">
+          {preview.payslips.map((p) => (
+            <FigureCard key={p.employeeId}
+              title={<span className="flex items-center gap-2">{p.employeeName}{p.isDirector && <Pill tone="accent">Director</Pill>}</span>}
+              sub={p.allocation.map((a) => `${a.projectName} ${Number(a.percent)}%`).join(' · ') || undefined}
+              figures={[
+                { label: 'Gross', value: formatINR(p.gross) },
+                { label: 'Net', value: formatINR(p.net), strong: true },
+                { label: 'Prof. tax', value: p.professionTax.isZero() ? '—' : formatINR(p.professionTax), muted: p.professionTax.isZero() },
+                { label: 'TDS 192', value: p.tds.isZero() ? '—' : formatINR(p.tds), muted: p.tds.isZero() },
+                ...(slipFor.get(p.employeeId)
+                  ? [{ label: 'Payslip', value: (
+                      <a href={`/api/payslips/${slipFor.get(p.employeeId)}/document`} target="_blank" rel="noreferrer"
+                         className="underline" style={{ color: 'var(--accent)' }}>download</a>
+                    ) }]
+                  : []),
+              ]} />
+          ))}
+        </FigureList>
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full text-[13px]">
             <thead><tr style={{ background: 'var(--surface-2)' }}>
               <th className="px-4 py-2.5 text-left eyebrow">Employee</th>

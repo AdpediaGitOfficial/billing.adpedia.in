@@ -5,6 +5,9 @@ import { apSummary, tdsPayableSummary } from '@/server/services/purchases/payabl
 import { formatINR } from '@/lib/money'
 import { Card, PageHeader, StatCard, Pill, Empty, Button, DataTable, type Column, type Tone } from '@/components/ui/kit'
 import type { BillStatus } from '@prisma/client'
+import { can } from '@/server/auth/permissions'
+import type { SwipeSpec } from '@/components/ui/swipe'
+import { approveBillAction } from './actions'
 
 const TONE: Record<BillStatus, Tone> = {
   DRAFT: 'neutral', APPROVED: 'accent', PARTIALLY_PAID: 'warn', PAID: 'good', CANCELLED: 'neutral',
@@ -60,6 +63,22 @@ export default async function BillsPage() {
       ) },
   ]
 
+  /**
+   * docs/68 §3. Approving posts to the ledger, books the TDS and makes the input credit
+   * claimable — which is exactly why it is held behind the Undo rather than fired on the
+   * gesture. Losing the commit leaves the bill a draft, still on this list and still on
+   * /approvals, which is the only failure direction a gesture may have.
+   */
+  const mayApprove = can(ctx.role, 'bills.approve', 'approve')
+  const swipe = (r: Row): SwipeSpec | undefined => {
+    if (r.status !== 'DRAFT' || !mayApprove) return undefined
+    return {
+      right: { kind: 'commit', label: 'Approve', legend: 'to approve it', icon: 'Check', tone: 'good',
+        done: `Approving ${r.billNumber}`, run: approveBillAction.bind(null, r.id) },
+      left: { kind: 'link', label: 'Review', legend: 'to review it first', icon: 'Search', tone: 'info', href: `/bills/${r.id}` },
+    }
+  }
+
   return (
     <div>
       <PageHeader title="Vendor bills" sub={`${bills.length} on record`}
@@ -77,6 +96,7 @@ export default async function BillsPage() {
 
       <Card flush className="overflow-hidden">
         <DataTable columns={cols} rows={bills} keyOf={(r) => r.id} onRowHref={(r) => `/bills/${r.id}`}
+          swipe={swipe} noun="bills"
           empty={<Empty icon="FileInput" title="No vendor bills yet"
             hint="TDS is computed at entry — including the retrospective catch-up when a vendor crosses the annual threshold."
             action={<Link href="/bills/new"><Button>Enter the first bill</Button></Link>} />} />

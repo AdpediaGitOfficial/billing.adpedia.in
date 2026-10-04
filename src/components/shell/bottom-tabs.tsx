@@ -8,7 +8,7 @@ import type { NavItem } from './nav'
 /** docs/13 §2.2 — max 5 slots, thumb-reachable, the 5th is always More. */
 export function BottomTabs({ tabs }: { tabs: NavItem[] }) {
   const path = usePathname()
-  const slots = [...tabs.slice(0, 4), { label: 'More', href: '/more', cap: 'dashboard' as const, icon: 'Menu' }]
+  const slots: NavItem[] = [...tabs.slice(0, 4), { label: 'More', href: '/more', cap: 'dashboard', icon: 'Menu' }]
   return (
     <nav
       className="md:hidden fixed bottom-0 inset-x-0 z-40 border-t grid"

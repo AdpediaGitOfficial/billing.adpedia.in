@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { requireContext } from '@/server/context'
 import { receivablesAgeing, payablesAgeing, BUCKETS, type Ageing } from '@/server/services/reports/ageing'
 import { formatINR } from '@/lib/money'
-import { Card, PageHeader, Empty, Pill, Alert } from '@/components/ui/kit'
+import { Card, PageHeader, Empty, Pill, Alert, FigureCard, FigureList } from '@/components/ui/kit'
 import { ExportButton } from '@/components/reports/export-button'
 
 export default async function AgeingPage({ searchParams }: { searchParams: Promise<{ side?: string }> }) {
@@ -42,7 +42,26 @@ export default async function AgeingPage({ searchParams }: { searchParams: Promi
             : 'Sent invoices appear here until they are settled. Nothing here is sample data.'} /></Card>
       ) : (
         <>
-          <Card flush className="overflow-x-auto">
+          <Card flush className="overflow-hidden">
+            {/* docs/68 §7 — the buckets wrap on a phone rather than the grid scrolling sideways */}
+            <FigureList noun={showing === 'ap' ? 'vendors' : 'clients'}>
+              {data.parties.map((p) => (
+                <FigureCard key={p.partyId} title={p.partyName}
+                  sub={`${formatINR(p.total, { decimals: false })} outstanding`}
+                  figures={BUCKETS.map((b) => ({
+                    label: b,
+                    value: p.buckets[b].isZero() ? '—' : formatINR(p.buckets[b], { decimals: false }),
+                    muted: p.buckets[b].isZero(),
+                    strong: b === '90+' && !p.buckets[b].isZero(),
+                  }))} />
+              ))}
+            </FigureList>
+            <div className="flex items-center justify-between border-t px-4 py-3 text-[12.5px] md:hidden"
+                 style={{ borderColor: 'var(--rule)', background: 'var(--surface)' }}>
+              <span className="font-semibold">Total</span>
+              <span className="tabular font-semibold">{formatINR(data.grandTotal, { decimals: false })}</span>
+            </div>
+            <div className="hidden overflow-x-auto md:block">
             <table className="w-full min-w-[680px] text-[13px]">
               <thead>
                 <tr style={{ background: 'var(--surface)' }}>
@@ -78,6 +97,7 @@ export default async function AgeingPage({ searchParams }: { searchParams: Promi
                 </tr>
               </tfoot>
             </table>
+            </div>
           </Card>
 
           <DocList data={data} showing={showing} />
@@ -90,10 +110,24 @@ export default async function AgeingPage({ searchParams }: { searchParams: Promi
 function DocList({ data, showing }: { data: Ageing; showing: 'ar' | 'ap' }) {
   const docs = data.parties.flatMap((p) => p.docs).sort((a, b) => b.daysOverdue - a.daysOverdue)
   return (
-    <Card flush className="overflow-x-auto">
+    <Card flush className="overflow-hidden">
       <div className="border-b px-4 py-2.5" style={{ borderColor: 'var(--rule)', background: 'var(--surface)' }}>
         <span className="eyebrow">Oldest first</span>
       </div>
+      <FigureList noun="documents">
+        {docs.map((d) => (
+          <FigureCard key={d.id}
+            href={showing === 'ap' ? `/bills/${d.id}` : `/invoices/${d.id}`}
+            title={d.number} sub={d.partyName}
+            figures={[
+              { label: 'Due', value: d.dueDate.toISOString().slice(0, 10), muted: true },
+              { label: 'Outstanding', value: formatINR(d.outstanding), strong: true },
+              { label: 'Age', value: d.daysOverdue <= 0 ? 'not due' : `${d.daysOverdue} days late`,
+                muted: d.daysOverdue <= 0, strong: d.daysOverdue > 90 },
+            ]} />
+        ))}
+      </FigureList>
+      <div className="hidden overflow-x-auto md:block">
       <table className="w-full min-w-[620px] text-[13px]">
         <tbody>
           {docs.map((d) => (
@@ -119,6 +153,7 @@ function DocList({ data, showing }: { data: Ageing; showing: 'ar' | 'ap' }) {
           ))}
         </tbody>
       </table>
+      </div>
     </Card>
   )
 }

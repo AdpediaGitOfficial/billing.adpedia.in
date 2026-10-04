@@ -1,5 +1,8 @@
 import { cn } from '@/lib/utils'
 import { Icon } from '@/components/shell/icon'
+import type { IconName } from '@/components/shell/icons'
+import { SwipeRow, type SwipeSpec } from './swipe'
+import { Windowed, WindowedRows } from './windowed'
 
 /* ── surfaces ─────────────────────────────────────────────────────────────── */
 
@@ -54,7 +57,7 @@ export function DeltaChip({ value, suffix = 'vs last month', invert }: {
 export function StatCard({ label, value, delta, deltaSuffix, invertDelta, icon, foot, tone = 'default', children }: {
   label: string; value: string
   delta?: number | null; deltaSuffix?: string; invertDelta?: boolean
-  icon?: string; foot?: string
+  icon?: IconName; foot?: string
   tone?: 'default' | 'accent'
   children?: React.ReactNode
 }) {
@@ -162,7 +165,7 @@ export function Segmented({ options, value, onChange, name }: {
 }
 
 export function Button({ children, variant = 'primary', size = 'md', icon, className, ...rest }:
-  React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'ghost' | 'soft' | 'danger'; size?: 'sm' | 'md'; icon?: string }) {
+  React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'ghost' | 'soft' | 'danger'; size?: 'sm' | 'md'; icon?: IconName }) {
   const base = 'inline-flex items-center justify-center gap-1.5 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
   const sizes = { sm: 'px-2.5 py-1.5 text-[12.5px]', md: 'px-3.5 py-2 text-[13px]' }[size]
   const styles: Record<string, React.CSSProperties> = {
@@ -202,20 +205,35 @@ export interface Column<T> {
   align?: 'left' | 'right' | 'center'
   width?: string
   cell: (row: T) => React.ReactNode
-  /** shown on the mobile card; omit to hide there */
-  mobile?: 'primary' | 'secondary' | 'value' | 'tag' | false
+  /**
+   * Where this column goes on the mobile card; omit to hide it there.
+   *
+   * 🔴 `false` on a column holding a CONTROL makes that control unreachable on a phone, and
+   * `'action'` exists because two of them were (docs/68 §5): the only way to reverse an
+   * expense or a receipt was a button in a desktop-only table column, and the receipt had no
+   * detail page to fall back to. `tests/mobile-reachable.test.ts` is the guard.
+   */
+  mobile?: 'primary' | 'secondary' | 'value' | 'tag' | 'action' | false
 }
 
 /**
  * One definition, two renderings: a table on desktop, cards below 768px.
  * docs/13 §4 — a horizontally scrolling grid on a phone is not an option.
+ *
+ * `swipe` is evaluated here, on the server, once per row: the result is a plain object (a
+ * link, or a bound server action) which is what lets a server-rendered list hand a client
+ * gesture something to do. docs/68 §3.
  */
-export function DataTable<T>({ columns, rows, keyOf, empty, onRowHref }: {
+export function DataTable<T>({ columns, rows, keyOf, empty, onRowHref, swipe, noun = 'rows' }: {
   columns: Column<T>[]
   rows: T[]
   keyOf: (row: T) => string
   empty?: React.ReactNode
   onRowHref?: (row: T) => string
+  /** Per-row swipe actions on the mobile card. Return nothing for a row that has none. */
+  swipe?: (row: T) => SwipeSpec | undefined
+  /** What a row is, for the "50 of 100 …" line under a windowed list. */
+  noun?: string
 }) {
   if (rows.length === 0) return <>{empty}</>
 
@@ -240,50 +258,102 @@ export function DataTable<T>({ columns, rows, keyOf, empty, onRowHref }: {
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
-              <tr key={keyOf(row)} className="border-t transition-colors hover:bg-[var(--surface-2)]" style={{ borderColor: 'var(--rule)' }}>
-                {columns.map((c) => (
-                  <td key={c.key} className={cn('px-4 py-3 text-[13px]', c.align === 'right' ? 'text-right tabular' : c.align === 'center' ? 'text-center' : '')}>
-                    {onRowHref ? <a href={onRowHref(row)} className="block">{c.cell(row)}</a> : c.cell(row)}
-                  </td>
-                ))}
-              </tr>
-            ))}
+            <WindowedRows colSpan={columns.length} noun={noun}>
+              {rows.map((row) => (
+                <tr key={keyOf(row)} className="border-t transition-colors hover:bg-[var(--surface-2)]" style={{ borderColor: 'var(--rule)' }}>
+                  {columns.map((c) => (
+                    <td key={c.key} className={cn('px-4 py-3 text-[13px]', c.align === 'right' ? 'text-right tabular' : c.align === 'center' ? 'text-center' : '')}>
+                      {onRowHref ? <a href={onRowHref(row)} className="block">{c.cell(row)}</a> : c.cell(row)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </WindowedRows>
           </tbody>
         </table>
       </div>
 
       {/* mobile — cards, never a sideways scroll */}
-      <div className="divide-y md:hidden" style={{ borderColor: 'var(--rule)' }}>
-        {rows.map((row) => {
-          const primary = columns.find((c) => c.mobile === 'primary')
-          const secondary = columns.filter((c) => c.mobile === 'secondary')
-          const value = columns.find((c) => c.mobile === 'value')
-          const tag = columns.find((c) => c.mobile === 'tag')
-          return (
-            <Row key={keyOf(row)} row={row}>
-              <div className="flex items-start justify-between gap-3 px-4 py-3.5">
-                <div className="min-w-0">
-                  {primary && <div className="truncate text-[13.5px] font-semibold">{primary.cell(row)}</div>}
-                  {secondary.map((c) => (
-                    <div key={c.key} className="mt-0.5 truncate text-[12px]" style={{ color: 'var(--text-muted)' }}>{c.cell(row)}</div>
-                  ))}
+      <div className="md:hidden">
+        <SwipeLegend specs={swipe ? rows.map(swipe) : []} />
+        <div className="divide-y" style={{ borderColor: 'var(--rule)' }}>
+          <Windowed noun={noun}>
+            {rows.map((row) => {
+              const primary = columns.find((c) => c.mobile === 'primary')
+              const secondary = columns.filter((c) => c.mobile === 'secondary')
+              const value = columns.find((c) => c.mobile === 'value')
+              const tag = columns.find((c) => c.mobile === 'tag')
+              const actions = columns.filter((c) => c.mobile === 'action')
+              /* 🔴 the controls sit OUTSIDE the row-wide anchor — the same trap the expenses
+                 table hit on desktop: wrap a cancel button in a link to the row and pressing
+                 it navigates away instead of asking why. */
+              const card = (
+                <>
+                  <Row row={row}>
+                    <div className="flex items-start justify-between gap-3 px-4 py-3.5">
+                      <div className="min-w-0">
+                        {primary && <div className="truncate text-[13.5px] font-semibold">{primary.cell(row)}</div>}
+                        {secondary.map((c) => (
+                          <div key={c.key} className="mt-0.5 truncate text-[12px]" style={{ color: 'var(--text-muted)' }}>{c.cell(row)}</div>
+                        ))}
+                      </div>
+                      <div className="shrink-0 text-right">
+                        {value && <div className="text-[13.5px] font-semibold tabular">{value.cell(row)}</div>}
+                        {tag && <div className="mt-1">{tag.cell(row)}</div>}
+                      </div>
+                    </div>
+                  </Row>
+                  {actions.length > 0 && (
+                    <div className="flex flex-wrap items-center justify-end gap-3 px-4 pb-3">
+                      {actions.map((c) => <div key={c.key}>{c.cell(row)}</div>)}
+                    </div>
+                  )}
+                </>
+              )
+              const spec = swipe?.(row)
+              return (
+                <div key={keyOf(row)}>
+                  {spec && (spec.right || spec.left) ? <SwipeRow spec={spec}>{card}</SwipeRow> : card}
                 </div>
-                <div className="shrink-0 text-right">
-                  {value && <div className="text-[13.5px] font-semibold tabular">{value.cell(row)}</div>}
-                  {tag && <div className="mt-1">{tag.cell(row)}</div>}
-                </div>
-              </div>
-            </Row>
-          )
-        })}
+              )
+            })}
+          </Windowed>
+        </div>
       </div>
     </>
   )
 }
 
+/**
+ * 🔴 A gesture nobody knows about is not a feature. One line, once, above the list — not a
+ * coach mark that has to be dismissed, and not a tooltip on a device with no hover.
+ *
+ * 🔴 Taken from every row, not the first one. The spec is decided per row, so an invoice list
+ * whose newest entry happens to be a draft announced "swipe right to Send" above a screen of
+ * sent invoices that do nothing of the kind. When the rows disagree the legend stops naming
+ * the action and says only that there is one.
+ */
+function SwipeLegend({ specs }: { specs: (SwipeSpec | undefined)[] }) {
+  const side = (pick: (s: SwipeSpec) => SwipeSpec['right']) => {
+    const named = new Set<string>()
+    for (const s of specs) { const i = s && pick(s); if (i) named.add(i.legend ?? i.label) }
+    return named.size === 1 ? [...named][0] : named.size > 1 ? 'what it needs next' : null
+  }
+  const right = side((s) => s.right)
+  const left = side((s) => s.left)
+  if (!right && !left) return null
+  return (
+    <p className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 text-[11px]"
+       style={{ color: 'var(--text-muted)', background: 'var(--surface-2)' }}>
+      <span>Swipe a row</span>
+      {right && <span className="flex items-center gap-1"><Icon name="ArrowRight" size={11} strokeWidth={2.2} />{right}</span>}
+      {left && <span className="flex items-center gap-1"><Icon name="ArrowLeft" size={11} strokeWidth={2.2} />{left}</span>}
+    </p>
+  )
+}
+
 export function Empty({ title, hint, action, icon = 'Inbox' }: {
-  title: string; hint?: string; action?: React.ReactNode; icon?: string
+  title: string; hint?: string; action?: React.ReactNode; icon?: IconName
 }) {
   return (
     <div className="px-6 py-14 text-center">
@@ -300,12 +370,12 @@ export function Empty({ title, hint, action, icon = 'Inbox' }: {
 export function Alert({ tone = 'warn', title, children, action }: {
   tone?: 'warn' | 'critical' | 'info' | 'good'; title: string; children?: React.ReactNode; action?: React.ReactNode
 }) {
-  const map = {
+  const map = ({
     warn: { bg: 'var(--warn-soft)', fg: 'var(--warn)', icon: 'AlertTriangle' },
     critical: { bg: 'var(--critical-soft)', fg: 'var(--critical)', icon: 'AlertOctagon' },
     info: { bg: 'var(--info-soft)', fg: 'var(--info)', icon: 'Info' },
     good: { bg: 'var(--good-soft)', fg: 'var(--good)', icon: 'CheckCircle2' },
-  }[tone]
+  } satisfies Record<string, { bg: string; fg: string; icon: IconName }>)[tone]
   return (
     <div className="flex items-start gap-3 rounded-xl px-4 py-3" style={{ background: map.bg }}>
       <Icon name={map.icon} size={16} strokeWidth={2} style={{ color: map.fg, marginTop: 1, flexShrink: 0 }} />
@@ -314,6 +384,64 @@ export function Alert({ tone = 'warn', title, children, action }: {
         {children && <div className="mt-0.5 text-[12.5px] leading-relaxed" style={{ color: map.fg, opacity: 0.9 }}>{children}</div>}
       </div>
       {action && <div className="shrink-0">{action}</div>}
+    </div>
+  )
+}
+
+/* ── figures on a phone ───────────────────────────────────────────────────── */
+
+export interface Figure { label: string; value: React.ReactNode; strong?: boolean; muted?: boolean }
+
+/**
+ * A numeric table row, as a card — docs/68 §7.
+ *
+ * `DataTable` turns a list of RECORDS into cards: one headline, a note, a figure, a status.
+ * A trial balance row is not that shape — it is an account and six columns, and squeezing it
+ * into one value slot loses the thing the row is for. So the figures wrap instead, and the
+ * table stays for the desk.
+ *
+ * 🔴 It exists because five tables were still scrolling sideways on a phone, against a rule
+ * written in docs/13 §4 that says never. Nothing caught them: they are not `DataTable`
+ * callers, so the card rendering that rule lives in simply never applied to them. Measuring
+ * at 375px is what found them, and `scripts/perf.mts --overflow` is what keeps them found.
+ */
+export function FigureCard({ title, sub, href, figures }: {
+  title: React.ReactNode
+  sub?: React.ReactNode
+  href?: string
+  figures: Figure[]
+}) {
+  const head = (
+    <div className="min-w-0">
+      <div className="truncate text-[13.5px] font-semibold">{title}</div>
+      {sub && <div className="mt-0.5 truncate text-[12px]" style={{ color: 'var(--text-muted)' }}>{sub}</div>}
+    </div>
+  )
+  return (
+    <div className="px-4 py-3.5">
+      {href ? <a href={href} className="block">{head}</a> : head}
+      <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1">
+        {figures.map((f) => (
+          <div key={f.label} className="flex items-baseline justify-between gap-2 overflow-hidden">
+            {/* 🔴 The LABEL truncates; the figure never does. The first version had it the
+                other way round and a trial balance read "₹7,43,40…" — a number you cannot
+                read is the one thing a ledger may not print, and "Closing Dr" clipped to
+                "Closing D" costs nothing. */}
+            <dt className="eyebrow min-w-0 truncate">{f.label}</dt>
+            <dd className={cn('shrink-0 whitespace-nowrap text-right text-[12.5px] tabular', f.strong && 'font-semibold')}
+                style={f.muted ? { color: 'var(--text-muted)' } : undefined}>{f.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  )
+}
+
+/** The phone-only list the cards go in. The table beside it carries `hidden md:block`. */
+export function FigureList({ children, noun = 'rows' }: { children: React.ReactNode[]; noun?: string }) {
+  return (
+    <div className="divide-y md:hidden" style={{ borderColor: 'var(--rule)' }}>
+      <Windowed noun={noun} estimate={96}>{children}</Windowed>
     </div>
   )
 }

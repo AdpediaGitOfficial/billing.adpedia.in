@@ -3,7 +3,7 @@ import { requireContext } from '@/server/context'
 import { trialBalance } from '@/server/services/reports/statements'
 import { resolvePeriod } from '@/server/services/reports/period'
 import { formatINR } from '@/lib/money'
-import { Card, PageHeader, Empty, Alert } from '@/components/ui/kit'
+import { Card, PageHeader, Empty, Alert, FigureCard, FigureList } from '@/components/ui/kit'
 import { ExportButton, StatementPdfButton } from '@/components/reports/export-button'
 import { PeriodPicker } from '../../reports/period-picker'
 
@@ -34,7 +34,24 @@ export default async function TrialBalancePage({ searchParams }: { searchParams:
         <Card><Empty icon="Scale" title={`Nothing posted in ${period.label}`}
           hint="Accounts appear here once they carry a balance or a movement. Nothing here is sample data." /></Card>
       ) : (
-        <Card flush className="overflow-x-auto">
+        <Card flush className="overflow-hidden">
+          {/* docs/68 §7 — the figures wrap on a phone rather than the grid scrolling sideways */}
+          <FigureList noun="accounts">
+            {tb.rows.map((r) => (
+              <FigureCard key={r.code}
+                href={`/accounting/accounts/${r.code}?fy=${period.fyId}`}
+                title={r.name} sub={r.code}
+                figures={[
+                  { label: 'Opening Dr', value: formatINR(r.openingDr), muted: Number(r.openingDr) === 0 },
+                  { label: 'Opening Cr', value: formatINR(r.openingCr), muted: Number(r.openingCr) === 0 },
+                  { label: 'Debit', value: formatINR(r.debit), muted: Number(r.debit) === 0 },
+                  { label: 'Credit', value: formatINR(r.credit), muted: Number(r.credit) === 0 },
+                  { label: 'Closing Dr', value: formatINR(r.closingDr), strong: true, muted: Number(r.closingDr) === 0 },
+                  { label: 'Closing Cr', value: formatINR(r.closingCr), strong: true, muted: Number(r.closingCr) === 0 },
+                ]} />
+            ))}
+          </FigureList>
+          <div className="hidden overflow-x-auto md:block">
           <table className="w-full min-w-[720px] text-[13px]">
             <thead>
               <tr style={{ background: 'var(--surface)' }}>
@@ -73,6 +90,13 @@ export default async function TrialBalancePage({ searchParams }: { searchParams:
               </tr>
             </tfoot>
           </table>
+          </div>
+          {/* the totals, which the cards above do not carry */}
+          <div className="flex items-center justify-between border-t px-4 py-3 text-[12.5px] md:hidden"
+               style={{ borderColor: 'var(--rule)', background: 'var(--surface)' }}>
+            <span className="font-semibold">Totals</span>
+            <span className="tabular">Dr {formatINR(tb.totals.closingDr)} · Cr {formatINR(tb.totals.closingCr)}</span>
+          </div>
         </Card>
       )}
     </div>

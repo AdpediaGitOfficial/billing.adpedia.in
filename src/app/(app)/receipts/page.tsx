@@ -73,7 +73,7 @@ export default async function ReceiptsPage() {
       cell: (r) => new Decimal(r.tdsAmount.toString()).gt(0)
         ? <span className="tabular">{formatINR(r.tdsAmount.toString())}</span>
         : <span style={{ color: 'var(--text-muted)' }}>—</span> },
-    { key: 'cancel', header: '', width: '16%', align: 'right', mobile: false,
+    { key: 'cancel', header: '', width: '16%', align: 'right', mobile: 'action',
       cell: (r) => {
         if (r.cancelledAt) return <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>reversed</span>
         const adv = advances.find((a) => a.id === r.id)

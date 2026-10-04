@@ -239,6 +239,9 @@ Every number drills to the journal lines behind it.
 FCP < 1.5s on 4G · interactive < 3s · skeletons not spinners · virtualised lists past 50
 rows · route-level code splitting so an employee filing an expense never downloads the GL.
 
+🔴 Measured by `scripts/perf.mts` — see `docs/68`, which also adds a **bytes** line this one
+does not have, and records why windowing a server-rendered list does not move the clock.
+
 ---
 
 ## 5. Empty and error states

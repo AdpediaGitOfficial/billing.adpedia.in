@@ -17,9 +17,11 @@ const MODES = ['NEFT', 'RTGS', 'IMPS', 'UPI', 'CHEQUE', 'CASH', 'CARD', 'SWIFT',
 const n = (v: string) => (Number(v) || 0)
 const inr = (v: number) => `₹${v.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
-export function ReceiptForm({ invoices, banks }: {
+export function ReceiptForm({ invoices, banks, preselect }: {
   invoices: OpenInvoice[]
   banks: { id: string; label: string; isDefault: boolean }[]
+  /** An invoice id from `?invoice=`, already checked against `invoices` by the page. */
+  preselect?: string
 }) {
   const [state, action, pending] = useActionState(createReceiptAction, null)
 
@@ -29,12 +31,17 @@ export function ReceiptForm({ invoices, banks }: {
     return [...m].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name))
   }, [invoices])
 
-  const [customerId, setCustomerId] = useState(customers[0]?.id ?? '')
+  const chosen = preselect ? invoices.find((i) => i.id === preselect) : undefined
+  const [customerId, setCustomerId] = useState(chosen?.customerId ?? customers[0]?.id ?? '')
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
   const [mode, setMode] = useState<string>('NEFT')
   const [reference, setReference] = useState('')
   const [bankCharge, setBankCharge] = useState('')
-  const [rows, setRows] = useState<Record<string, { amount: string; tds: string }>>({})
+  const [rows, setRows] = useState<Record<string, { amount: string; tds: string }>>(() => {
+    if (!chosen) return {}
+    const s = proposeSettlement(chosen.outstanding, chosen.tdsExpected)
+    return { [chosen.id]: { amount: s.amount.toFixed(2), tds: s.tds.toFixed(2) } }
+  })
 
   const mine = invoices.filter((i) => i.customerId === customerId)
   const get = (id: string) => rows[id] ?? { amount: '', tds: '' }

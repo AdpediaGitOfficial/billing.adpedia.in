@@ -33,7 +33,9 @@ self.addEventListener('activate', (event) => {
 })
 
 function isImmutableAsset(url) {
-  // Next.js content-hashes these, so a cached copy can never be the wrong version
+  // Next.js content-hashes these in a production build, so a cached copy can never be the
+  // wrong version. 🔴 It does NOT in `next dev`, where the path is stable across recompiles —
+  // which is why this worker is only registered in production. See offline-provider.tsx.
   return url.pathname.startsWith('/_next/static/') || url.pathname.startsWith('/brand/')
 }
 

@@ -174,9 +174,11 @@ export function ChallanComparison({ r, title }: { r: ChallanReconciliation; titl
         {r.confirmed.length > 0 && (
           <table className="w-full">
             <tbody>
+              {/* docs/68 §7 — stacked below md, for the same reason as the ITC list */}
               {r.confirmed.map((m) => (
-                <tr key={m.challanId} className="border-t align-top" style={{ borderColor: 'var(--rule)' }}>
-                  <td className="py-2 font-medium tabular">
+                <tr key={m.challanId} className="border-t align-top max-md:flex max-md:flex-wrap max-md:items-baseline max-md:gap-x-2 max-md:py-2"
+                    style={{ borderColor: 'var(--rule)' }}>
+                  <td className="py-2 font-medium tabular max-md:basis-full max-md:py-0">
                     {m.reference}
                     {m.corrected && (
                       <span className="mt-0.5 block max-w-prose text-[11.5px] font-normal leading-relaxed" style={{ color: 'var(--text-muted)' }}>
@@ -184,9 +186,9 @@ export function ChallanComparison({ r, title }: { r: ChallanReconciliation; titl
                       </span>
                     )}
                   </td>
-                  <td className="py-2" style={{ color: 'var(--text-muted)' }}>{m.depositedOn.toISOString().slice(0, 10)}</td>
-                  <td className="py-2 text-right tabular">{formatINR(m.amount)}</td>
-                  <td className="py-2 pl-3 text-right"><Pill tone="good" dot>matched on {m.tier}</Pill></td>
+                  <td className="py-2 max-md:py-0" style={{ color: 'var(--text-muted)' }}>{m.depositedOn.toISOString().slice(0, 10)}</td>
+                  <td className="py-2 text-right tabular max-md:py-0">{formatINR(m.amount)}</td>
+                  <td className="py-2 pl-3 text-right max-md:py-0 max-md:pl-0"><Pill tone="good" dot>matched on {m.tier}</Pill></td>
                 </tr>
               ))}
             </tbody>

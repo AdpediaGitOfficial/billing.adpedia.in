@@ -3,8 +3,9 @@ import { requireContext } from '@/server/context'
 import { resolvePeriod } from '@/server/services/reports/period'
 import { Card, PageHeader } from '@/components/ui/kit'
 import { Icon } from '@/components/shell/icon'
+import type { IconName } from '@/components/shell/icons'
 
-const REPORTS = [
+const REPORTS: { href: string; icon: IconName; title: string; desc: string }[] = [
   { href: '/reports/pnl', icon: 'TrendingUp', title: 'Profit & Loss', desc: 'Revenue, direct cost and overhead for the year, straight from the ledger.' },
   { href: '/reports/balance-sheet', icon: 'Scale', title: 'Balance Sheet', desc: 'What is owned, what is owed and what is left, at a date.' },
   { href: '/reports/cash-flow', icon: 'Wallet', title: 'Cash Flow', desc: 'Direct method — every line checkable against the bank statement.' },

@@ -1,7 +1,8 @@
 import type { Role } from '@prisma/client'
 import { can, type Capability } from '@/server/auth/permissions'
+import type { IconName } from '@/components/shell/icons'
 
-export interface NavItem { label: string; href: string; cap: Capability; icon: string; badge?: number }
+export interface NavItem { label: string; href: string; cap: Capability; icon: IconName; badge?: number }
 export interface NavGroup { label: string; items: NavItem[] }
 
 /** docs/13 §2.1. Filtered by role — the server also refuses whatever the UI hides. */

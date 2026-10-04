@@ -8,6 +8,9 @@ import { Card, PageHeader, StatCard, Pill, Empty, Button, DataTable, type Column
 import type { InvoiceStatus } from '@prisma/client'
 import type { Tone } from '@/components/ui/kit'
 import { currentFinancialYear } from '@/server/services/accounting/period'
+import { can } from '@/server/auth/permissions'
+import type { SwipeSpec } from '@/components/ui/swipe'
+import { sendInvoiceAction } from './actions'
 
 const TONE: Record<InvoiceStatus, Tone> = {
   DRAFT: 'neutral', SENT: 'accent', VIEWED: 'accent',
@@ -67,6 +70,35 @@ export default async function InvoicesPage() {
       ) },
   ]
 
+  /**
+   * docs/68 §3 — the mobile card's swipe actions, decided per row because what an invoice
+   * needs next is its status. Nothing here posts on the gesture: `Send` is held behind the
+   * Undo window, and the other two are links.
+   *
+   * 🔴 Cancelling is not offered. s.31 requires a reason and docs/40 records it — an action
+   * that needs words cannot be a gesture, and prompting for them inside the Undo window
+   * would mean the row said "cancelling" before anyone had said why.
+   */
+  const maySend = can(ctx.role, 'invoices.send', 'approve')
+  const mayReceipt = can(ctx.role, 'receipts', 'write')
+  const swipe = (r: Row): SwipeSpec | undefined => {
+    if (r.status === 'CANCELLED') return undefined
+    const pdf: SwipeSpec['left'] = r.status === 'DRAFT' ? undefined
+      : { kind: 'link', label: 'PDF', legend: 'for the invoice PDF', icon: 'Download', tone: 'info', href: `/api/invoices/${r.id}/document` }
+    if (r.status === 'DRAFT') {
+      if (!maySend) return undefined
+      return { right: { kind: 'commit', label: 'Send', legend: 'to send it', icon: 'Send', tone: 'accent',
+        done: `Sending to ${r.customer.name}`, run: sendInvoiceAction.bind(null, r.id) } }
+    }
+    if (r.status === 'PAID') return { left: pdf }
+    return {
+      right: mayReceipt
+        ? { kind: 'link', label: 'Receipt', legend: 'to record a receipt', icon: 'HandCoins', tone: 'good', href: `/receipts/new?invoice=${r.id}` }
+        : undefined,
+      left: pdf,
+    }
+  }
+
   return (
     <div>
       <PageHeader title="Invoices" sub={fy ? `FY ${fy.label} · ${invoices.length} on record` : undefined}
@@ -83,6 +115,7 @@ export default async function InvoicesPage() {
 
       <Card flush className="overflow-hidden">
         <DataTable columns={cols} rows={invoices} keyOf={(r) => r.id} onRowHref={(r) => `/invoices/${r.id}`}
+          swipe={swipe} noun="invoices"
           empty={<Empty icon="FileText" title="No invoices yet"
             hint={nextNumber ? `Your first will be ${nextNumber}. The number is allocated by the database when you send it, so an abandoned draft never leaves a gap in the series.` : undefined}
             action={<Link href="/invoices/new"><Button>Raise the first invoice</Button></Link>} />} />

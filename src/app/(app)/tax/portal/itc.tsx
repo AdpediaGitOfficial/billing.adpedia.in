@@ -77,12 +77,15 @@ export function Itc2b({ r }: { r: Recon2b }) {
         {r.matched.length > 0 && (
           <table className="w-full">
             <tbody>
+              {/* 🔴 docs/68 §7 — four columns of matched credit do not fit 375px. They stack
+                  rather than scroll sideways, which docs/13 §4 says is never an option. */}
               {r.matched.map((m) => (
-                <tr key={m.billId} className="border-t" style={{ borderColor: 'var(--rule)' }}>
-                  <td className="py-2 font-medium">{m.vendorName}</td>
-                  <td className="py-2 tabular" style={{ color: 'var(--text-muted)' }}>{m.billNumber}</td>
-                  <td className="py-2 text-right tabular">{formatINR(m.ourTax)}</td>
-                  <td className="py-2 pl-3 text-right"><Pill tone="good" dot>matched on {m.tier}</Pill></td>
+                <tr key={m.billId} className="border-t max-md:flex max-md:flex-wrap max-md:items-baseline max-md:gap-x-2 max-md:py-2"
+                    style={{ borderColor: 'var(--rule)' }}>
+                  <td className="py-2 font-medium max-md:py-0 max-md:basis-full">{m.vendorName}</td>
+                  <td className="py-2 tabular max-md:py-0" style={{ color: 'var(--text-muted)' }}>{m.billNumber}</td>
+                  <td className="py-2 text-right tabular max-md:py-0">{formatINR(m.ourTax)}</td>
+                  <td className="py-2 pl-3 text-right max-md:py-0 max-md:pl-0"><Pill tone="good" dot>matched on {m.tier}</Pill></td>
                 </tr>
               ))}
             </tbody>

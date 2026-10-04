@@ -6,6 +6,8 @@ import { Decimal, formatINR } from '@/lib/money'
 import { Card, CardHeader, PageHeader, Button, Pill, Alert } from '@/components/ui/kit'
 import { listAttachments } from '@/server/services/storage/attachment'
 import { AttachmentPanel } from '@/components/attachments/attachment-panel'
+import { ReverseButton } from '@/components/corrections/reverse-button'
+import { cancelExpenseAction } from '../actions'
 
 export default async function ExpenseDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -52,6 +54,18 @@ export default async function ExpenseDetail({ params }: { params: Promise<{ id: 
           ? 'A photo or PDF of the supplier’s tax invoice. It is what substantiates the input credit above.'
           : 'A photo or PDF of the bill. No input credit is being claimed, but it still substantiates the deduction.'}
         initial={attachments.map((a) => ({ id: a.id, filename: a.filename, contentType: a.contentType, sizeBytes: a.sizeBytes }))} />
+
+      {/* 🔴 docs/68 §5 — this was only on the expenses table, in a column the mobile card
+          dropped. Anyone on a phone could see a duplicate capture and had no way to reverse
+          it, and this page, which is where they would come looking, did not offer it either. */}
+      {!expense.cancelledAt && (
+        <Card>
+          <CardHeader title="Reverse this expense" className="mb-3"
+            sub="Posts a reversing entry and puts back the input credit it claimed. Nothing is deleted — both entries stay, and the reason is the only record of why." />
+          <ReverseButton action={cancelExpenseAction} idName="expenseId" id={expense.id}
+            label="reverse it" prompt={`Why is "${expense.description}" being reversed?`} />
+        </Card>
+      )}
 
       <Card flush className="overflow-hidden">
         <CardHeader title="The expense" className="p-5 pb-3" sub={`Paid from ${expense.paidFrom.replace('_', ' ').toLowerCase()}`} />

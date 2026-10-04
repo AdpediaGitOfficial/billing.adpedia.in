@@ -144,14 +144,19 @@ matcher with a comment saying why.
 
 ## 9. Still open
 
+Three of these were closed later; the list is kept with its outcomes rather than edited,
+because what was left open and for how long is itself worth knowing.
+
 - **Receipt images are held in the queue but not yet uploaded** — the expense syncs, the
-  photo stays on the device until S3 storage is wired.
-- **Swipe gestures** (right = primary, left = secondary, with Undo) are still not wired;
-  the card UIs work by tap.
-- **Push is not yet scheduled** — the sender and all four messages exist and payment-received
-  fires on a real receipt, but due-date and overdue notifications need a cron job.
+  photo stays on the device until S3 storage is wired. Still true, and `docs/38 §7` makes the
+  S3 driver a deliberate non-goal.
+- ~~**Swipe gestures** (right = primary, left = secondary, with Undo) are still not wired~~ —
+  done in `docs/68 §3`, where the Undo turned out to be the whole problem.
+- ~~**Push is not yet scheduled**~~ — done; `docs/60 §5` corrected this note once already.
 - **VAPID keys are development ones** in `.env`; production needs its own pair, and
   `WEBAUTHN_ORIGIN` / `WEBAUTHN_RP_ID` must match the deployed domain exactly or every
-  assertion fails.
-- Performance budget from docs/13 (FCP < 1.5s on 4G, virtualised lists past 50 rows) is
-  **not yet measured**.
+  assertion fails. Still true.
+- ~~Performance budget from docs/13 is **not yet measured**~~ — measured in `docs/68 §1`,
+  thirty-eight modules later, by `scripts/perf.mts`. It was being met. What measuring it found
+  was 518 kB of unused icons on every route, six tables scrolling sideways on a phone, and the
+  fact that the budget's own metrics could not have caught either.

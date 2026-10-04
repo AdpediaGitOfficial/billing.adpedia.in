@@ -5,6 +5,8 @@ import { Decimal, formatINR, ZERO } from '@/lib/money'
 import { can } from '@/server/auth/permissions'
 import { Card, PageHeader, StatCard, Empty, Pill, Alert } from '@/components/ui/kit'
 import { ApproveButton } from './approve-button'
+import { SwipeRow, type SwipeSpec } from '@/components/ui/swipe'
+import { approveBillAction } from '../bills/actions'
 
 export default async function ApprovalsPage() {
   const ctx = await requireContext()
@@ -46,8 +48,19 @@ export default async function ApprovalsPage() {
           {bills.map((b) => {
             const noPan = !b.vendor.pan && !b.vendor.isForeignSupplier
             const late = b.dueDate < today
-            return (
-              <Card key={b.id} className="p-4">
+            /**
+             * docs/68 §3. This is the owner's mobile tab, so it is the screen the gesture was
+             * for. 🔴 A bill with no PAN on file is not offered it: s.206AA forces 20% and
+             * Form 16A cannot be issued, so approving is a decision to be read about rather
+             * than a thumb movement — the card says so and keeps the button.
+             */
+            const spec: SwipeSpec | undefined = mayApprove && !noPan ? {
+              right: { kind: 'commit', label: 'Approve', legend: 'to approve it', icon: 'Check', tone: 'good',
+                done: `Approving ${b.billNumber}`, run: approveBillAction.bind(null, b.id) },
+              left: { kind: 'link', label: 'Review', legend: 'to review it first', icon: 'Search', tone: 'info', href: `/bills/${b.id}` },
+            } : undefined
+            const card = (
+              <Card className="p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
@@ -91,6 +104,9 @@ export default async function ApprovalsPage() {
                 )}
               </Card>
             )
+            return spec
+              ? <div key={b.id}><SwipeRow spec={spec} card>{card}</SwipeRow></div>
+              : <div key={b.id}>{card}</div>
           })}
         </div>
       )}

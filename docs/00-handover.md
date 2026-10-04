@@ -1,6 +1,6 @@
 # 00 · Handover — read this first
 
-Adpedia Films Private Limited's internal finance ERP. **684 tests** (314 unit + 370
+Adpedia Films Private Limited's internal finance ERP. **920 tests** (397 unit + 523
 integration), typecheck and lint clean, production build passes.
 
 Everything below is either hard-won or non-obvious. The per-module detail is in `docs/20`
@@ -124,10 +124,13 @@ Each of these is implemented and tested; each was wrong in an obvious first atte
 - Dev credentials live in `.env` (gitignored) and are never repeated in chat.
 - A stale dev server sometimes holds port 3000 and the new one silently starts on 3001 —
   check the log line before assuming a 404 is real.
-- 🔴 **The PWA service worker caches the app shell** (`adpedia-shell-v1`). A UI change can
-  look like it did not take effect in a browser that has visited the app before — the chunk
-  is served from that cache. Unregister the worker and clear the cache before concluding the
-  code is wrong; `rm -rf .next` does not help, because the stale copy is in the browser.
+- **The PWA service worker no longer runs in development** (`docs/68 §6`). It used to, and it
+  cached `/_next/static/` first on the grounds that those filenames are content-hashed — which
+  is true of a build and false of `next dev`, so it served yesterday's chunk for ever and a UI
+  change looked like it had not taken effect. A dev page now unregisters any worker an earlier
+  session left behind. If you are looking at a stale app shell in a browser that visited this
+  project before October 2026, unregister it once by hand. Test the worker itself with
+  `npm run build && npm start`.
 
 ## 6. How the last several modules were chosen
 
@@ -229,6 +232,41 @@ and the bill was typed `EX-300`; a literal comparison reports the whole purchase
 unavailable credit. Amount is a fallback only — two invoices from one supplier for one amount
 in one month is a retainer, and matching on amount crosses them over (`docs/62 §3`).
 
+🔴 **A budget made of timings does not catch bytes.** `lucide-react` was imported as a
+namespace and looked up by string, so every route shipped all 1,544 icons — 518 kB, in the
+layout's chunk, for sixty-seven modules. FCP did not move by a millisecond, because the HTML is
+server-rendered and paints before the JavaScript arrives. What it cost was `load` (2.45s against
+1.55s on slow 4G), the battery and somebody's data. Only a static named import can be
+tree-shaken, and `scripts/perf.mts` now has a bytes line docs/13 never had (`docs/68 §2`).
+
+🔴 **An Undo in this system cannot be a reversal, so the gesture holds the action instead.**
+Nothing is sent while the Undo is on screen; taking it means the thing never happened. Every
+swipe that commits must be chosen so that LOSING the commit is safe — it may leave work undone,
+never work half-done — because a tab that dies mid-window makes no request at all (`docs/68 §3`).
+
+🔴 **The release of a drag must not read its distance from React state.** React batches within a
+task, so a flick whose last move and release arrive together is judged on the offset from before
+the drag, and the gesture silently does nothing. It only reproduces when the events are close
+enough together to skip a render, which is rarely (`docs/68 §3`).
+
+🔴 **Windowing a server-rendered list bounds the DOM, not the clock.** Halving the DOM of a
+100-row list moved `domInteractive` by nothing; quartering the server-side `take` cut it by
+1.26s. The rows are already in the RSC stream — the lever is the take, not the window
+(`docs/68 §4`).
+
+🔴 **A control in a column the mobile card drops is a control a phone cannot reach.** Two
+corrections were reachable only from a desktop table column, and the receipt had no detail page
+to fall back to. docs/49's gap at a different angle: not a service with no caller, but a caller
+that exists only at one viewport width (`docs/68 §5`).
+
+🔴 **A rule implemented inside one component applies only to that component's callers.**
+"Tables become cards below 768px, never a horizontally scrolling grid" lives in `DataTable`;
+six tables in five pages are not DataTable callers and had been scrolling sideways on a phone
+since they were written. Measuring at 375px is what found them (`docs/68 §7`).
+
+🔴 **In a money layout the label truncates, never the figure.** The first phone rendering of the
+trial balance read `₹7,43,40…` (`docs/68 §7`).
+
 🔴 **A page must not write in order to render.** `compare2b` reads; `reconcile2b` writes. The
 same rules, in one place, so the chase screen and the portal screen cannot drift (`docs/62 §5`).
 
@@ -297,20 +335,14 @@ binding appearing more than once — `docs/48 §3`.
 
 ## 7. The largest remaining gaps
 
-🔴 Deduplicated on 02 Oct 2026 and again on 04 Oct, after module 66 — it drifts every time an
-item is struck off and the numbering is edited rather than rewritten. If you strike one off,
-**rewrite this section**, do not renumber it.
+🔴 Rewritten on 04 Oct 2026, after module 68 — it drifts every time an item is struck off and
+the numbering is edited rather than rewritten. If you strike one off, **rewrite this section**,
+do not renumber it.
 
-**Sixty-six modules in, nothing module-sized is left except the mobile tail.** Everything
-below is a screen or a field. That is itself worth knowing: the next session's job is no
-longer to find a class of gap, it is to close the remaining ones and then stop.
-
-### Worth a module
-
-1. **The rest of the mobile tail** (`docs/30 §9`): swipe gestures (right = primary, left =
-   secondary, with Undo) are unwired and the card UIs work by tap; the performance budget
-   from `docs/13` (FCP < 1.5s on 4G, virtualised lists past 50 rows) has never been measured.
-   Receipt upload and push scheduling are done — `docs/60 §5` corrected the stale note.
+**Sixty-eight modules in, nothing module-sized is left.** The mobile tail was the last one, and
+it is done: the gestures are wired, the budget is measured (`scripts/perf.mts`), and what
+measuring it found is in `docs/68`. Everything below is a screen or a field. The next session's
+job is no longer to find a class of gap, it is to close the remaining ones and then stop.
 
 ### A screen or a field each
 
@@ -328,6 +360,9 @@ longer to find a class of gap, it is to close the remaining ones and then stop.
 - **Cancelling a refund voucher** — modelled for it, no service (`docs/65 §7`)
 - **Splitting account 1240** — only if a domestic s.9(3) reverse charge ever occurs, which has
   never been confirmed (`docs/63 §3`)
+- **Server-side pagination** on the three 100-row lists — invoices, bills and receipts. The
+  only remaining lever on how long a list page takes to become interactive, and nothing needs
+  it yet: every route sits at roughly a quarter of its budget (`docs/68 §4`)
 
 ### Deliberate non-goals
 
@@ -338,3 +373,6 @@ longer to find a class of gap, it is to close the remaining ones and then stop.
 - **Inoperative PANs** (rule 114AAA) — nothing available to this system can detect one
   (`docs/47 §7`)
 - **Virus scanning** of uploads — files are never executed and never served inline (`docs/38 §8`)
+- **`scripts/perf.mts` in CI** — it wants a production build, a running server and real data.
+  Run it deliberately: before a release, and after anything that touches the app shell or adds
+  a dependency to it (`docs/68 §1`)

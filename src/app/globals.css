@@ -174,3 +174,11 @@ body {
   .no-print { display: none !important; }
   body { background: #fff; }
 }
+
+/* docs/68 §3 — the Undo window, drawn. Reduced motion gets a static bar rather than none:
+   the point is the remaining time, and a bar that does not move at least says there is a
+   window. */
+@keyframes adp-swipe-drain { from { transform: scaleX(1) } to { transform: scaleX(0) } }
+@media (prefers-reduced-motion: reduce) {
+  @keyframes adp-swipe-drain { from { transform: scaleX(1) } to { transform: scaleX(1) } }
+}

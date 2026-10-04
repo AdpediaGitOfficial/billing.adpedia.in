@@ -54,7 +54,28 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
     window.addEventListener('offline', goOffline)
 
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(() => { /* unsupported or blocked */ })
+      /**
+       * 🔴 Not in development — docs/68 §6.
+       *
+       * `sw.js` caches `/_next/static/` first, on the stated grounds that Next content-hashes
+       * those filenames so a cached copy can never be the wrong version. That is true of a
+       * production build and false of `next dev`, which serves the same chunk at the same
+       * stable path every time it recompiles. The worker then serves yesterday's chunk
+       * forever, a UI change looks like it did not take effect, and `rm -rf .next` does not
+       * help because the stale copy is in the browser. It has cost this project an afternoon
+       * more than once.
+       *
+       * The worker is still exercised the way it ships: `npm run build && npm start`.
+       */
+      if (process.env.NODE_ENV === 'production') {
+        navigator.serviceWorker.register('/sw.js').catch(() => { /* unsupported or blocked */ })
+      } else {
+        // and clear up after a worker an earlier dev session registered
+        void navigator.serviceWorker.getRegistrations()
+          .then((rs) => Promise.all(rs.map((r) => r.unregister())))
+          .then(() => caches?.keys().then((ks) => Promise.all(ks.map((k) => caches.delete(k)))))
+          .catch(() => { /* nothing to clean up */ })
+      }
       const onMessage = (e: MessageEvent) => {
         if (e.data?.type === 'drain-expense-queue') void syncNow()
       }

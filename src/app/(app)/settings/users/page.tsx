@@ -1,10 +1,19 @@
 import { requireContext } from '@/server/context'
 import { prisma } from '@/server/db'
 import { CAPABILITIES, can, type Capability } from '@/server/auth/permissions'
-import { Card, PageHeader, Pill, Alert } from '@/components/ui/kit'
+import { Card, PageHeader, Pill, Alert, FigureCard, FigureList } from '@/components/ui/kit'
 import type { Role } from '@prisma/client'
 
 const ROLES: Role[] = ['OWNER', 'ACCOUNTANT', 'PROJECT_MANAGER', 'EMPLOYEE', 'AUDITOR']
+
+/** Short enough for a phone card's label column. */
+const ROLE_SHORT: Record<Role, string> = {
+  OWNER: 'Owner', ACCOUNTANT: 'Acct', PROJECT_MANAGER: 'PM', EMPLOYEE: 'Staff', AUDITOR: 'Auditor',
+}
+
+function level(role: Role, capability: Capability) {
+  return can(role, capability, 'write') ? 'edit' : can(role, capability, 'read') ? 'view' : '—'
+}
 
 const ROLE_NOTE: Record<Role, string> = {
   OWNER: 'Everything, including approving bills and paying salaries.',
@@ -18,9 +27,10 @@ export default async function UsersPage() {
   const ctx = await requireContext()
   const members = await prisma.userCompany.findMany({
     where: { companyId: ctx.companyId },
-    include: { user: { select: { id: true, name: true, email: true, lastLoginAt: true, createdAt: true } } },
+    include: { user: { select: { id: true, name: true, email: true, lastLoginAt: true, createdAt: true, isActive: true } } },
     orderBy: { role: 'asc' },
   })
+  const live = members.filter((m) => m.user.isActive)
 
   return (
     <div className="max-w-3xl space-y-5">
@@ -35,36 +45,66 @@ export default async function UsersPage() {
 
       <Card flush className="overflow-hidden">
         <div className="border-b px-4 py-2.5" style={{ borderColor: 'var(--rule)', background: 'var(--surface)' }}>
-          <span className="eyebrow">{members.length} {members.length === 1 ? 'person' : 'people'}</span>
+          <span className="eyebrow">
+            {live.length} {live.length === 1 ? 'person' : 'people'}
+            {members.length > live.length && ` · ${members.length - live.length} deactivated`}
+          </span>
         </div>
-        <table className="w-full text-[13px]">
-          <tbody>
-            {members.map((m) => (
-              <tr key={m.id} className="border-t" style={{ borderColor: 'var(--rule)' }}>
-                <td className="px-4 py-3">
-                  <span className="font-medium">{m.user.name}</span>
-                  <span className="block text-[11.5px]" style={{ color: 'var(--text-muted)' }}>{m.user.email}</span>
-                </td>
-                <td className="px-4 py-3 text-[11.5px]" style={{ color: 'var(--text-muted)' }}>
+        {/**
+          * 🔴 docs/68 §7 — a deactivated account used to read exactly like a live one.
+          *
+          * This page lists `UserCompany` rows, and deactivating a user sets `isActive` on the
+          * USER: the membership survives, so ten accounts that cannot sign in were being
+          * presented, by the one screen whose whole subject is who can do what, as ten
+          * owners. Found because the dev database had collected a preview account per
+          * session and the phone layout put them one under another where it showed.
+          */}
+        <div className="divide-y" style={{ borderColor: 'var(--rule)' }}>
+          {members.map((m) => (
+            <div key={m.id} className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1.5 px-4 py-3">
+              <div className="min-w-0">
+                <span className="text-[13px] font-medium" style={m.user.isActive ? undefined : { color: 'var(--text-muted)' }}>
+                  {m.user.name}
+                </span>
+                <span className="block truncate text-[11.5px]" style={{ color: 'var(--text-muted)' }}>{m.user.email}</span>
+                <span className="block text-[11.5px]" style={{ color: 'var(--text-muted)' }}>
                   {m.user.lastLoginAt
                     ? `last signed in ${m.user.lastLoginAt.toISOString().slice(0, 10)}`
                     : 'never signed in'}
-                </td>
-                <td className="px-4 py-3 text-right">
-                  <Pill tone={m.role === 'OWNER' ? 'accent' : m.role === 'AUDITOR' ? 'neutral' : 'good'}>
-                    {m.role.replace('_', ' ').toLowerCase()}
-                  </Pill>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                </span>
+              </div>
+              {/* on a phone the pills always take their own line, rather than sometimes
+                  wrapping and sometimes not depending on the length of a name */}
+              <div className="flex w-full shrink-0 flex-wrap items-center justify-end gap-1.5 sm:w-auto">
+                {!m.user.isActive && <Pill tone="critical">deactivated</Pill>}
+                <Pill tone={!m.user.isActive ? 'neutral' : m.role === 'OWNER' ? 'accent' : m.role === 'AUDITOR' ? 'neutral' : 'good'}>
+                  {m.role.replace('_', ' ').toLowerCase()}
+                </Pill>
+              </div>
+            </div>
+          ))}
+        </div>
       </Card>
 
-      <Card flush className="overflow-x-auto">
+      <Card flush className="overflow-hidden">
         <div className="border-b px-4 py-2.5" style={{ borderColor: 'var(--rule)', background: 'var(--surface)' }}>
           <span className="eyebrow">What each role can do</span>
         </div>
+        {/* 🔴 docs/68 §7 — a cross-tab is not a list, so it cannot become `DataTable` cards.
+            On a phone it pivots: one card per capability, with the five roles down it. The
+            desk keeps the grid, where comparing roles across a row is the whole point. */}
+        <FigureList noun="capabilities">
+          {CAPABILITIES.map((capability: Capability) => (
+            <FigureCard key={capability} title={capability}
+              figures={ROLES.map((r) => ({
+                label: ROLE_SHORT[r],
+                value: level(r, capability),
+                strong: level(r, capability) === 'edit',
+                muted: level(r, capability) === '—',
+              }))} />
+          ))}
+        </FigureList>
+        <div className="hidden overflow-x-auto md:block">
         <table className="w-full min-w-[640px] text-[12.5px]">
           <thead>
             <tr style={{ background: 'var(--surface)' }}>
@@ -92,6 +132,7 @@ export default async function UsersPage() {
             ))}
           </tbody>
         </table>
+        </div>
       </Card>
 
       <Card className="p-4">
