@@ -664,3 +664,54 @@ export async function cancelRefundVoucher(ctx: RequestContext, voucherId: string
     return cancelled
   })
 }
+
+/* ── advance tax ─────────────────────────────────────────────────────────────── */
+
+/**
+ * Cancel an advance-tax payment — docs/72, closing the gap docs/71 opened.
+ *
+ * 🔴 Written in the module AFTER the one that modelled it, deliberately. `cancelRefundVoucher`
+ * sat as a nullable column and a note in "still open" for four modules (docs/65 §7 → docs/69),
+ * and by the time anybody came back to it the postings had been filed under the wrong
+ * identity. A modelled-but-unserviced field is the same gap as a service with no caller; this
+ * one is closed while the shape of it is still in somebody's head.
+ *
+ * There is no filing to refuse against. Advance tax is not reported in a return — it appears
+ * in the ITR as tax already paid, and until that return is filed a challan entered in error is
+ * simply an entry in these books. The period lock is the only guard, and it is the right one:
+ * what must not happen is a reversal landing in a closed year.
+ */
+export async function cancelAdvanceTaxPayment(
+  ctx: RequestContext, paymentId: string, reason: string, on = new Date(),
+) {
+  assertCan(ctx.role, 'tax', 'write')
+  requireReason(reason)
+  await assertPostable(ctx.companyId, on)
+
+  const payment = await prisma.advanceTaxPayment.findFirst({
+    where: { id: paymentId, companyId: ctx.companyId },
+  })
+  if (!payment) throw new NotFound('Advance tax payment not found')
+  if (payment.cancelledAt) throw new AppError('That payment is already cancelled')
+
+  const entries = await prisma.journalEntry.findMany({
+    where: { companyId: ctx.companyId, sourceType: 'ADVANCE_TAX', sourceId: payment.id, reversalOfId: null },
+  })
+
+  return prisma.$transaction(async (tx) => {
+    for (const e of entries) await reverseJournal(ctx, e.id, on, reason, tx)
+
+    const cancelled = await tx.advanceTaxPayment.update({
+      where: { id: payment.id },
+      data: { cancelledAt: on, cancelReason: reason.trim() },
+    })
+
+    await audit(ctx, {
+      entity: 'AdvanceTaxPayment', entityId: payment.id, action: 'CANCEL',
+      before: { amount: payment.amount.toString(), cin: payment.cin },
+      after: { reason: reason.trim() },
+    }, tx)
+
+    return cancelled
+  })
+}

@@ -13,6 +13,7 @@ import { advanceTaxPosition } from '@/server/services/tax/advance-tax'
 import {
   tdsDepositDue, tdsReturnDue, form16aDue, form16Due,
   gstr1Due, gstr3bDue, gstr9Due, professionTaxDue, lutRenewalDue, itrDue,
+  agmDue, aoc4Due, mgt7Due, ROC_LATE_FEE_PER_DAY,
   type Obligation,
 } from './deadlines'
 
@@ -362,6 +363,79 @@ export async function complianceCalendar(ctx: RequestContext, now = new Date()):
       href: '/tax/advance',
       done: Boolean(advance.estimate) && (i.shortfall.isZero() || i.withinSafeHarbour),
     })
+  }
+
+  /* ── company law: the AGM, then the two forms that run from it ────────────── */
+
+  /**
+   * 🔴 The forms key off the MEETING, not off its deadline — docs/72.
+   *
+   * s.137(1) gives thirty days from the AGM for AOC-4 and s.92(4) sixty for MGT-7. An AGM held
+   * on 15 August makes AOC-4 due on 14 September, six weeks before the 30 October anybody
+   * assuming a 30 September meeting would have written down.
+   *
+   * 🔴 And where no meeting has been held, the obligation is the MEETING. A company cannot
+   * file AOC-4 before its AGM, so an overdue AOC-4 with no AGM behind it points at the wrong
+   * form and sends somebody to the portal to do something they cannot do. The forms are shown
+   * as waiting, with the latest date they could fall due, and the meeting carries the urgency.
+   */
+  /**
+   * 🔴 The ROC obligations are about the year that has ENDED, not the year we are in.
+   *
+   * The AGM for FY 2026-27 is held in 2027; what is live in October 2026 is the AGM for FY
+   * 2025-26, which was due on 30 September 2026. Keying these off `currentFinancialYear` would
+   * show a date a year away and silently omit the one that is already five days late — the
+   * same family of mistake as docs/49 §4's "the newest OPEN year is not the year you are in",
+   * asked of a different question.
+   */
+  const reported = await prisma.financialYear.findFirst({
+    where: { companyId: ctx.companyId, endsOn: { lt: now } },
+    orderBy: { endsOn: 'desc' },
+  })
+
+  if (reported) {
+    const agmLimit = agmDue(reported.endsOn)
+    const held = reported.agmHeldOn
+
+    push({
+      id: 'agm',
+      obligation: 'AGM',
+      title: `Hold the annual general meeting for FY ${reported.label}`,
+      detail: held
+        ? `Held on ${held.toISOString().slice(0, 10)}${reported.agmSource ? ` · ${reported.agmSource}` : ''}`
+        : 's.96 — within six months of the year end. A first AGM gets nine months, and no two may be more than fifteen apart, which can make the real date earlier than this.',
+      dueOn: agmLimit,
+      href: '/settings/company',
+      done: Boolean(held),
+    })
+
+    const rocDays = (dueOn: Date) => Math.max(0, Math.ceil((now.getTime() - dueOn.getTime()) / DAY))
+    for (const form of [
+      { id: 'aoc4', obligation: 'AOC4' as const, name: 'AOC-4', what: 'the financial statements', section: 's.137(1)', days: 30, due: aoc4Due, filedOn: reported.aoc4FiledOn },
+      { id: 'mgt7', obligation: 'MGT7' as const, name: 'MGT-7', what: 'the annual return', section: 's.92(4)', days: 60, due: mgt7Due, filedOn: reported.mgt7FiledOn },
+    ]) {
+      const dueOn = form.due(held ?? agmLimit)
+      const late = held && !form.filedOn ? rocDays(dueOn) : 0
+      push({
+        id: form.id,
+        obligation: form.obligation,
+        title: `File ${form.name} for FY ${reported.label}`,
+        detail: form.filedOn
+          ? `Filed on ${form.filedOn.toISOString().slice(0, 10)} — ${form.section}`
+          : held
+          ? `${form.what} — ${form.section}, ${form.days} days from the meeting on ${held.toISOString().slice(0, 10)}`
+          : `${form.what} — ${form.section}, ${form.days} days from the AGM. Record the meeting first; it cannot be filed before one is held.`,
+        dueOn,
+        // 🔴 ₹100 a day, per form, uncapped since 2018 — worth a number rather than "a penalty"
+        penalty: late > 0
+          ? `₹${ROC_LATE_FEE_PER_DAY} a day under s.403 — ${formatINR(String(late * ROC_LATE_FEE_PER_DAY))} so far`
+          : `₹${ROC_LATE_FEE_PER_DAY} a day under s.403, with no upper limit`,
+        href: '/settings/company',
+        done: Boolean(form.filedOn),
+        // without a meeting there is nothing to file, so it is not yet an obligation at all
+        notApplicable: !held && !form.filedOn,
+      })
+    }
   }
 
   push({

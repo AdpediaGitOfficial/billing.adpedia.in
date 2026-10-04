@@ -3,7 +3,7 @@ import {
   tdsDepositDue, tdsReturnDue, form16aDue, form16Due,
   gstr1Due, gstr3bDue, pmt06Due, gstr9Due,
   professionTaxDue, advanceTaxDue, ADVANCE_TAX_SCHEDULE, ADVANCE_TAX_INTEREST_PCT_PER_MONTH,
-  lutRenewalDue, itrDue,
+  lutRenewalDue, itrDue, agmDue, aoc4Due, mgt7Due, ROC_LATE_FEE_PER_DAY,
 } from '@/server/services/compliance/deadlines'
 
 const d = (x: Date) => x.toISOString().slice(0, 10)
@@ -135,5 +135,36 @@ describe('🔴 the s.234C provisos', () => {
 
   it('runs at 1% a month', () => {
     expect(ADVANCE_TAX_INTEREST_PCT_PER_MONTH).toBe(1)
+  })
+})
+
+/** docs/72 — the ROC forms, which key off the meeting rather than its deadline. */
+describe('🔴 company law', () => {
+  it('puts the AGM six months after the year end', () => {
+    expect(d(agmDue(new Date('2027-03-31T23:59:59Z')))).toBe('2027-09-30')
+  })
+
+  /**
+   * 🔴 Thirty and sixty days from the meeting that was HELD.
+   *
+   * An AGM on 15 August makes AOC-4 due on 14 September — six weeks before the 30 October
+   * anybody assuming a 30 September meeting would have written down. Keying the forms off the
+   * AGM's deadline instead of its date is a mistake that only shows up as a late fee.
+   */
+  it('runs AOC-4 and MGT-7 from the date of the meeting', () => {
+    const held = new Date('2027-08-15T00:00:00Z')
+    expect(d(aoc4Due(held))).toBe('2027-09-14')
+    expect(d(mgt7Due(held))).toBe('2027-10-14')
+  })
+
+  it('and therefore gives later dates for a meeting held at the deadline', () => {
+    const held = new Date('2027-09-30T00:00:00Z')
+    expect(d(aoc4Due(held))).toBe('2027-10-30')
+    expect(d(mgt7Due(held))).toBe('2027-11-29')
+  })
+
+  /** ₹100 a day per form, uncapped since the 2018 amendment to s.403. */
+  it('charges a hundred rupees a day, per form', () => {
+    expect(ROC_LATE_FEE_PER_DAY).toBe(100)
   })
 })

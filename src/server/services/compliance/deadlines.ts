@@ -10,6 +10,7 @@ export type Obligation =
   | 'TDS_DEPOSIT' | 'TDS_RETURN' | 'FORM_16A' | 'FORM_16'
   | 'GSTR1' | 'GSTR3B' | 'GST_PMT06' | 'GSTR9'
   | 'PROFESSION_TAX' | 'ADVANCE_TAX' | 'LUT_RENEWAL' | 'ITR'
+  | 'AGM' | 'AOC4' | 'MGT7'
 
 const utc = (y: number, m: number, d: number) => new Date(Date.UTC(y, m - 1, d, 23, 59, 59))
 
@@ -153,3 +154,53 @@ export function lutRenewalDue(fyStartYear: number): Date {
 export function itrDue(fyStartYear: number): Date {
   return utc(fyStartYear + 1, 10, 31)
 }
+
+/* ── company law ─────────────────────────────────────────────────────────────── */
+
+/**
+ * 🔴 The last day the AGM may be held — s.96(1).
+ *
+ * Within six months of the financial year's end, so 30 September for a 31 March year. Two
+ * further limits apply that this cannot see: a FIRST annual general meeting gets nine months
+ * from the end of the first financial year, and no two AGMs may be more than fifteen months
+ * apart whatever the six-month rule allows. Both are facts about the company's history rather
+ * than its books, and the fifteen-month limit can make the real deadline EARLIER than this —
+ * so the date is stated as the statutory outer limit and the register of past AGMs is what
+ * would narrow it.
+ */
+export function agmDue(fyEnd: Date): Date {
+  return utc(fyEnd.getUTCFullYear(), fyEnd.getUTCMonth() + 1 + 6, 30)
+}
+
+/**
+ * 🔴 AOC-4 and MGT-7 run from the AGM that was HELD, not from its deadline.
+ *
+ * s.137(1) gives thirty days for the financial statements and s.92(4) sixty for the annual
+ * return, both counted from the date of the meeting. An AGM held on 15 August makes AOC-4 due
+ * on 14 September — six weeks before the 30 October that anybody assuming a 30 September
+ * meeting would have written down.
+ *
+ * Where no meeting has been held yet, the only honest answer is the LATEST the form could
+ * fall due, which is thirty or sixty days after the last permitted AGM.
+ */
+export function aoc4Due(agmHeldOn: Date): Date {
+  return endOfDay(new Date(agmHeldOn.getTime() + 30 * 86_400_000))
+}
+
+export function mgt7Due(agmHeldOn: Date): Date {
+  return endOfDay(new Date(agmHeldOn.getTime() + 60 * 86_400_000))
+}
+
+function endOfDay(d: Date): Date {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 23, 59, 59))
+}
+
+/**
+ * 🔴 ₹100 a day, per form, with no upper limit.
+ *
+ * s.403 as amended in 2018 removed the cap and the earlier slab-based additional fee for these
+ * two returns. A company that is a year late on AOC-4 owes ₹36,500 on that form alone, and the
+ * same again on MGT-7 — which is why this is worth putting in front of somebody rather than
+ * leaving as "a penalty may apply".
+ */
+export const ROC_LATE_FEE_PER_DAY = 100

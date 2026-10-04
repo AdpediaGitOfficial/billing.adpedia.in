@@ -80,8 +80,9 @@ would make it wallpaper.
   the estimate was the wrong way round: the dates are statutory, and leaving the instalments
   off until somebody entered a liability meant the one thing that would prompt them to get one
   was the thing that was missing.
-- **ROC filings** (AOC-4, MGT-7) are company-law obligations keyed to the AGM date, which the
-  system does not hold.
+- ~~**ROC filings** (AOC-4, MGT-7) are company-law obligations keyed to the AGM date, which the
+  system does not hold.~~ Done in `docs/72`, which also found that the calendar was asking
+  about the wrong financial year.
 - **Nothing is marked done by hand.** An item clears when the data says so — a challan linked,
   a LUT on file. A return that was filed on the portal has no corresponding fact in the
   system, so GSTR-1 and GSTR-3B never read as done.

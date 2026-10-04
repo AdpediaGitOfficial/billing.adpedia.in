@@ -3,6 +3,8 @@ import { requireContext } from '@/server/context'
 import { prisma } from '@/server/db'
 import { Card, PageHeader, Pill, Alert } from '@/components/ui/kit'
 import { CompanyEditForm } from './edit-form'
+import { RocForm } from './roc-form'
+import { rocYears } from '@/server/services/compliance/roc'
 
 interface Addr { line1?: string; line2?: string; city?: string; state?: string; pincode?: string; country?: string }
 
@@ -17,6 +19,9 @@ export default async function CompanySettingsPage() {
     },
   })
   const addr = (co.registeredAddress ?? {}) as Addr
+  // docs/72 — the registrar's dates, for every year that has ended
+  const roc = await rocYears(ctx)
+  const iso = (d: Date | null | undefined) => d ? d.toISOString().slice(0, 10) : ''
 
   return (
     <div className="max-w-3xl space-y-5">
@@ -135,12 +140,41 @@ export default async function CompanySettingsPage() {
         </table>
       </Card>
 
+      {roc.length > 0 && (
+        <Card flush className="overflow-hidden">
+          <Section title="Registrar of Companies" />
+          <p className="px-4 pt-3 text-[12px] leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+            AOC-4 and MGT-7 run from the date the AGM was <em>held</em> — thirty days and sixty under
+            s.137(1) and s.92(4) — not from the 30 September it could have been held by. A meeting held
+            early makes both forms due early. Late costs ₹100 a day, per form, with no upper limit since
+            the 2018 amendment to s.403.
+          </p>
+          <div className="space-y-6 p-4">
+            {roc.map((y) => (
+              <div key={y.id}>
+                <p className="mb-2 text-[12.5px] font-semibold">FY {y.label}</p>
+                <RocForm year={{
+                  id: y.id,
+                  label: y.label,
+                  agmLimit: y.agmLimit.toISOString().slice(0, 10),
+                  agmHeldOn: iso(y.agmHeldOn),
+                  agmSource: y.agmSource ?? '',
+                  aoc4FiledOn: iso(y.aoc4FiledOn),
+                  mgt7FiledOn: iso(y.mgt7FiledOn),
+                }} />
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
       <Card className="p-4">
         <p className="eyebrow">Related</p>
         <p className="mt-1.5 text-[12.5px]" style={{ color: 'var(--text-muted)' }}>
           <Link href="/settings/lut" className="underline">LUT register</Link> ·{' '}
           <Link href="/settings/e-invoice" className="underline">E-invoicing readiness</Link> ·{' '}
-          <Link href="/tax/pan" className="underline">PAN register</Link>
+          <Link href="/tax/pan" className="underline">PAN register</Link> ·{' '}
+          <Link href="/tax/calendar" className="underline">Compliance calendar</Link>
         </p>
       </Card>
     </div>

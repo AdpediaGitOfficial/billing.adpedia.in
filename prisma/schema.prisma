@@ -156,6 +156,21 @@ model FinancialYear {
   status     FyStatus  @default(OPEN)
   lockedUpTo DateTime? // period lock — see §3.5
 
+  /// docs/72 · The date the annual general meeting for this year was actually HELD.
+  ///
+  /// 🔴 Every ROC deadline keys off this, not off 30 September. s.137(1) gives thirty days
+  /// from the AGM for AOC-4 and s.92(4) sixty for MGT-7 — so an AGM held early makes both
+  /// forms due early, and a company that assumes 30 October because the meeting could have
+  /// been held on 30 September is late without knowing it.
+  agmHeldOn  DateTime?
+  /// where the date came from — the minutes, the CS, the MCA portal
+  agmSource  String?
+  /// docs/72 · filed on the MCA portal, which this system does not talk to. Recorded here so
+  /// the obligation can clear: without a fact to clear it, an annual item nags for ever once
+  /// its date passes, and a calendar that nags is one people stop reading (docs/43 §1).
+  aoc4FiledOn DateTime?
+  mgt7FiledOn DateTime?
+
   journalEntries JournalEntry[]
   invoices       Invoice[]
   series         DocumentSeries[]

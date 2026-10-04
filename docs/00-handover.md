@@ -1,6 +1,6 @@
 # 00 · Handover — read this first
 
-Adpedia Films Private Limited's internal finance ERP. **946 tests** (400 unit + 546
+Adpedia Films Private Limited's internal finance ERP. **961 tests** (404 unit + 557
 integration), typecheck and lint clean, production build passes.
 
 Everything below is either hard-won or non-obvious. The per-module detail is in `docs/20`
@@ -232,6 +232,21 @@ and the bill was typed `EX-300`; a literal comparison reports the whole purchase
 unavailable credit. Amount is a fallback only — two invoices from one supplier for one amount
 in one month is a retainer, and matching on amount crosses them over (`docs/62 §3`).
 
+🔴 **An annual obligation is about the year that has ENDED.** The AGM for FY 2026-27 is held
+in 2027; what is live in October 2026 is FY 2025-26's, which was due five days ago. Keying it
+off `currentFinancialYear` shows a date a year away and omits the one already late — docs/49
+§4's trap asked of a different question (`docs/72 §2`).
+
+🔴 **A deadline that runs from an event must be computed from the event, not from the event's
+own deadline.** AOC-4 is thirty days from the AGM that was HELD; a meeting on 15 August makes
+it due 14 September, six weeks before the 30 October anybody working from 30 September would
+have written down (`docs/72 §1`).
+
+🔴 **A modelled-but-unserviced field is the same gap as a service with no caller**, and it is
+closed in the NEXT module rather than left in "still open". `cancelRefundVoucher` sat there for
+four modules and by the time anybody returned to it the postings had been filed under the wrong
+identity (`docs/72 §5`).
+
 🔴 **The s.234C safe harbour is not a rounding of the instalment percentage.** 12% by 15 June
 and 36% by 15 September forgive the INTEREST on a near miss, for the first two instalments
 only; the shortfall still has to be made up. Charging interest from 15% gives a plausible,
@@ -389,8 +404,9 @@ job is no longer to find a class of gap, it is to close the remaining ones and t
 - **User invitations** — still unwired (`docs/35 §6`). Company details and the service
   catalogue were done in `docs/67`; invitations are a module, not a field, because inviting a
   user is creating a credential and wants an email path and an expiry.
-- **ROC filings** (AOC-4, MGT-7), which need the AGM date the system does not hold
-- **Cancelling an advance-tax payment** — modelled for it, no service (`docs/71 §5`)
+- **ITR and GSTR-9 on the calendar read the current financial year**, so they show next
+  year's dates rather than the ones falling due now (`docs/72 §2`). Worth fixing together with
+  a way to mark them filed, which is what `docs/43 §5` has wanted all along
 - **Opening balances as explicit entries** at year-end close (`docs/37 §7`)
 - **IRN and QR on the invoice template** — the fields persist, the template ignores them
   (`docs/31 §7`)

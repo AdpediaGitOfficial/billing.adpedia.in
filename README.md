@@ -76,8 +76,9 @@ payroll, projects and bank reconciliation on a double-entry ledger.
 | [69 · Note registers](docs/69-note-registers.md) | The documents nothing listed, and a refund voucher filed under the advance's identity |
 | [70 · Draft editing](docs/70-draft-editing.md) | Correcting a draft instead of cancelling it, and the financial year that moves with the date |
 | [71 · Advance tax](docs/71-advance-tax.md) | s.211 instalments, the s.234C proviso, and a liability the books cannot derive |
+| [72 · ROC filings](docs/72-roc-filings.md) | The AGM date every company-law deadline runs from, and which year it is about |
 
-**946 tests passing** · typecheck and lint clean · production build passes.
+**961 tests passing** · typecheck and lint clean · production build passes.
 
 ```bash
 cp .env.example .env     # set DATABASE_URL and JWT_SECRET
