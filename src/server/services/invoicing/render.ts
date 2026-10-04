@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises'
+import QRCode from 'qrcode'
 import { join } from 'node:path'
 import { prisma } from '@/server/db'
 import { Decimal, formatINR, amountInWords } from '@/lib/money'
@@ -24,6 +25,22 @@ function addressHtml(a: unknown): string {
  * TDS mode — so the same file produces the intra-state, inter-state and export
  * documents without branching here.
  */
+/**
+ * 🔴 docs/75 — which IRP sources may appear on a document.
+ *
+ * The mock adapter writes into the same four columns as a real one. An invoice registered
+ * against it carries an IRN that is a SHA-256 of the right shape and a `signedQr` that is
+ * base64 of `{"mock":true,…}` — print either and the document looks exactly like an e-invoice
+ * and verifies as nothing. So the block renders only for a source this list recognises, and
+ * the list is a allowlist rather than `!== 'MOCK…'`: an adapter added later and forgotten
+ * would otherwise print by default.
+ */
+const REAL_IRP_SOURCES = new Set(['LIVE'])
+
+export function isRealIrp(source: string | null | undefined): boolean {
+  return Boolean(source && REAL_IRP_SOURCES.has(source))
+}
+
 export async function renderInvoiceHtml(companyId: string, invoiceId: string): Promise<string> {
   const inv = await prisma.invoice.findFirst({
     where: { id: invoiceId, companyId },
@@ -144,8 +161,47 @@ export async function renderInvoiceHtml(companyId: string, invoiceId: string): P
     [/(<div class="copy-mark" data-bind="doc\.copyType">)[^<]*/, `$1${inv.status === 'DRAFT' ? 'Draft — not issued' : 'Original for Recipient'}`],
   ]
 
+  /**
+   * 🔴 The QR is the IRP's OWN signed payload, printed verbatim.
+   *
+   * Rule 46(r) wants the code the portal returned. Encoding the invoice's particulars
+   * ourselves would produce something that scans, looks official and was signed by nobody —
+   * a forgery that nobody set out to make, and that only fails when somebody verifies it.
+   */
+  const eInvoice = isRealIrp(inv.irpSource) && inv.irn && inv.signedQr
+    ? {
+        irn: inv.irn,
+        ackNo: inv.ackNo ?? '—',
+        ackDate: inv.ackDate ? fmtDate(inv.ackDate) : '—',
+        qr: await QRCode.toDataURL(inv.signedQr, { errorCorrectionLevel: 'M', margin: 0, width: 360 }),
+      }
+    : null
+
+  if (eInvoice) {
+    SUBS.push(
+      [/(<b data-bind="invoice\.irn">)[^<]*/, `$1${esc(eInvoice.irn)}`],
+      [/(<b data-bind="invoice\.ackNo">)[^<]*/, `$1${esc(eInvoice.ackNo)}`],
+      [/(<b data-bind="invoice\.ackDate">)[^<]*/, `$1${esc(eInvoice.ackDate)}`],
+      [/(<img class="einvoice-qr" src=")[^"]*/, `$1${eInvoice.qr}`],
+    )
+  }
+
   let html = await readFile(TEMPLATE, 'utf8')
   for (const [re, to] of SUBS) html = html.replace(re, to)
+
+  /**
+   * 🔴 Removed entirely, not left blank.
+   *
+   * Adpedia is below the ₹5 Cr threshold, so its invoices are not e-invoices at all. An empty
+   * IRN box on one is a claim that it should have had an IRN — and on a MOCK-registered
+   * invoice a filled one would be worse: it would look exactly like the real thing.
+   */
+  if (!eInvoice) {
+    // 🔴 Delimited by comments rather than matched structurally. A regex that counts closing
+    // tags through nested markup is one edit away from removing the signature block with it,
+    // and the failure is a document that renders and is missing something.
+    html = html.replace(/<!--einvoice:start-->[\s\S]*?<!--einvoice:end-->/, '')
+  }
 
   // 🔴 The money columns must carry the invoice's OWN currency.
   //

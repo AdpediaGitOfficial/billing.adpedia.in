@@ -117,8 +117,9 @@ rather than via a rejection they have to interpret.
 ## 8. Still open
 
 - **Live IRP client** (§6) — on purpose.
-- **IRN/QR on the PDF template** — the fields persist, the template does not render them yet.
-  Pointless until there is a real IRN.
+- ~~**IRN/QR on the PDF template**~~ — done in `docs/75`, which first had to make a mock IRN
+  distinguishable from a real one: the mock writes into the same four columns, so the document
+  would have printed a forgery nobody set out to make.
 - **E-way bills** — a separate mandate on goods movement. Adpedia supplies services only, so
   it does not apply at all; not built, and not a gap.
 - **6-digit SAC** switches on at the same threshold. `hsnOrSac` already accepts 4–8 digits,

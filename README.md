@@ -79,8 +79,9 @@ payroll, projects and bank reconciliation on a double-entry ledger.
 | [72 · ROC filings](docs/72-roc-filings.md) | The AGM date every company-law deadline runs from, and which year it is about |
 | [73 · Invitations](docs/73-invitations.md) | Inviting a user is creating a credential, and is held like one |
 | [74 · Opening balances](docs/74-opening-balances.md) | The one position the system cannot derive, and the carry-forward that must stay derived |
+| [75 · IRN on the document](docs/75-irn-on-the-document.md) | The signed QR, printed verbatim — and the mock IRN that must never reach a document |
 
-**992 tests passing** · typecheck and lint clean · production build passes.
+**998 tests passing** · typecheck and lint clean · production build passes.
 
 ```bash
 cp .env.example .env     # set DATABASE_URL and JWT_SECRET

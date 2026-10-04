@@ -1,6 +1,6 @@
 # 00 · Handover — read this first
 
-Adpedia Films Private Limited's internal finance ERP. **992 tests** (411 unit + 581
+Adpedia Films Private Limited's internal finance ERP. **998 tests** (411 unit + 587
 integration), typecheck and lint clean, production build passes.
 
 Everything below is either hard-won or non-obvious. The per-module detail is in `docs/20`
@@ -232,6 +232,17 @@ and the bill was typed `EX-300`; a literal comparison reports the whole purchase
 unavailable credit. Amount is a fallback only — two invoices from one supplier for one amount
 in one month is a retainer, and matching on amount crosses them over (`docs/62 §3`).
 
+🔴 **A mock registration must not be indistinguishable from a real one.** The mock IRP writes
+an IRN of exactly the right shape into exactly the same four columns, and the only record of
+which adapter produced it was a line in the audit log. Printed, the document looks like an
+e-invoice and verifies as nothing. `Invoice.irpSource` records it, and the renderer tests an
+ALLOWLIST — an adapter added later and forgotten must not print by default (`docs/75 §1`).
+
+🔴 **A QR on a document is the IRP's own signed payload, printed verbatim.** Encoding the
+invoice's particulars ourselves produces something that scans, looks official and was signed by
+nobody. The test asserts the rendered data URI equals an encoding of `signedQr`, not that a QR
+is present (`docs/75 §2`).
+
 🔴 **An opening-balance entry in any year but the first would double every figure.** Every
 report reads cumulatively from `new Date(0)`, so balance-sheet accounts carry forward by
 themselves — and the doubling is silent, because the entry balances and the trial balance still
@@ -428,8 +439,6 @@ job is no longer to find a class of gap, it is to close the remaining ones and t
 - **ITR and GSTR-9 on the calendar read the current financial year**, so they show next
   year's dates rather than the ones falling due now (`docs/72 §2`). Worth fixing together with
   a way to mark them filed, which is what `docs/43 §5` has wanted all along
-- **IRN and QR on the invoice template** — the fields persist, the template ignores them
-  (`docs/31 §7`)
 - **Splitting account 1240** — only if a domestic s.9(3) reverse charge ever occurs, which has
   never been confirmed (`docs/63 §3`)
 - **Server-side pagination** on the three 100-row lists — invoices, bills and receipts. The

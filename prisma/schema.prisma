@@ -588,6 +588,14 @@ model Invoice {
   ackNo    String?
   ackDate  DateTime?
   signedQr String?
+  /// docs/75 · WHICH IRP produced the IRN above.
+  ///
+  /// 🔴 A mock registration writes into exactly the same four columns as a real one, and until
+  /// this column existed the only record of which had happened was a line in the audit log.
+  /// Everything downstream — the e-invoice screen, the document, an export to the CA — would
+  /// have read a fake IRN as genuine. The document renders an IRN and its QR only when this
+  /// says a real IRP produced them.
+  irpSource String?
 
   pdfUrl          String?
   pdfSha256       String?

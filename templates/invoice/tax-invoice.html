@@ -231,6 +231,17 @@
 
   @media screen{ body{ padding:8mm 0; } .sheet{ box-shadow:0 2mm 8mm rgba(0,0,0,.28); } }
   @media print{ html{ background:#fff; } .sheet{ box-shadow:none; } }
+
+    /* docs/75 — e-invoice particulars beside the signature. The QR is the IRP's own signed
+       payload, printed at 24mm so a phone can read it off paper; rule 46(r) wants it legible,
+       not decorative. */
+    .einvoice{display:flex;gap:3mm;align-items:flex-start;margin:0 0 3mm;padding:2.5mm;
+      border:.3pt solid var(--rule);border-radius:1.5mm;background:var(--row-alt);text-align:left}
+    .einvoice-qr{width:22mm;height:22mm;flex:0 0 auto}
+    .einvoice-meta{font-size:6.2pt;line-height:1.45;min-width:0}
+    .einvoice-meta .lbl{display:block;color:var(--ink-faint);text-transform:uppercase;
+      letter-spacing:.06em;font-size:5.6pt}
+    .einvoice-meta b{font-weight:600;word-break:break-all}
 </style>
 </head>
 <body>
@@ -402,10 +413,26 @@
       </dl>
     </div>
 
-    <div class="sign">
-      <div class="for">For <span data-bind="company.legalName">Adpedia Films Private Limited</span></div>
-      <div class="space"><img src="assets/signature.png" alt="" data-bind="company.signatureImageUrl"></div>
-      <div class="line">Authorised Signatory</div>
+    <!-- docs/75 · e-invoice particulars. Rendered ONLY when a real IRP produced the IRN; the
+         renderer removes this block entirely otherwise, because a blank IRN box on a document
+         that is not an e-invoice is a claim that it should have been one. -->
+    <!-- 🔴 One grid item, not two. `.payline` is a two-column grid; adding the e-invoice
+         block as a third child pushed the signature onto its own row across the full width. -->
+    <div class="signcol">
+      <!--einvoice:start--><div class="einvoice" data-bind="invoice.eInvoice">
+        <img class="einvoice-qr" src="" alt="Signed QR from the Invoice Registration Portal" data-bind="invoice.signedQrImage">
+        <div class="einvoice-meta">
+          <div><span class="lbl">IRN</span><b data-bind="invoice.irn">—</b></div>
+          <div><span class="lbl">Ack No.</span><b data-bind="invoice.ackNo">—</b></div>
+          <div><span class="lbl">Ack Date</span><b data-bind="invoice.ackDate">—</b></div>
+        </div>
+      </div><!--einvoice:end-->
+
+      <div class="sign">
+        <div class="for">For <span data-bind="company.legalName">Adpedia Films Private Limited</span></div>
+        <div class="space"><img src="assets/signature.png" alt="" data-bind="company.signatureImageUrl"></div>
+        <div class="line">Authorised Signatory</div>
+      </div>
     </div>
   </section>
 
