@@ -189,7 +189,7 @@ export async function previewNoteAmendment(
   if (!note.gstAdjusted) {
     if (revised.cgst.plus(revised.sgst).plus(revised.igst).gt(0)) {
       refusal = refusal ??
-        `${note.number} was issued past the s.34(2) deadline and carries no GST (docs/48). An amendment cannot ` +
+        `${note.number} was issued past the s.34(2) deadline and carries no GST. An amendment cannot ` +
         'put tax on it — that would recover output tax the deadline has already closed.'
     } else {
       warnings.push(

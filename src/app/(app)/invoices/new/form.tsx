@@ -7,7 +7,17 @@ import { Card, Field, Button, Pill, inputClass, inputStyle } from '@/components/
 type Customer = { id: string; name: string; country: string; stateCode: string | null; defaultTdsSection: string | null }
 type Project = { id: string; name: string; customerId: string }
 type Item = { id: string; name: string; sacCode: string | null; defaultRate: string | null }
-type Line = { description: string; sacCode: string; quantity: string; rate: string; gstRatePct: string }
+/**
+ * 🔴 `serviceItemId` — docs/67.
+ *
+ * The catalogue was loaded into this form and used only as a datalist: picking a service
+ * copied its SAC and rate and threw away WHICH service it was. So no invoice line has ever
+ * carried a `serviceItemId`, the income account on every one of the ten seeded services was
+ * never consulted, and every rupee of revenue posted to the fallback 4010 — leaving the
+ * revenue sub-accounts in the chart (4030 Design, 4040 Film & Video Production) permanently
+ * empty and the P&L's revenue section a single line.
+ */
+type Line = { description: string; sacCode: string; quantity: string; rate: string; gstRatePct: string; serviceItemId?: string | null }
 
 interface Preview {
   taxMode: string; placeOfSupplyLabel: string; currency: string; requiresLut: boolean; nextNumber: string | null
@@ -16,7 +26,7 @@ interface Preview {
   tds: { section: string | null; tdsAmount: string; netPayable: string }
 }
 
-const blank = (): Line => ({ description: '', sacCode: '', quantity: '1', rate: '', gstRatePct: '18' })
+const blank = (): Line => ({ description: '', sacCode: '', quantity: '1', rate: '', gstRatePct: '18', serviceItemId: null })
 const inr = (v: string) => new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2 }).format(Number(v))
 
 export function InvoiceForm({ customers, projects, items }: { customers: Customer[]; projects: Project[]; items: Item[] }) {
@@ -116,7 +126,14 @@ export function InvoiceForm({ customers, projects, items }: { customers: Custome
                 <input list="svc" value={l.description} placeholder="Description of service"
                   onChange={(e) => {
                     const match = items.find((it) => it.name === e.target.value)
-                    setLine(i, { description: e.target.value, ...(match ? { sacCode: match.sacCode ?? '', rate: match.defaultRate ?? l.rate } : {}) })
+                    // 🔴 cleared when the text no longer matches. A line edited away from a
+                    // service while keeping its id would post revenue to that service's
+                    // account for work it is no longer describing.
+                    setLine(i, {
+                      description: e.target.value,
+                      serviceItemId: match?.id ?? null,
+                      ...(match ? { sacCode: match.sacCode ?? '', rate: match.defaultRate ?? l.rate } : {}),
+                    })
                   }}
                   className={inputClass} style={inputStyle} />
               </div>

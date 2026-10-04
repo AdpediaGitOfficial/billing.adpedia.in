@@ -121,7 +121,7 @@ export default async function EInvoicePage() {
           <li>&bull; HSN/SAC reporting moves from 4 digits to <strong>6</strong>.</li>
           <li>&bull; An IRN can be cancelled on the IRP for <strong>24 hours only</strong>. After that the lawful route is a credit note.</li>
           <li>&bull; B2C invoices are <strong>not eligible</strong> for an IRN at all.</li>
-          <li>&bull; A GSP must be chosen and credentials configured. The adapter is written; the live client is not — see docs/31.</li>
+          <li>&bull; A GSP must be chosen and credentials configured. The adapter is written; the live client is not.</li>
         </ul>
       </Card>
     </div>

@@ -67,6 +67,36 @@ describe('🔴 the marker never reaches a user', () => {
     expect(sources.length).toBeGreaterThan(100)
   })
 
+  /**
+   * 🔴 The same shape of mistake, found the same way — docs/67.
+   *
+   * `(docs/48)` in a refusal a client's accountant reads, or `see docs/31` on a settings
+   * page, is the review marker's cousin: a reference to something only the people who built
+   * this can follow. Three had reached user-facing strings, one of them written three modules
+   * earlier in the same session that added this check.
+   *
+   * The exceptions are messages that only appear to somebody editing environment variables,
+   * who has the repository in front of them — and they are named, so the judgement is
+   * reviewed rather than assumed.
+   */
+  const DOC_REF_ALLOWED = new Set([
+    'server/services/storage/driver.ts',
+    'server/services/einvoice/adapter.ts',
+  ])
+
+  it('🔴 does not point a user at a document only we can read', () => {
+    const leaks: string[] = []
+    for (const f of sources) {
+      const name = f.slice(process.cwd().length + 1).replace(/\\/g, '/')
+      if (name.endsWith('marker-leak.test.ts')) continue
+      if (DOC_REF_ALLOWED.has(name.replace(/^src\//, ''))) continue
+      withoutComments(readFileSync(f, 'utf8')).split('\n').forEach((line, i) => {
+        if (/docs\/\d/.test(line)) leaks.push(`${name}:${i + 1}  ${line.trim().slice(0, 100)}`)
+      })
+    }
+    expect(leaks, `an internal doc reference is in live code here:\n${leaks.join('\n')}`).toEqual([])
+  })
+
   it('appears only in comments', () => {
     const leaks: string[] = []
     for (const f of sources) {

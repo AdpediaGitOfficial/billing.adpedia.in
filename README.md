@@ -71,8 +71,9 @@ payroll, projects and bank reconciliation on a double-entry ledger.
 | [64 · Document series](docs/64-document-series.md) | Every number issued, the holes in the run, and the rule-46 check nothing called |
 | [65 · Refund vouchers](docs/65-refund-vouchers.md) | Giving an advance back, and recovering the GST declared when it arrived |
 | [66 · Note amendments](docs/66-note-amendments.md) | Table 9C — and the deadline a credit note has that a debit note does not |
+| [67 · Master data](docs/67-master-data.md) | The service catalogue and the company's own details — and the field nothing could set |
 
-**891 tests passing** · typecheck and lint clean · production build passes.
+**906 tests passing** · typecheck and lint clean · production build passes.
 
 ```bash
 cp .env.example .env     # set DATABASE_URL and JWT_SECRET

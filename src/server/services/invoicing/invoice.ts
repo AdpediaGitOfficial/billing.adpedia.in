@@ -50,7 +50,7 @@ export function invoiceCurrency(taxMode: string, customerCurrency: string): stri
 export interface InvoiceLineInput {
   description: string
   detail?: string
-  serviceItemId?: string
+  serviceItemId?: string | null
   sacCode?: string
   quantity: string
   rate: string
@@ -247,10 +247,34 @@ export async function sendInvoice(ctx: RequestContext, invoiceId: string) {
       fyLabel: inv.financialYear.label,
     })
 
+    /**
+     * 🔴 docs/67 — `ServiceItem.incomeAccountId` is an account ID, and this fed it to
+     * `revenueFromLines`, which wants a CODE.
+     *
+     * It had been that way since docs/34 and had never once fired, because nothing in the
+     * system could set the field: the catalogue was seeded with it null and had no screen.
+     * The moment a service item was given an income account, sending any invoice using it
+     * failed with "Chart of accounts is missing: cmuu0oza1001…" — the id, presented as a code.
+     *
+     * A field nothing can set is a field nothing exercises.
+     */
+    const itemAccountIds = [...new Set(
+      inv.lines.map((l) => l.serviceItem?.incomeAccountId).filter(Boolean) as string[],
+    )]
+    const itemAccounts = itemAccountIds.length
+      ? await tx.account.findMany({
+          where: { id: { in: itemAccountIds }, companyId: ctx.companyId },
+          select: { id: true, code: true },
+        })
+      : []
+    const codeById = new Map(itemAccounts.map((a) => [a.id, a.code]))
+
     const revenueByAccount = revenueFromLines(
       inv.lines.map((l) => ({
         taxableValue: new Decimal(l.taxableValue.toString()),
-        incomeAccountCode: l.serviceItem?.incomeAccountId ?? null,
+        incomeAccountCode: l.serviceItem?.incomeAccountId
+          ? codeById.get(l.serviceItem.incomeAccountId) ?? null
+          : null,
       })),
       '4010',
     )

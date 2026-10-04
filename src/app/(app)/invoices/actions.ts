@@ -12,6 +12,8 @@ const LineSchema = z.object({
   quantity: z.string().default('1'),
   rate: z.string(),
   gstRatePct: z.string().default('18'),
+  // docs/67 — which catalogue service this line came from, so its income account is used
+  serviceItemId: z.string().nullable().optional(),
 })
 
 const Schema = z.object({

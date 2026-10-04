@@ -181,6 +181,15 @@ newest open row and jumped to it. Use `currentFinancialYear()`.
 shipped one button; the other three were unreachable for nine modules. The survey that finds
 this is a script, not a memory — `docs/49 §1`.
 
+🔴 **A field nothing can set is a field nothing exercises.** `ServiceItem.incomeAccountId`
+held an account id and was fed to a function wanting a code, for thirty-three modules, because
+the catalogue had no screen and the invoice form never linked a line to a service. Every rupee
+of revenue posted to the fallback 4010 (`docs/67 §2`).
+
+🔴 **An internal doc reference in user-facing copy is the review marker's cousin.**
+`tests/marker-leak.test.ts` covers both now, with a named exemption for messages that only
+reach somebody editing environment variables (`docs/67 §5`).
+
 🔴 **A credit note has two deadlines and a debit note has one.** s.37(3) says when an
 amendment may be REPORTED (30 Nov following the note's financial year); s.34(2) says whether
 the relief is available at all (30 Nov following the INVOICE's). They come apart whenever a
@@ -305,10 +314,9 @@ longer to find a class of gap, it is to close the remaining ones and then stop.
 
 ### A screen or a field each
 
-- 🔴 **Service-item CRUD** — the catalogue is seeded and used on every invoice, and there is
-  no screen, so adding a service means editing the database (`docs/34`, `docs/35`). The
-  largest of these and the one that bites most often.
-- **Company details and user invitations** — deliberately unwired in `docs/35 §6`
+- **User invitations** — still unwired (`docs/35 §6`). Company details and the service
+  catalogue were done in `docs/67`; invitations are a module, not a field, because inviting a
+  user is creating a credential and wants an email path and an expiry.
 - **Invoice draft editing** — a draft must be cancelled and re-raised (`docs/41`)
 - **Credit- and debit-note register** — they are listed on their invoice and the *series* is at
   `/settings/series` (`docs/64`), but there is no list of the notes themselves (`docs/48 §5`)

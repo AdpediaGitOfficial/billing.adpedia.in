@@ -466,7 +466,7 @@ export async function cancelCreditNote(ctx: RequestContext, noteId: string, reas
         `GSTR-1 for ${period.label} was filed on ${filed.filedOn!.toISOString().slice(0, 10)}, declaring ${note.number} ` +
         'in table 9B. It has reached the customer’s GSTR-2B and reduced the credit they may claim — withdrawing it here ' +
         'would leave them holding a reversal this company no longer says it issued. Amend the invoice in a later ' +
-        'return instead (docs/52), or issue a debit note.',
+        'return instead, or issue a debit note.',
       )
     }
   }

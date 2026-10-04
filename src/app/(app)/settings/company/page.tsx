@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { requireContext } from '@/server/context'
 import { prisma } from '@/server/db'
 import { Card, PageHeader, Pill, Alert } from '@/components/ui/kit'
+import { CompanyEditForm } from './edit-form'
 
 interface Addr { line1?: string; line2?: string; city?: string; state?: string; pincode?: string; country?: string }
 
@@ -22,26 +23,47 @@ export default async function CompanySettingsPage() {
       <PageHeader title="Company"
         sub="The registered identity every invoice, return and challan is issued under." />
 
-      <Alert tone="info" title="Read-only for now">
-        These are the verified details from the PAN card, GST REG-06 and the MCA incorporation
-        certificate. Editing them changes what appears on documents already issued, so it is
-        deliberately not wired up yet — tell me what needs correcting and it becomes a migration
-        with an audit trail, not a text box.
+      {/* 🔴 docs/67 — docs/35 §6 refused to wire this up because editing company identity
+          "changes what appears on documents already issued". docs/59 archives every issued
+          document as the bytes that went out, so that is no longer true of the details below.
+          It is still true of the five fields in the next card, which is why they are not here. */}
+      <Alert tone="info" title="Correcting these is safe; the identity below is not">
+        These came from the PAN card, GST REG-06 and the MCA certificate. Every invoice, note and payslip
+        is now kept as the exact file that went out, so correcting an address today cannot rewrite one a
+        client received in May — and every change is recorded in the audit log, with what it was before.
       </Alert>
 
+      <Card className="p-4">
+        <p className="eyebrow">Contact and address</p>
+        <div className="mt-3">
+          <CompanyEditForm initial={{
+            tradeName: co.tradeName ?? '', tan: co.tan ?? '',
+            email: co.email ?? '', phone: co.phone ?? '', website: co.website ?? '',
+            addressLine1: addr.line1 ?? '', addressLine2: addr.line2 ?? '',
+            city: addr.city ?? '', state: addr.state ?? '', pincode: addr.pincode ?? '',
+            country: addr.country ?? 'India',
+          }} />
+        </div>
+      </Card>
+
       <Card flush className="overflow-hidden">
-        <Section title="Identity" />
+        {/* 🔴 TAN and the trade name moved into the editable card above — leaving them here
+            under a heading reading "fixed" said two things on one screen. The five below are
+            fixed for a reason each, and the reason is on the row. */}
+        <Section title="Identity — fixed" />
         <table className="w-full text-[13px]">
           <tbody>
-            <Row k="Legal name" v={co.legalName} />
-            {co.tradeName && co.tradeName !== co.legalName && <Row k="Trade name" v={co.tradeName} />}
-            <Row k="PAN" v={co.pan} mono />
-            <Row k="GSTIN" v={co.gstin ?? '—'} mono />
-            <Row k="TAN" v={co.tan ?? '—'} mono note={co.tan ? 'verify — partly clipped in the source document' : undefined} />
-            <Row k="CIN" v={co.cin ?? '—'} mono />
-            <Row k="State" v={`${co.stateCode} — drives CGST+SGST vs IGST`} />
+            <Row k="Legal name" v={co.legalName} why="the invoice series and every filed return are issued under it" />
+            <Row k="PAN" v={co.pan} mono why="quoted in every TDS return and challan" />
+            <Row k="GSTIN" v={co.gstin ?? '—'} mono why="changing it would make GSTR-1 disagree with the portal" />
+            <Row k="CIN" v={co.cin ?? '—'} mono why="from the MCA incorporation certificate" />
+            <Row k="State" v={co.stateCode} why="derives CGST+SGST vs IGST on every future invoice" />
           </tbody>
         </table>
+        <p className="px-5 pb-4 text-[11.5px]" style={{ color: 'var(--text-muted)' }}>
+          A genuine change to any of these is a new registration or a rectification, not a correction —
+          it wants the CA and a migration, because the figures already filed were filed under them.
+        </p>
       </Card>
 
       <Card flush className="overflow-hidden">
@@ -133,13 +155,21 @@ function Section({ title }: { title: string }) {
   )
 }
 
-function Row({ k, v, mono, note }: { k: string; v: string; mono?: boolean; note?: string }) {
+/**
+ * 🔴 `note` is a warning and `why` is an explanation, and they must not share a style.
+ *
+ * Every row in the fixed-identity card carries a reason it cannot be edited. Rendered through
+ * `note` they all came out amber with a ⚠, which turns five ordinary explanations into five
+ * problems — and leaves the one real warning on this page indistinguishable from them.
+ */
+function Row({ k, v, mono, note, why }: { k: string; v: string; mono?: boolean; note?: string; why?: string }) {
   return (
     <tr className="border-t" style={{ borderColor: 'var(--rule)' }}>
       <td className="px-4 py-2.5 w-[35%]" style={{ color: 'var(--text-muted)' }}>{k}</td>
       <td className="px-4 py-2.5">
         <span className={mono ? 'tabular font-medium' : 'font-medium'}>{v}</span>
         {note && <span className="block text-[11.5px]" style={{ color: 'var(--warn)' }}>⚠ {note}</span>}
+        {why && <span className="block text-[11.5px]" style={{ color: 'var(--text-muted)' }}>{why}</span>}
       </td>
     </tr>
   )

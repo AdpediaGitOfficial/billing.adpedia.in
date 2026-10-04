@@ -357,7 +357,7 @@ export async function buildGstr1(companyId: string, from: Date, to: Date, label:
   if (commercial > 0) {
     warnings.push(
       `${commercial} commercial credit note${commercial === 1 ? ' is' : 's are'} deliberately left out of the cdnr table — ` +
-      'the s.34(2) deadline had passed, so no GST is being recovered on them (docs/48).',
+      'the s.34(2) deadline had passed, so no GST is being recovered on them.',
     )
   }
 
