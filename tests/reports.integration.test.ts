@@ -34,7 +34,8 @@ beforeAll(async () => {
     lines: [{ description: 'Staff augmentation', sacCode: '998314', quantity: '1', rate: '100000', gstRatePct: '18' }],
   })).id)
   paidInvoice = a.id
-  const bank = await prisma.companyBankAccount.findFirstOrThrow({ where: { companyId: company.id } })
+  // docs/80 — the default account, rather than whichever one the heap offers
+  const bank = await prisma.companyBankAccount.findFirstOrThrow({ where: { companyId: company.id, isDefault: true } })
   await createReceipt(ctx, {
     customerId: clickAr, date: '2026-05-20', mode: 'NEFT', bankAccountId: bank.id,
     allocations: [{ invoiceId: a.id, amount: '108000', tdsAmount: '10000' }],

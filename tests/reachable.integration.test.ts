@@ -36,7 +36,11 @@ beforeAll(async () => {
     name: 'Exalture Software Lab', vendorType: 'SUBCONTRACTOR', country: 'IN', stateCode: '32',
     gstin: '32AABCE1234F1Z5', pan: 'AABCE1234F', defaultTdsSection: '194C',
   })).id
-  categoryId = (await prisma.expenseCategory.findFirstOrThrow({ where: { companyId: company.id } })).id
+  // 🔴 named, not first — docs/80. Nine categories are seeded and TRAVEL is itcDefault PARTIAL,
+  // which makes createExpense demand a blocking reason; an unordered findFirst is a coin toss.
+  categoryId = (await prisma.expenseCategory.findFirstOrThrow({
+    where: { companyId: company.id, code: 'OFFICE' },
+  })).id
 })
 afterAll(async () => { await prisma.$disconnect() })
 

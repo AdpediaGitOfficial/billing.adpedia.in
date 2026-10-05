@@ -1,7 +1,6 @@
 import { requireContext } from '@/server/context'
 import { readAttachment, detachAttachment, safeDownloadHeaders } from '@/server/services/storage/attachment'
-import { AppError } from '@/server/errors'
-import { handler } from '@/app/api/_lib/handler'
+import { handler, fileError } from '@/app/api/_lib/handler'
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -12,8 +11,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       headers: safeDownloadHeaders(row.contentType, row.filename),
     })
   } catch (e) {
-    const status = e instanceof AppError ? e.status : 500
-    return new Response(e instanceof AppError ? e.message : 'Could not read that file', { status })
+    // 🔴 docs/80 — the cause is logged, the message stays generic. See `_lib/handler.ts`.
+    return fileError(e, 'attachments/[id]', 'Could not read that file')
   }
 }
 

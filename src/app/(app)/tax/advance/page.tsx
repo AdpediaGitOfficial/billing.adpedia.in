@@ -8,6 +8,8 @@ import {
   Card, CardHeader, PageHeader, StatCard, Pill, Alert, Empty, FigureCard, FigureList,
 } from '@/components/ui/kit'
 import { EstimateForm, PaymentForm } from './forms'
+import { ReverseButton } from '@/components/corrections/reverse-button'
+import { cancelAdvanceTaxAction } from './actions'
 
 /**
  * Advance tax — docs/71.
@@ -183,18 +185,28 @@ export default async function AdvanceTaxPage() {
       <Card flush className="overflow-hidden">
         <CardHeader title="Challans paid" className="p-5 pb-3"
           sub="Dr 1350 Advance Income Tax Paid, Cr the bank — an asset until the return settles it, never an expense." />
-        {live.length === 0 ? (
+        {payments.length === 0 ? (
           <div className="px-5 pb-5">
             <Empty icon="Landmark" title="Nothing paid yet"
               hint="Advance tax is paid on ITNS 280. The BSR code and challan serial are on the counterfoil, and together with the date they make the CIN." />
           </div>
         ) : (
           <div className="divide-y" style={{ borderColor: 'var(--rule)' }}>
-            {live.map((p) => (
+            {/* docs/80 — every other correction in this system has a button; this one did not */}
+            {payments.map((p) => (
               <div key={p.id} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-5 py-3 text-[13px]">
-                <span className="tabular">{p.paidOn.toISOString().slice(0, 10)}</span>
+                <span className="tabular" style={p.cancelledAt ? { color: 'var(--text-muted)' } : undefined}>
+                  {p.paidOn.toISOString().slice(0, 10)}
+                </span>
                 <span className="font-mono text-[11.5px]" style={{ color: 'var(--text-muted)' }}>{p.cin}</span>
-                <span className="font-semibold tabular">{formatINR(p.amount.toString())}</span>
+                <span className="font-semibold tabular"
+                  style={p.cancelledAt ? { textDecoration: 'line-through', color: 'var(--text-muted)' } : undefined}>
+                  {formatINR(p.amount.toString())}
+                </span>
+                {mayWrite && (p.cancelledAt
+                  ? <span className="text-[11.5px]" style={{ color: 'var(--text-muted)' }}>reversed</span>
+                  : <ReverseButton action={cancelAdvanceTaxAction} idName="paymentId" id={p.id}
+                      prompt={`Why is the challan of ${formatINR(p.amount.toString())} being reversed?`} />)}
               </div>
             ))}
           </div>

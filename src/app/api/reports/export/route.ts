@@ -2,6 +2,7 @@ import { requireContext } from '@/server/context'
 import { prisma } from '@/server/db'
 import { assertCan } from '@/server/auth/permissions'
 import { AppError } from '@/server/errors'
+import { fileError } from '@/app/api/_lib/handler'
 import { resolvePeriod } from '@/server/services/reports/period'
 import { trialBalance, profitAndLoss, balanceSheet } from '@/server/services/reports/statements'
 import { cashFlow } from '@/server/services/reports/cash-flow'
@@ -74,8 +75,8 @@ export async function GET(req: Request) {
       },
     })
   } catch (e) {
-    const status = e instanceof AppError ? e.status : 500
-    return new Response(e instanceof AppError ? e.message : 'Could not build the export', { status })
+    // 🔴 docs/80 — the cause is logged, the message stays generic. See `_lib/handler.ts`.
+    return fileError(e, 'reports/export', 'Could not build the export')
   }
 }
 

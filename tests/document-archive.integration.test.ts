@@ -120,7 +120,16 @@ describe('🔴 the claim and its evidence in the same place', () => {
   let expenseId = ''
 
   it('lists an expense claiming input credit with nothing attached', async () => {
-    const category = await prisma.expenseCategory.findFirstOrThrow({ where: { companyId } })
+/**
+     * 🔴 A NAMED category, not whichever one comes back first — docs/80.
+     *
+     * This read `findFirstOrThrow({ where: { companyId } })` with no order, and nine categories
+     * are seeded. Postgres returns whichever suits the heap, and `TRAVEL` has `itcDefault:
+     * PARTIAL` — which makes `createExpense` demand a blocking reason and throw. The suite was
+     * green by luck for as long as the physical order happened to favour a `FULL` category, and
+     * it stopped the moment enough rows were written to move it. docs/78's lesson, in a test.
+     */
+    const category = await prisma.expenseCategory.findFirstOrThrow({ where: { companyId, code: 'OFFICE' } })
     const e = await createExpense(ctx, {
       date: '2026-06-02', description: 'Camera hire for the Nuvé shoot',
       categoryId: category.id, taxableValue: '50000', gstRatePct: '18', gstMode: 'INTRA', paidFrom: 'BANK',

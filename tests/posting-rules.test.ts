@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import fc from 'fast-check'
 import { Decimal, ZERO } from '@/lib/money'
 import { assertBalanced, totals } from '@/server/services/accounting/journal'
-import { postInvoice, postReceipt, postInvoiceReversal, revenueFromLines } from '@/server/services/accounting/rules/invoice'
+import { postInvoice, postReceipt, revenueFromLines } from '@/server/services/accounting/rules/invoice'
 import { computeInvoice, type LineInput } from '@/server/services/tax/gst'
 import { renderPattern, validateInvoiceNumber } from '@/server/services/invoicing/numbering'
 import { shortFy } from '@/lib/fy'
@@ -65,12 +65,16 @@ describe('postInvoice', () => {
     }
   })
 
-  it('reversal mirrors the original and still balances', () => {
-    const doc = invoiceDoc('INTRA')
-    const rev = postInvoiceReversal(doc)
-    expect(() => assertBalanced(rev)).not.toThrow()
-    expect(rev.find((x) => x.accountCode === '1100')?.credit?.toFixed(2)).toBe('100300.00')
-  })
+  /**
+   * 🔴 There used to be a `postInvoiceReversal` here, and a test for it, and nothing ever
+   * called it — docs/80.
+   *
+   * It recomputed the postings from the DOCUMENT and flipped them. `cancelInvoice` reverses
+   * the journal ENTRY that was actually posted, which is not the same thing: a posting rule
+   * that changed between issue and cancellation — docs/67 moved revenue off the 4010 fallback
+   * onto each service's own income account — would have made the recomputed version reverse
+   * entries that were never made. The test made the wrong way read as covered.
+   */
 })
 
 describe('postReceipt', () => {

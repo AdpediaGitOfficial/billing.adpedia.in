@@ -97,11 +97,6 @@ export function postReceipt(doc: ReceiptPostingDoc): Posting[] {
   return postings
 }
 
-/** Mirror of postInvoice, for cancellation. */
-export function postInvoiceReversal(doc: InvoicePostingDoc): Posting[] {
-  return postInvoice(doc).map((p) => ({ ...p, debit: p.credit, credit: p.debit }))
-}
-
 export function revenueFromLines(
   lines: { taxableValue: Decimal; incomeAccountCode?: string | null }[],
   fallback = '4010',

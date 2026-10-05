@@ -25,7 +25,10 @@ beforeAll(async () => {
   const company = await prisma.company.findFirstOrThrow({ where: { pan: 'AAUCA9985H' } })
   const user = await prisma.user.findFirstOrThrow()
   ctx = { userId: user.id, companyId: company.id, role: 'OWNER' }
-  bankId = (await prisma.companyBankAccount.findFirstOrThrow({ where: { companyId: company.id } })).id
+  // docs/80 — the default account, rather than whichever one the heap offers
+  bankId = (await prisma.companyBankAccount.findFirstOrThrow({
+    where: { companyId: company.id, isDefault: true },
+  })).id
 
   clickAr = (await prisma.customer.create({ data: {
     companyId: company.id, name: 'Click AR Business Private Limited', country: 'IN', stateCode: '32',

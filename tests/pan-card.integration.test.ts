@@ -36,7 +36,10 @@ beforeAll(async () => {
     name: 'Maneesh Unnikuttan', vendorType: 'FREELANCER', country: 'IN', stateCode: '32',
     defaultTdsSection: '194J',
   })).id
-  employeeId = (await prisma.employee.findFirstOrThrow({ where: { companyId: company.id } })).id
+  // 🔴 named — four employees are seeded, so an unordered findFirst is a coin toss (docs/80)
+  employeeId = (await prisma.employee.findFirstOrThrow({
+    where: { companyId: company.id, employeeCode: 'ADP-002' },
+  })).id
 })
 afterAll(async () => { await prisma.$disconnect() })
 

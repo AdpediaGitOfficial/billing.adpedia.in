@@ -5,7 +5,7 @@ import { periodsInFy, periodFor } from '@/server/services/tax/periods'
 import { buildGstr1 } from '@/server/services/tax/gstr1'
 import { buildGstr3b } from '@/server/services/tax/gstr3b'
 import { gstr1ToCsv, gstr3bToCsv } from '@/server/services/tax/gst-export'
-import { AppError } from '@/server/errors'
+import { fileError } from '@/app/api/_lib/handler'
 import { currentFinancialYearOrThrow } from '@/server/services/accounting/period'
 
 /** CSV for the CA. Deliberately not a portal payload — see gstr1.ts. */
@@ -37,7 +37,7 @@ export async function GET(req: Request) {
       },
     })
   } catch (e) {
-    const status = e instanceof AppError ? e.status : 500
-    return new Response(e instanceof AppError ? e.message : 'Could not build the export', { status })
+    // 🔴 docs/80 — the cause is logged, the message stays generic. See `_lib/handler.ts`.
+    return fileError(e, 'tax/gst/export', 'Could not build the export')
   }
 }

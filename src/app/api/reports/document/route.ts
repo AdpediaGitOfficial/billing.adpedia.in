@@ -1,6 +1,7 @@
 import { requireContext } from '@/server/context'
 import { assertCan } from '@/server/auth/permissions'
 import { AppError } from '@/server/errors'
+import { fileError } from '@/app/api/_lib/handler'
 import { resolvePeriod } from '@/server/services/reports/period'
 import { renderStatementHtml, STATEMENTS, type StatementKey } from '@/server/services/reports/render-statement'
 import { htmlToPdf, pdfFilename } from '@/server/services/invoicing/pdf'
@@ -40,8 +41,8 @@ export async function GET(req: Request) {
       },
     })
   } catch (e) {
-    const status = e instanceof AppError ? e.status : 500
-    return new Response(e instanceof AppError ? e.message : 'Could not render that statement', { status })
+    // 🔴 docs/80 — the cause is logged, the message stays generic. See `_lib/handler.ts`.
+    return fileError(e, 'reports/document', 'Could not render that statement')
   }
 }
 

@@ -3,7 +3,7 @@ import { requireContext } from '@/server/context'
 import { assertCan } from '@/server/auth/permissions'
 import { renderInvoiceHtml } from '@/server/services/invoicing/render'
 import { htmlToPdf, pdfFilename } from '@/server/services/invoicing/pdf'
-import { AppError } from '@/server/errors'
+import { fileError } from '@/app/api/_lib/handler'
 import { archivedDocument } from '@/server/services/storage/document-archive'
 import { readAttachment } from '@/server/services/storage/attachment'
 
@@ -80,8 +80,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       },
     })
   } catch (e) {
-    const status = e instanceof AppError ? e.status : 500
-    return new Response(e instanceof AppError ? e.message : 'Could not render the invoice', { status })
+    // 🔴 docs/80 — the cause is logged, the message stays generic. See `_lib/handler.ts`.
+    return fileError(e, 'invoices/[id]/document', 'Could not render the invoice')
   }
 }
 
