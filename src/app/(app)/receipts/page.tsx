@@ -11,18 +11,27 @@ import { openAdvances } from '@/server/services/sales/advance'
 import { listRefundVouchers } from '@/server/services/sales/refund'
 import { ReverseButton } from '@/components/corrections/reverse-button'
 import { cancelRefundVoucherAction } from './actions'
+import { paginate } from '@/lib/paging'
+import { Pager } from '@/components/ui/pager'
 
-export default async function ReceiptsPage() {
+export default async function ReceiptsPage({ searchParams }: {
+  searchParams: Promise<{ page?: string }>
+}) {
   const ctx = await requireContext()
+  const sp = await searchParams
+  const where = { companyId: ctx.companyId }
+  const page = paginate(await prisma.receipt.count({ where }), sp.page)
 
   const [receipts, ar] = await Promise.all([
     prisma.receipt.findMany({
-      where: { companyId: ctx.companyId },
+      where,
       include: {
         customer: { select: { name: true } },
         allocations: { include: { invoice: { select: { id: true, number: true } } } },
       },
-      orderBy: [{ date: 'desc' }], take: 100,
+      // 🔴 `date` alone is not an order — docs/58 §4, and under pagination it loses rows
+      orderBy: [{ date: 'desc' }, { id: 'desc' }],
+      skip: page.skip, take: page.take,
     }),
     arSummary(ctx).catch(() => null),
   ])
@@ -35,17 +44,38 @@ export default async function ReceiptsPage() {
     where: {
       companyId: ctx.companyId,
       status: { in: ['SENT', 'VIEWED', 'PARTIALLY_PAID', 'OVERDUE'] },
-      customerId: { in: [...new Set(receipts.filter((r) => r.isAdvance).map((r) => r.customerId))] },
+      /**
+       * 🔴 The customers of every OPEN ADVANCE, not of the advances on this page.
+       *
+       * It read `receipts.filter(isAdvance)`, which was every advance while the list was
+       * everything. Paginated, an advance on page 2 would have found no invoices offered
+       * against it — an "adjust" control that opens on an empty list, for no visible reason.
+       */
+      customerId: { in: [...new Set(advances.map((a) => a.customerId))] },
     },
     select: { id: true, number: true, customerId: true, grandTotal: true, amountReceived: true, tdsCredited: true },
     orderBy: { date: 'asc' },
   })
 
-  // 🔴 Cancelled receipts stay in the LIST — the number was allocated and the reversal is
-  // part of the record — but they must not count towards anything collected.
-  const live = receipts.filter((r) => !r.cancelledAt)
-  const collected = live.reduce((a, r) => a.plus(r.amount.toString()), ZERO)
-  const tdsOnReceipts = live.reduce((a, r) => a.plus(r.tdsAmount.toString()), ZERO)
+  /**
+   * 🔴 Cancelled receipts stay in the LIST — the number was allocated and the reversal is part
+   * of the record — but they must not count towards anything collected.
+   *
+   * 🔴 And these are aggregated by the DATABASE, over every receipt, not reduced over the fifty
+   * on screen. `live.reduce(...)` was correct while the list was everything; paginating it
+   * would have turned "Collected" into "collected on this page", and the figure would have
+   * changed every time somebody pressed Next — docs/78.
+   */
+  const [liveCount, cancelledCount, totals] = await Promise.all([
+    prisma.receipt.count({ where: { ...where, cancelledAt: null } }),
+    prisma.receipt.count({ where: { ...where, cancelledAt: { not: null } } }),
+    prisma.receipt.aggregate({
+      where: { ...where, cancelledAt: null },
+      _sum: { amount: true, tdsAmount: true },
+    }),
+  ])
+  const collected = new Decimal(totals._sum.amount?.toString() ?? '0')
+  const tdsOnReceipts = new Decimal(totals._sum.tdsAmount?.toString() ?? '0')
 
   type Row = (typeof receipts)[number]
   const cols: Column<Row>[] = [
@@ -124,14 +154,14 @@ export default async function ReceiptsPage() {
 
       <div className="grid gap-4 sm:grid-cols-3">
         <StatCard label="Collected" value={formatINR(collected, { decimals: false })}
-          foot={`${live.length} receipt${live.length === 1 ? '' : 's'}${receipts.length !== live.length ? ` · ${receipts.length - live.length} cancelled` : ''}`} />
+          foot={`${liveCount} receipt${liveCount === 1 ? '' : 's'}${cancelledCount > 0 ? ` · ${cancelledCount} cancelled` : ''}`} />
         <StatCard label="TDS withheld by clients" value={formatINR(tdsOnReceipts, { decimals: false })}
           foot="claimable only once it reaches Form 26AS" />
         <StatCard label="Still outstanding" value={ar ? formatINR(ar.total, { decimals: false }) : '—'}
           foot={ar ? `${ar.invoiceCount} open invoices` : undefined} tone="accent" />
       </div>
 
-      {receipts.length === 0 ? (
+      {page.total === 0 ? (
         <Card><Empty icon="Receipt" title="No receipts yet"
           hint="A receipt is created when an invoice is settled — by hand, or from a matched bank line on the reconcile screen. Nothing here is sample data."
           action={<Link href="/receipts/new"><Button>Record a receipt</Button></Link>} /></Card>
@@ -139,7 +169,8 @@ export default async function ReceiptsPage() {
         <Card flush className="overflow-hidden">
           {/* no row link: the row carries its own cancel control, and a link wrapping the
               whole row would swallow the click */}
-          <DataTable columns={cols} rows={receipts} keyOf={(r) => r.id} />
+          <DataTable columns={cols} rows={receipts} keyOf={(r) => r.id} noun="receipts" />
+          <Pager page={page} basePath="/receipts" params={sp} noun="receipts" />
         </Card>
       )}
 

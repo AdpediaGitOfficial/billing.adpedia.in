@@ -6,29 +6,28 @@ import { formatINR, Decimal, ZERO } from '@/lib/money'
 import { Card, PageHeader, Empty, Pill } from '@/components/ui/kit'
 import { ExportButton } from '@/components/reports/export-button'
 import { PeriodPicker } from '../../reports/period-picker'
-
-const PAGE = 50
+import { paginate } from '@/lib/paging'
+import { Pager } from '@/components/ui/pager'
 
 export default async function JournalPage({ searchParams }: {
   searchParams: Promise<{ fy?: string; page?: string }>
 }) {
-  const { fy, page } = await searchParams
+  const sp = await searchParams
+  const { fy } = sp
   const ctx = await requireContext()
   const period = await resolvePeriod(ctx.companyId, fy)
-  const pageNo = Math.max(1, Number(page ?? '1') || 1)
 
   const where = { companyId: ctx.companyId, date: { gte: period.from, lte: period.to } }
-  const [total, entries] = await Promise.all([
-    prisma.journalEntry.count({ where }),
-    prisma.journalEntry.findMany({
-      where,
-      include: { lines: { include: { account: { select: { code: true, name: true } } } } },
-      orderBy: [{ date: 'desc' }, { entryNo: 'desc' }],
-      skip: (pageNo - 1) * PAGE,
-      take: PAGE,
-    }),
-  ])
-  const pages = Math.ceil(total / PAGE)
+  // docs/78 — the same arithmetic as every other paginated list, clamped the same way
+  const page = paginate(await prisma.journalEntry.count({ where }), sp.page)
+  const entries = await prisma.journalEntry.findMany({
+    where,
+    include: { lines: { include: { account: { select: { code: true, name: true } } } } },
+    // `entryNo` is unique per company per financial year, so this is already a total order
+    orderBy: [{ date: 'desc' }, { entryNo: 'desc' }],
+    skip: page.skip, take: page.take,
+  })
+  const total = page.total
 
   return (
     <div className="space-y-5">
@@ -100,21 +99,8 @@ export default async function JournalPage({ searchParams }: {
             })}
           </div>
 
-          {pages > 1 && (
-            <div className="flex items-center justify-between text-[13px]">
-              <span style={{ color: 'var(--text-muted)' }}>Page {pageNo} of {pages}</span>
-              <div className="flex gap-2">
-                {pageNo > 1 && (
-                  <Link href={`/accounting/journal?fy=${period.fyId}&page=${pageNo - 1}`}
-                    className="rounded-lg border px-3 py-1.5 font-medium" style={{ borderColor: 'var(--rule)' }}>Previous</Link>
-                )}
-                {pageNo < pages && (
-                  <Link href={`/accounting/journal?fy=${period.fyId}&page=${pageNo + 1}`}
-                    className="rounded-lg border px-3 py-1.5 font-medium" style={{ borderColor: 'var(--rule)' }}>Next</Link>
-                )}
-              </div>
-            </div>
-          )}
+          <Card flush><Pager page={page} basePath="/accounting/journal"
+            params={{ ...sp, fy: period.fyId }} noun="entries" /></Card>
         </>
       )}
     </div>

@@ -386,7 +386,11 @@ export async function openAdvances(ctx: RequestContext, customerId?: string) {
       )
       const refunded = r.refunds.reduce((a, x) => a.plus(x.amount.toString()), ZERO)
       return {
-        id: r.id, number: r.number, date: r.date, customerName: r.customer.name,
+        id: r.id, number: r.number, date: r.date,
+        // 🔴 docs/78 — the caller needs WHOSE advance it is to offer invoices against it. It
+        // was taking that from the receipts array on screen, which worked only while that
+        // array was every receipt.
+        customerId: r.customerId, customerName: r.customer.name,
         gross, adjusted, refunded, open: gross.minus(adjusted).minus(refunded),
       }
     })

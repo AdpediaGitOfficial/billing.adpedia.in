@@ -8,22 +8,36 @@ import type { BillStatus } from '@prisma/client'
 import { can } from '@/server/auth/permissions'
 import type { SwipeSpec } from '@/components/ui/swipe'
 import { approveBillAction } from './actions'
+import { paginate } from '@/lib/paging'
+import { Pager } from '@/components/ui/pager'
 
 const TONE: Record<BillStatus, Tone> = {
   DRAFT: 'neutral', APPROVED: 'accent', PARTIALLY_PAID: 'warn', PAID: 'good', CANCELLED: 'neutral',
 }
 
-export default async function BillsPage() {
+export default async function BillsPage({ searchParams }: {
+  searchParams: Promise<{ page?: string }>
+}) {
   const ctx = await requireContext()
+  const sp = await searchParams
+  const where = { companyId: ctx.companyId }
+
+  // docs/78 — the tiles are the company's position, not this page's
+  const page = paginate(await prisma.vendorBill.count({ where }), sp.page)
+
   const [bills, ap, tds] = await Promise.all([
     prisma.vendorBill.findMany({
-      where: { companyId: ctx.companyId },
+      where,
       include: { vendor: { select: { name: true } }, project: { select: { name: true } } },
-      orderBy: [{ billDate: 'desc' }], take: 100,
+      // 🔴 `billDate` alone is not an order — several bills share a date, and without a
+      // tiebreak a paginated list repeats some and loses others. docs/58 §4.
+      orderBy: [{ billDate: 'desc' }, { id: 'desc' }],
+      skip: page.skip, take: page.take,
     }),
     apSummary(ctx),
     tdsPayableSummary(ctx),
   ])
+  const rcmCount = await prisma.vendorBill.count({ where: { ...where, isRcm: true } })
 
   type Row = (typeof bills)[number]
   const cols: Column<Row>[] = [
@@ -81,16 +95,18 @@ export default async function BillsPage() {
 
   return (
     <div>
-      <PageHeader title="Vendor bills" sub={`${bills.length} on record`}
+      <PageHeader title="Vendor bills" sub={`${page.total} on record`}
         action={<Link href="/bills/new"><Button icon="Plus">New bill</Button></Link>} />
 
-      {bills.length > 0 && (
+      {page.total > 0 && (
         <div className="mb-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard label="Payable" value={formatINR(ap.total, { decimals: false })} icon="ArrowUpRight" foot={`${ap.billCount} open · net of TDS`} />
           <StatCard label="Due this week" value={formatINR(ap.dueThisWeek, { decimals: false })} icon="CalendarClock" foot={ap.overdueCount ? `${ap.overdueCount} already overdue` : 'Nothing overdue'} />
           <StatCard label="TDS to deposit" value={formatINR(tds.total, { decimals: false })} icon="Landmark"
             foot={tds.bySection.map((s) => `${s.section} ${formatINR(s.amount, { decimals: false })}`).join(' · ') || 'Nothing withheld'} />
-          <StatCard label="Reverse charge" value={String(bills.filter((b) => b.isRcm).length)} icon="RefreshCw" foot="Self-invoiced imports" />
+          {/* 🔴 counted across every bill, not the fifty on screen — it was `bills.filter`,
+              which paginating would have quietly turned into "reverse charges on this page" */}
+          <StatCard label="Reverse charge" value={String(rcmCount)} icon="RefreshCw" foot="Self-invoiced imports" />
         </div>
       )}
 
@@ -100,6 +116,7 @@ export default async function BillsPage() {
           empty={<Empty icon="FileInput" title="No vendor bills yet"
             hint="TDS is computed at entry — including the retrospective catch-up when a vendor crosses the annual threshold."
             action={<Link href="/bills/new"><Button>Enter the first bill</Button></Link>} />} />
+        <Pager page={page} basePath="/bills" params={sp} noun="bills" />
       </Card>
     </div>
   )

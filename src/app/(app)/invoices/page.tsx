@@ -8,6 +8,8 @@ import { Card, PageHeader, StatCard, Pill, Empty, Button, DataTable, type Column
 import type { InvoiceStatus } from '@prisma/client'
 import type { Tone } from '@/components/ui/kit'
 import { currentFinancialYear } from '@/server/services/accounting/period'
+import { paginate } from '@/lib/paging'
+import { Pager } from '@/components/ui/pager'
 import { can } from '@/server/auth/permissions'
 import type { SwipeSpec } from '@/components/ui/swipe'
 import { sendInvoiceAction } from './actions'
@@ -17,13 +19,37 @@ const TONE: Record<InvoiceStatus, Tone> = {
   PARTIALLY_PAID: 'warn', PAID: 'good', OVERDUE: 'critical', CANCELLED: 'neutral',
 }
 
-export default async function InvoicesPage() {
+export default async function InvoicesPage({ searchParams }: {
+  searchParams: Promise<{ page?: string }>
+}) {
   const ctx = await requireContext()
+  const sp = await searchParams
+  const where = { companyId: ctx.companyId }
+
+  /**
+   * 🔴 docs/78 — the stats are over EVERYTHING, the list is over a page.
+   *
+   * `arSummary` reads its own query across every open invoice, so "Collectible" stays the
+   * company's position rather than this page's. A paginated list whose tiles paginate with it
+   * is a figure that changes when somebody clicks Next, which is the fastest way to make a
+   * dashboard untrustworthy.
+   */
+  const page = paginate(await prisma.invoice.count({ where }), sp.page)
+
   const [invoices, ar, fy] = await Promise.all([
     prisma.invoice.findMany({
-      where: { companyId: ctx.companyId },
+      where,
       include: { customer: { select: { name: true } }, project: { select: { name: true } } },
-      orderBy: [{ date: 'desc' }, { seq: 'desc' }], take: 100,
+      /**
+       * 🔴 `id` last, and it is not decoration — docs/58 §4's lesson in a new place.
+       *
+       * This ordered by `date desc, seq desc`, and every DRAFT has `seq: 0`. Fifty drafts on
+       * one date have no order at all between them, so Postgres is free to return them
+       * differently for page 1 and page 2 — the same invoice twice, another never. Unpaginated
+       * it only looked untidy; paginated it loses rows.
+       */
+      orderBy: [{ date: 'desc' }, { seq: 'desc' }, { id: 'desc' }],
+      skip: page.skip, take: page.take,
     }),
     arSummary(ctx),
     currentFinancialYear(ctx.companyId),
@@ -107,10 +133,10 @@ export default async function InvoicesPage() {
 
   return (
     <div>
-      <PageHeader title="Invoices" sub={fy ? `FY ${fy.label} · ${invoices.length} on record` : undefined}
+      <PageHeader title="Invoices" sub={fy ? `FY ${fy.label} · ${page.total} on record` : undefined}
         action={<Link href="/invoices/new"><Button icon="Plus">New invoice</Button></Link>} />
 
-      {invoices.length > 0 && (
+      {page.total > 0 && (
         <div className="mb-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard label="Collectible" value={formatINR(ar.total, { decimals: false })} icon="Wallet" foot={`${ar.invoiceCount} open`} />
           <StatCard label="Overdue" value={String(ar.overdueCount)} icon="Clock" foot={ar.overdueCount ? 'Needs follow-up' : 'All current'} />
@@ -125,6 +151,7 @@ export default async function InvoicesPage() {
           empty={<Empty icon="FileText" title="No invoices yet"
             hint={nextNumber ? `Your first will be ${nextNumber}. The number is allocated by the database when you send it, so an abandoned draft never leaves a gap in the series.` : undefined}
             action={<Link href="/invoices/new"><Button>Raise the first invoice</Button></Link>} />} />
+        <Pager page={page} basePath="/invoices" params={sp} noun="invoices" />
       </Card>
     </div>
   )

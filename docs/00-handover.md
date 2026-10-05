@@ -1,6 +1,6 @@
 # 00 · Handover — read this first
 
-Adpedia Films Private Limited's internal finance ERP. **1,011 tests** (411 unit + 600
+Adpedia Films Private Limited's internal finance ERP. **1,023 tests** (419 unit + 604
 integration), typecheck and lint clean, production build passes.
 
 Everything below is either hard-won or non-obvious. The per-module detail is in `docs/20`
@@ -232,6 +232,15 @@ and the bill was typed `EX-300`; a literal comparison reports the whole purchase
 unavailable credit. Amount is a fallback only — two invoices from one supplier for one amount
 in one month is a retainer, and matching on amount crosses them over (`docs/62 §3`).
 
+🔴 **A paginated list needs a TOTAL order.** `/invoices` sorted by `date, seq` and every draft
+has `seq: 0`; `/bills` and `/receipts` had no tiebreak at all. Equal rows may come back in a
+different order for page 1 than page 2 — the same row twice, another never — and nothing says
+so: the count still reads 140 and every page looks full (`docs/78 §1`).
+
+🔴 **A figure computed from the array on screen becomes a figure about the page.** Three of them
+were correct right up until the list stopped being everything, including an "adjust" control
+that would have opened onto an empty list for an advance on page 2 (`docs/78 §2`).
+
 🔴 **The role a request runs under must come from the database, not the token.** `getContext`
 read `claims.role`, so a demotion from owner took effect only when the access token was next
 re-minted — fifteen minutes of owner rights, across the 145 places that ask `ctx.role`, with
@@ -455,9 +464,6 @@ and then stop building.
 
 - **Splitting account 1240** — only if a domestic s.9(3) reverse charge ever occurs, which has
   never been confirmed (`docs/63 §3`)
-- **Server-side pagination** on the three 100-row lists — invoices, bills and receipts. The
-  only remaining lever on how long a list page takes to become interactive, and nothing needs
-  it yet: every route sits at roughly a quarter of its budget (`docs/68 §4`)
 
 ### Deliberate non-goals
 
