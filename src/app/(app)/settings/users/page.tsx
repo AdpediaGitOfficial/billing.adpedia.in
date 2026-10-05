@@ -1,8 +1,9 @@
 import { requireContext } from '@/server/context'
-import { prisma } from '@/server/db'
 import { CAPABILITIES, can, type Capability } from '@/server/auth/permissions'
 import { Card, PageHeader, Pill, Alert, FigureCard, FigureList } from '@/components/ui/kit'
 import { listInvitations } from '@/server/services/auth/invitation'
+import { listMembers } from '@/server/services/auth/membership'
+import { MemberControls } from './member-controls'
 import { ReverseButton } from '@/components/corrections/reverse-button'
 import { InviteForm } from './invite-form'
 import { revokeInvitationAction } from './actions'
@@ -29,12 +30,8 @@ const ROLE_NOTE: Record<Role, string> = {
 
 export default async function UsersPage() {
   const ctx = await requireContext()
-  const members = await prisma.userCompany.findMany({
-    where: { companyId: ctx.companyId },
-    include: { user: { select: { id: true, name: true, email: true, lastLoginAt: true, createdAt: true, isActive: true } } },
-    orderBy: { role: 'asc' },
-  })
-  const live = members.filter((m) => m.user.isActive)
+  const members = await listMembers(ctx)
+  const live = members.filter((m) => m.isActive)
   const mayInvite = can(ctx.role, 'settings.users', 'write')
   const invitations = await listInvitations(ctx)
   const now = new Date()
@@ -47,8 +44,10 @@ export default async function UsersPage() {
 
       <Alert tone="info" title="Roles are enforced by the server, not by this page">
         Every request is checked against the matrix below, whoever is asking and whatever the menu
-        shows &mdash; hiding a menu item has never been the control. Removing somebody is still done by
-        deactivating their account; what this page can do is bring somebody in.
+        shows &mdash; hiding a menu item has never been the control, and the role is read from the database
+        on every request rather than from the sign-in token, so a change takes effect at once. Removing
+        somebody deactivates them: the user row stays, because every entry in the audit log and the
+        journal points at it.
       </Alert>
 
       <Card flush className="overflow-hidden">
@@ -69,25 +68,29 @@ export default async function UsersPage() {
           */}
         <div className="divide-y" style={{ borderColor: 'var(--rule)' }}>
           {members.map((m) => (
-            <div key={m.id} className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1.5 px-4 py-3">
+            <div key={m.membershipId} className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1.5 px-4 py-3">
               <div className="min-w-0">
-                <span className="text-[13px] font-medium" style={m.user.isActive ? undefined : { color: 'var(--text-muted)' }}>
-                  {m.user.name}
+                <span className="text-[13px] font-medium" style={m.isActive ? undefined : { color: 'var(--text-muted)' }}>
+                  {m.name}
                 </span>
-                <span className="block truncate text-[11.5px]" style={{ color: 'var(--text-muted)' }}>{m.user.email}</span>
+                <span className="block truncate text-[11.5px]" style={{ color: 'var(--text-muted)' }}>{m.email}</span>
                 <span className="block text-[11.5px]" style={{ color: 'var(--text-muted)' }}>
-                  {m.user.lastLoginAt
-                    ? `last signed in ${m.user.lastLoginAt.toISOString().slice(0, 10)}`
+                  {m.lastLoginAt
+                    ? `last signed in ${m.lastLoginAt.toISOString().slice(0, 10)}`
                     : 'never signed in'}
                 </span>
               </div>
               {/* on a phone the pills always take their own line, rather than sometimes
                   wrapping and sometimes not depending on the length of a name */}
-              <div className="flex w-full shrink-0 flex-wrap items-center justify-end gap-1.5 sm:w-auto">
-                {!m.user.isActive && <Pill tone="critical">deactivated</Pill>}
-                <Pill tone={!m.user.isActive ? 'neutral' : m.role === 'OWNER' ? 'accent' : m.role === 'AUDITOR' ? 'neutral' : 'good'}>
+              <div className="flex w-full shrink-0 flex-wrap items-center justify-end gap-x-3 gap-y-1.5 sm:w-auto">
+                {!m.isActive && <Pill tone="critical">deactivated</Pill>}
+                <Pill tone={!m.isActive ? 'neutral' : m.role === 'OWNER' ? 'accent' : m.role === 'AUDITOR' ? 'neutral' : 'good'}>
                   {m.role.replace('_', ' ').toLowerCase()}
                 </Pill>
+                {mayInvite && (
+                  <MemberControls userId={m.userId} name={m.name} role={m.role}
+                    isActive={m.isActive} isLastOwner={m.isLastOwner} isSelf={m.isSelf} />
+                )}
               </div>
             </div>
           ))}

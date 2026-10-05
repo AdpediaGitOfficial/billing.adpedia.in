@@ -1,6 +1,6 @@
 # 00 · Handover — read this first
 
-Adpedia Films Private Limited's internal finance ERP. **1,001 tests** (411 unit + 590
+Adpedia Films Private Limited's internal finance ERP. **1,011 tests** (411 unit + 600
 integration), typecheck and lint clean, production build passes.
 
 Everything below is either hard-won or non-obvious. The per-module detail is in `docs/20`
@@ -232,6 +232,17 @@ and the bill was typed `EX-300`; a literal comparison reports the whole purchase
 unavailable credit. Amount is a fallback only — two invoices from one supplier for one amount
 in one month is a retainer, and matching on amount crosses them over (`docs/62 §3`).
 
+🔴 **The role a request runs under must come from the database, not the token.** `getContext`
+read `claims.role`, so a demotion from owner took effect only when the access token was next
+re-minted — fifteen minutes of owner rights, across the 145 places that ask `ctx.role`, with
+nothing visible to say so. It is one more column on a query that already ran on every request
+(`docs/77 §1`).
+
+🔴 **A system that can lock its own owner out has one failure mode worse than all the others.**
+The last active owner may not be demoted or deactivated; nobody may change their own membership,
+because a demotion takes effect on the next request and the page it was done from is the page
+that then refuses (`docs/77 §2`).
+
 🔴 **A stale "still open" note is not harmless.** `docs/37 §8` said GST filing did not advance
 the period lock; it has since `docs/44`, with a test. A note that went stale when a module
 landed is a standing invitation to build something that already exists, and the next session
@@ -442,8 +453,6 @@ and then stop building.
 
 ### A screen or a field each
 
-- **Removing a user, and changing a role** — both are one field and the same guard, and
-  neither has a screen (`docs/73 §7`)
 - **Splitting account 1240** — only if a domestic s.9(3) reverse charge ever occurs, which has
   never been confirmed (`docs/63 §3`)
 - **Server-side pagination** on the three 100-row lists — invoices, bills and receipts. The

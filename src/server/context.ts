@@ -25,11 +25,33 @@ export async function getContext(): Promise<RequestContext | null> {
   // tokenVersion lets one integer bump invalidate every live token for a user.
   const user = await prisma.user.findUnique({
     where: { id: claims.sub },
-    select: { tokenVersion: true, isActive: true },
+    select: {
+      tokenVersion: true, isActive: true,
+      // 🔴 docs/77 — the ROLE comes from here, not from the token.
+      //
+      // It was read from `claims.role`, so a demotion took effect only when the access token
+      // was next re-minted: up to ACCESS_TOKEN_TTL_SECONDS — fifteen minutes — of owner rights
+      // after somebody had been made an employee, across the 145 places that ask `ctx.role`.
+      // The query was already running on every request; this is one more column on it.
+      //
+      // The claim is still signed, so tokens issued before this change keep working. It must
+      // never be read again: a claim that is authoritative in one place and stale in another
+      // is the "two balances with the same name" of docs/56 §2.
+      companies: {
+        where: { companyId: claims.companyId },
+        select: { role: true },
+        take: 1,
+      },
+    },
   })
   if (!user || !user.isActive || user.tokenVersion !== claims.tokenVersion) return null
 
-  return { userId: claims.sub, companyId: claims.companyId, role: claims.role }
+  // 🔴 and no membership is no access. Removing somebody from the company ends their session
+  // on the next request, without waiting for a token to expire.
+  const membership = user.companies[0]
+  if (!membership) return null
+
+  return { userId: claims.sub, companyId: claims.companyId, role: membership.role }
 }
 
 export async function requireContext(): Promise<RequestContext> {

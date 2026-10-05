@@ -81,8 +81,9 @@ payroll, projects and bank reconciliation on a double-entry ledger.
 | [74 · Opening balances](docs/74-opening-balances.md) | The one position the system cannot derive, and the carry-forward that must stay derived |
 | [75 · IRN on the document](docs/75-irn-on-the-document.md) | The signed QR, printed verbatim — and the mock IRN that must never reach a document |
 | [76 · Annual filings](docs/76-annual-filings.md) | ITR and GSTR-9 for the year they are about, and something that can clear them |
+| [77 · Membership](docs/77-membership.md) | Removing somebody and changing a role — and the role that was read from the token |
 
-**1,001 tests passing** · typecheck and lint clean · production build passes.
+**1,011 tests passing** · typecheck and lint clean · production build passes.
 
 ```bash
 cp .env.example .env     # set DATABASE_URL and JWT_SECRET

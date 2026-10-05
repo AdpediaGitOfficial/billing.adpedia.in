@@ -2,6 +2,7 @@
 import { revalidatePath } from 'next/cache'
 import { requireContext } from '@/server/context'
 import { createInvitation, revokeInvitation } from '@/server/services/auth/invitation'
+import { changeRole, setUserActive } from '@/server/services/auth/membership'
 import { AppError } from '@/server/errors'
 import type { Role } from '@prisma/client'
 
@@ -39,4 +40,32 @@ export async function revokeInvitationAction(_prev: { error?: string; ok?: strin
   }
   revalidatePath('/settings/users')
   return { ok: 'Revoked' }
+}
+
+export async function changeRoleAction(_prev: { error?: string; ok?: string } | null, form: FormData) {
+  const ctx = await requireContext()
+  try {
+    await changeRole(ctx, String(form.get('userId') ?? ''), String(form.get('role') ?? '') as Role,
+      String(form.get('reason') ?? ''))
+  } catch (e) {
+    return { error: e instanceof AppError ? e.message : 'Could not change that role' }
+  }
+  revalidatePath('/settings/users')
+  return { ok: 'Changed' }
+}
+
+/**
+ * 🔴 "Removing" somebody is deactivating them — docs/77. The user row stays, because every
+ * audit entry and every journal entry points at an id that has to keep resolving.
+ */
+export async function setUserActiveAction(_prev: { error?: string; ok?: string } | null, form: FormData) {
+  const ctx = await requireContext()
+  try {
+    await setUserActive(ctx, String(form.get('userId') ?? ''), Boolean(form.get('active')),
+      String(form.get('reason') ?? ''))
+  } catch (e) {
+    return { error: e instanceof AppError ? e.message : 'Could not change that access' }
+  }
+  revalidatePath('/settings/users')
+  return { ok: 'Saved' }
 }
