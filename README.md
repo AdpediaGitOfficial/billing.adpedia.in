@@ -83,8 +83,9 @@ payroll, projects and bank reconciliation on a double-entry ledger.
 | [76 · Annual filings](docs/76-annual-filings.md) | ITR and GSTR-9 for the year they are about, and something that can clear them |
 | [77 · Membership](docs/77-membership.md) | Removing somebody and changing a role — and the role that was read from the token |
 | [78 · Pagination](docs/78-pagination.md) | The lever docs/68 measured, and the total order a paginated list needs |
+| [79 · Domestic reverse charge](docs/79-domestic-reverse-charge.md) | Why 1240 stays one account, what would change that, and the silence it leaves |
 
-**1,023 tests passing** · typecheck and lint clean · production build passes.
+**1,028 tests passing** · typecheck and lint clean · production build passes.
 
 ```bash
 cp .env.example .env     # set DATABASE_URL and JWT_SECRET

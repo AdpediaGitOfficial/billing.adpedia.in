@@ -316,3 +316,69 @@ describe('🔴 the offline queue cannot book an expense twice', () => {
     expect(a.id).not.toBe(b.id)
   })
 })
+
+/**
+ * 🔴 docs/79 — GST asked for, and none arising.
+ *
+ * `deriveRcm` makes the wrong head unwritable, so what is left is not a mis-posting but an
+ * OMISSION. An Indian supplier with no GSTIN is `mode: 'NONE'`, so a rate on the line is
+ * dropped rather than applied — right in law, and silent. It is also the one place a domestic
+ * s.9(3) reverse charge would surface, because the person entering it expected tax.
+ */
+describe('🔴 an Indian supplier with no GSTIN', () => {
+  it('says the rate was ignored, names s.9(3), and alters no number', async () => {
+    const v = await createVendor(ctx, {
+      name: 'Thrissur Lorry Service', vendorType: 'OTHER', country: 'IN', stateCode: '32',
+    })
+    const p = await previewBill(ctx, {
+      vendorId: v.id, billNumber: 'TLS/9', billDate: '2026-08-01',
+      lines: [{ description: 'Equipment move to location', rate: '20000', gstRatePct: '18', expenseAccountCode: '5300' }],
+    })
+
+    expect(p.warnings.join(' ')).toMatch(/ignored rather than applied/)
+    expect(p.warnings.join(' ')).toMatch(/s\.9\(3\)/)
+    expect(p.warnings.join(' ')).toMatch(/goods transport/)
+    // 🔴 a question, not a reverse charge — nothing moved
+    expect(p.rcmIgst.toFixed(2)).toBe('0.00')
+    expect(p.cgst.toFixed(2)).toBe('0.00')
+    expect(p.grandTotal.toFixed(2)).toBe('20000.00')
+  })
+
+  /**
+   * 🔴 It fires on the RATE, not on the result. "No GST on this bill" is the normal state for
+   * every unregistered vendor, and warning on all of them is how a warning gets ignored.
+   */
+  it('stays quiet when no rate was asked for, and for a registered supplier', async () => {
+    const unregistered = await prisma.vendor.findFirstOrThrow({ where: { name: 'Thrissur Lorry Service' } })
+    const noRate = await previewBill(ctx, {
+      vendorId: unregistered.id, billNumber: 'TLS/10', billDate: '2026-08-02',
+      lines: [{ description: 'Equipment move', rate: '20000', gstRatePct: '0', expenseAccountCode: '5300' }],
+    })
+    expect(noRate.warnings.join(' ')).not.toMatch(/s\.9\(3\)/)
+
+    const registered = await createVendor(ctx, {
+      name: 'Registered Logistics Pvt Ltd', vendorType: 'OTHER', country: 'IN', stateCode: '32',
+      gstin: '32AABCE1234F1Z5', pan: 'AABCE1234F',
+    })
+    const charged = await previewBill(ctx, {
+      vendorId: registered.id, billNumber: 'RL/1', billDate: '2026-08-03',
+      lines: [{ description: 'Equipment move', rate: '20000', gstRatePct: '18', expenseAccountCode: '5300' }],
+    })
+    expect(charged.warnings.join(' ')).not.toMatch(/s\.9\(3\)/)
+    expect(charged.cgst.toFixed(2)).toBe('1800.00')
+  })
+
+  /** A foreign supplier has its own, different warning — this one must not double up. */
+  it('does not fire for an import of services', async () => {
+    const foreign = await createVendor(ctx, {
+      name: 'DigitalOcean LLC', vendorType: 'OTHER', country: 'US',
+    })
+    const p = await previewBill(ctx, {
+      vendorId: foreign.id, billNumber: 'DO/77', billDate: '2026-08-04',
+      lines: [{ description: 'Droplets', rate: '10000', gstRatePct: '18', expenseAccountCode: '5310' }],
+    })
+    expect(p.warnings.join(' ')).toMatch(/import of service/)
+    expect(p.warnings.join(' ')).not.toMatch(/s\.9\(3\)/)
+    expect(p.rcmIgst.toFixed(2)).toBe('1800.00')
+  })
+})

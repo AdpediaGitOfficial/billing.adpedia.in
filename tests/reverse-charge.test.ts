@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { deriveRcm } from '@/server/services/purchases/vendor'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { Decimal } from '@/lib/money'
@@ -59,5 +60,33 @@ describe('🔴 reverse charge here is always IGST', () => {
     expect(bill).toMatch(/const RCM_RATE/)
     // and nothing splits a reverse charge into halves anywhere
     expect(bill).not.toMatch(/rcmCgst|rcmSgst/)
+  })
+})
+
+/**
+ * 🔴 docs/79 — the invariant `docs/63 §3` rests on, which nothing tested.
+ *
+ * That module's whole argument is that a DOMESTIC reverse charge cannot be produced here, so
+ * account 1240 may stay a single IGST account and the GSTR-3B 3.1(d) line may stay a single
+ * figure. It rests entirely on `deriveRcm`: `rcmApplicable` is derived, never typed in, and
+ * derived in one place. A change to that function — adding a manual override, say — would
+ * quietly make a domestic bill post IGST under a Kerala supplier, which is the wrong head of
+ * the wrong tax, and every statement would still balance.
+ */
+describe('🔴 a domestic supplier can never be flagged for reverse charge', () => {
+  it('derives it from the country and the GSTIN, and only ever for a foreign one', () => {
+    expect(deriveRcm('IN', '32AABCE1234F1Z5')).toEqual({ isForeignSupplier: false, rcmApplicable: false })
+    // an Indian supplier with no GSTIN is unregistered — still not a reverse charge here
+    expect(deriveRcm('IN', null)).toEqual({ isForeignSupplier: false, rcmApplicable: false })
+    expect(deriveRcm('IN', '')).toEqual({ isForeignSupplier: false, rcmApplicable: false })
+
+    expect(deriveRcm('SG', null)).toEqual({ isForeignSupplier: true, rcmApplicable: true })
+    expect(deriveRcm('US', undefined)).toEqual({ isForeignSupplier: true, rcmApplicable: true })
+  })
+
+  it('is the only thing that decides it — nothing reads an input field', () => {
+    const src = readFileSync(join(process.cwd(), 'src/server/services/purchases/vendor.ts'), 'utf8')
+    // every write of rcmApplicable goes through the spread of deriveRcm's result
+    expect(src).not.toMatch(/rcmApplicable:\s*(input|!!input|Boolean\(input)/)
   })
 })

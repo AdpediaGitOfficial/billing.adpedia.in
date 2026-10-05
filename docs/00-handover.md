@@ -1,6 +1,6 @@
 # 00 · Handover — read this first
 
-Adpedia Films Private Limited's internal finance ERP. **1,023 tests** (419 unit + 604
+Adpedia Films Private Limited's internal finance ERP. **1,028 tests** (421 unit + 607
 integration), typecheck and lint clean, production build passes.
 
 Everything below is either hard-won or non-obvious. The per-module detail is in `docs/20`
@@ -232,6 +232,18 @@ and the bill was typed `EX-300`; a literal comparison reports the whole purchase
 unavailable credit. Amount is a fallback only — two invoices from one supplier for one amount
 in one month is a retainer, and matching on amount crosses them over (`docs/62 §3`).
 
+🔴 **A gap that depends on a fact nobody has established is a decision, not a gap.** Account
+1240 stays one account; what would change that, and the four steps it would take, are written
+down instead of built — and the invariant the whole argument rests on (`deriveRcm` makes
+`rcmApplicable` unreachable for a domestic vendor) is now tested, because nothing tested it
+(`docs/79`).
+
+🔴 **The risk of an unbuildable path is omission, not mis-posting.** An Indian supplier with no
+GSTIN is `mode: 'NONE'`, so a rate on the line is dropped rather than applied — right in law and
+silent. The warning fires on the RATE somebody asked for, never on the zero result, because "no
+GST on this bill" is the normal state for every unregistered vendor and warning on all of them
+is how a warning gets ignored (`docs/79 §2`).
+
 🔴 **A paginated list needs a TOTAL order.** `/invoices` sorted by `date, seq` and every draft
 has `seq: 0`; `/bills` and `/receipts` had no tiebreak at all. Equal rows may come back in a
 different order for page 1 than page 2 — the same row twice, another never — and nothing says
@@ -448,24 +460,28 @@ binding appearing more than once — `docs/48 §3`.
 
 ## 7. The largest remaining gaps
 
-🔴 Rewritten on 05 Oct 2026, after module 76 — it drifts every time an item is struck off and
+🔴 Rewritten on 05 Oct 2026, after module 79 — it drifts every time an item is struck off and
 the numbering is edited rather than rewritten. If you strike one off, **rewrite this section**,
 do not renumber it. And strike one off the moment it is done: `docs/76 §3` found a note that had
 been stale since `docs/44`, standing as an invitation to build something that already existed.
 
-**Seventy-six modules in, three things are left and none of them is a module.** Nine were built
-on 04–05 Oct (`docs/68`–`docs/76`); what they mostly found was that the gaps worth having were
-in what the existing code *claimed*, not in what it was missing — a mock IRN that printed like a
-real one, a refund voucher filed under the advance's identity, an annual obligation computed for
-the wrong year, a budget nobody had measured. The next session's job is to close what is below
-and then stop building.
+**Seventy-nine modules in, the backlog is empty.** Twelve were built on 04–05 Oct
+(`docs/68`–`docs/79`), and what they mostly found was that the gaps worth having were in what
+the existing code *claimed*, not in what it was missing — a mock IRN that printed like a real
+one, a refund voucher filed under the advance's identity, an annual obligation computed for the
+wrong year, a role read from a fifteen-minute-old token, a budget nobody had measured.
 
-### A screen or a field each
-
-- **Splitting account 1240** — only if a domestic s.9(3) reverse charge ever occurs, which has
-  never been confirmed (`docs/63 §3`)
+🔴 **So the next session's job is not to build.** What is left below is one list of things
+deliberately not built, each with its reasoning, and one list in §1 of things only the client or
+their CA can supply — and that second list is what actually blocks real use. Finding another
+"class of gap" at this point would mean inventing one. If something here is wrong, the way to
+find it is the way everything else was found: render the output and look at it, and check
+whether what the code claims is true.
 
 ### Deliberate non-goals
+
+Every item that used to be listed above this line has been built or decided. What follows is
+what this system does not do, and why.
 
 - **S3 storage driver** (`docs/38 §7`) and the **live IRP client** (`docs/31 §6`) — both
   unimplemented on purpose, with the reasoning written down
@@ -473,6 +489,9 @@ and then stop building.
 - **Rule 86B** — below the threshold, and the exceptions want the CA (`docs/46 §7`)
 - **Inoperative PANs** (rule 114AAA) — nothing available to this system can detect one
   (`docs/47 §7`)
+- **Splitting account 1240** — it stays one account until a domestic s.9(3) reverse charge is
+  actually confirmed. `docs/79` writes down the four steps it would take and why the
+  reclassification is derivable, so leaving it costs nothing now
 - **Virus scanning** of uploads — files are never executed and never served inline (`docs/38 §8`)
 - **`scripts/perf.mts` in CI** — it wants a production build, a running server and real data.
   Run it deliberately: before a release, and after anything that touches the app shell or adds

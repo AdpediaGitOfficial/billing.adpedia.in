@@ -87,6 +87,34 @@ export async function previewBill(ctx: RequestContext, input: BillInput, exclude
     )
   }
 
+  /**
+   * 🔴 GST was asked for and none arose — docs/79.
+   *
+   * An Indian supplier with no GSTIN is `mode: 'NONE'`, so `splitGst` returns zero whatever
+   * rate the line carries. That is right in law and it is **silent**: somebody types 18%, the
+   * total comes out at the bare amount, and nothing says the tax was dropped rather than
+   * computed. This is also the one place a domestic reverse charge would surface, because the
+   * person entering it is the person who expected tax.
+   *
+   * 🔴 It fires on the rate, not on the result. "No GST on this bill" is the normal state for
+   * every unregistered vendor Adpedia uses, and warning on all of them is how a warning gets
+   * ignored — `docs/60 §3`. Warning only where somebody expected tax is the targeted version
+   * of the same question.
+   *
+   * What it does NOT do is decide whether s.9(3) applies. `docs/63 §3` is clear that nothing
+   * here can know, and `docs/79` is clear that nothing should guess: the system cannot account
+   * for a CGST + SGST reverse charge at all, so the honest act is to name it and stop.
+   */
+  const rateWasAsked = input.lines.some((l) => new Decimal(l.gstRatePct ?? '18').gt(0))
+  if (mode === 'NONE' && vendor.country === 'IN' && rateWasAsked && taxableValue.gt(0)) {
+    warnings.push(
+      `${vendor.name} has no GSTIN on file, so no GST arises on this bill and the rate on the lines has been ` +
+      'ignored rather than applied. If this is one of the services notified under s.9(3) — goods transport, ' +
+      'an advocate’s fee, sponsorship, security — the tax is still payable, by Adpedia, under reverse charge ' +
+      'at CGST + SGST. This system cannot account for that: ask the CA before approving it.',
+    )
+  }
+
   const section = input.tdsSection ?? vendor.defaultTdsSection
   const cumulativeBefore = section
     ? await cumulativeThisFy(ctx.companyId, vendor.id, section, fy.id, excludeBillId)

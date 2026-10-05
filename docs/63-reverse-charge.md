@@ -82,9 +82,9 @@ handover where the other unconfirmed facts live.
 
 ## 4. Still open
 
-- **1240 is still one account**, and should stay one until a domestic reverse charge actually
-  occurs. Splitting it then is a chart-of-accounts change plus a reclassification entry, and
-  the entry is derivable because each posting carries its source bill.
+- **1240 is still one account**, and `docs/79` made that a decision rather than an open item:
+  the trigger is named, the four steps are written down, and the invariant this section rests
+  on — that `deriveRcm` cannot flag a domestic vendor — is now tested.
 - **The GSTR-3B 3.1(d) line** reports reverse-charge inward supplies as a single figure, which
   is right while they are all IGST and would need the same split if they stop being.
 - Carried forward: service-item CRUD, note amendments (table 9C), refund vouchers, swipe
