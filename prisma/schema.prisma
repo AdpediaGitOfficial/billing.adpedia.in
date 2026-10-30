@@ -231,6 +231,9 @@ model User {
   isActive      Boolean            @default(true)
   lastLoginAt   DateTime?
   tokenVersion  Int                @default(0) // bump to revoke every refresh token
+  /// docs/82 §3 — the entity this user's session is in. Not a relation: a membership can be
+  /// removed, and this must then mean "no preference" rather than dangle or block the delete.
+  lastCompanyId String?
   companies     UserCompany[]
   auditLogs     AuditLog[]
   passkeys      Passkey[]

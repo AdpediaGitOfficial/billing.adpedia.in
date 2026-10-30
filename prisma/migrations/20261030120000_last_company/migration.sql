@@ -1,0 +1,11 @@
+-- docs/82 §3 · which entity a session is in
+--
+-- 🔴 Both `login` and the refresh path took `user.companies[0]` — a lookup with no `orderBy`,
+-- which is docs/80 §5's defect class. With one membership it is harmless. With two, which
+-- entity you land in is whatever Postgres returns first, and a REFRESH could move you
+-- mid-session: fifteen minutes into drafting an invoice, the books it posts to change.
+--
+-- So the entity a session is in becomes a recorded fact rather than an accident of row order.
+-- Deliberately NOT a foreign key: a membership can be removed (docs/77) and the column must
+-- degrade to "no preference" rather than block the delete or dangle.
+ALTER TABLE "User" ADD COLUMN "lastCompanyId" TEXT;

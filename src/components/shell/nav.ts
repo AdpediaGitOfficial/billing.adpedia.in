@@ -62,6 +62,8 @@ export const NAV: NavGroup[] = [
   ]},
   { label: 'Settings', items: [
     { label: 'Company', href: '/settings/company', cap: 'settings.company', icon: 'Building2' },
+    // docs/82 — more than one entity under one login, and the way between them
+    { label: 'Companies', href: '/settings/companies', cap: 'dashboard', icon: 'Building2' },
     { label: 'Services', href: '/settings/services', cap: 'invoices', icon: 'Package' },
     { label: 'LUT register', href: '/settings/lut', cap: 'settings.company', icon: 'FileCheck' },
     { label: 'Document series', href: '/settings/series', cap: 'invoices', icon: 'Hash' },
