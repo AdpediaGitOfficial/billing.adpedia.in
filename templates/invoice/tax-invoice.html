@@ -185,7 +185,9 @@
   .doc-bos .r-cgst, .doc-bos .r-sgst, .doc-bos .r-igst, .doc-bos .r-zero{ display:none !important; }
   .doc-bos th.c-cgst, .doc-bos th.c-sgst, .doc-bos th.c-igst,
   .doc-bos td.c-cgst, .doc-bos td.c-sgst, .doc-bos td.c-igst{ display:none !important; }
-  .doc-bos .supplier-gstin{ display:none !important; }
+  /* The supplier's particulars are REMOVED from a bill of supply's markup by the renderer, not
+     hidden here — hidden text still travels inside the PDF. This only tidies the empty footer. */
+  .ids:empty{ display:none; }
   .doc-bos .lut{ display:none !important; }
   .bos-note{ display:none; margin-top:2.6mm; padding:2.6mm 3.2mm; background:var(--brand-tint);
              border:1px solid var(--brand-line); border-radius:1.5mm;

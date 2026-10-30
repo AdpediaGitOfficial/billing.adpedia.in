@@ -29,10 +29,16 @@ beforeAll(async () => {
   const ctxA: RequestContext = { userId: user.id, companyId: a.id, role: 'OWNER' }
 
   const b = await createCompany(ctxA, {
-    legalName: 'ADPEDIA DIGITAL SOLUTIONS', constitution: 'PARTNERSHIP',
-    // 🔴 a firm's PAN carries F as its 4th character, and `createCompany` refuses a PAN that
-    // disagrees with the constitution — "Managing Partner" is not a proprietorship
-    pan: 'AAAFS1234A', stateCode: '32', seriesPrefix: 'ADS',
+    legalName: 'ADPEDIA DIGITAL SOLUTIONS', constitution: 'PROPRIETORSHIP',
+    /**
+     * 🔴 The constitution here is docs/82's working assumption, NOT a statement about the real
+     * entity — nobody has confirmed whether it is a proprietorship, a partnership or an LLP,
+     * and that decides which PAN is valid (P against F), which equity section it gets, and
+     * whose return its income lands in. The signatory below is free text and prints whatever
+     * the person signs as; it does not establish a legal form, and nothing here should be read
+     * as though it did. The firm equity section is covered in `tests/company-chart.test.ts`.
+     */
+    pan: 'AAAPA1234A', stateCode: '32', seriesPrefix: 'ADS',
     address: { line1: 'Thommana', city: 'Thrissur', pincode: '680683' },
     signatoryName: 'Shinelal C P', signatoryDesignation: 'Managing Partner',
   })
@@ -83,7 +89,10 @@ describe('an unregistered entity issues a bill of supply', () => {
     expect(html).toContain('Bill of Supply')
     expect(html).toContain('Not registered under GST')
     // rule 49(d) keeps the RECIPIENT's GSTIN; only the supplier's is suppressed
-    expect(html).toContain('supplier-gstin')
+    // 🔴 the supplier's whole particulars block is REMOVED, not hidden: rule 49 asks a bill of
+    // supply for name and address only, and text hidden by CSS still travels inside the PDF
+    expect(html).not.toContain('supplier-gstin')
+    expect(html).not.toMatch(/class="lbl">PAN/)
   })
 
   /**
@@ -105,7 +114,7 @@ describe('an unregistered entity issues a bill of supply', () => {
 
     // a proprietorship has no CIN, and the row printed its label with nothing after it
     expect(html).not.toMatch(/class="lbl">CIN/)
-    expect(html).toMatch(/class="lbl">PAN/)
+    expect(html).not.toMatch(/class="lbl">PAN/)
 
     // 🔴 and who signed it, as what. The template printed a generic "Authorised Signatory" and
     // `Company` carried only a signature image — a firm's managing partner and a company's
@@ -116,7 +125,10 @@ describe('an unregistered entity issues a bill of supply', () => {
     // 🔴 and NOT the other entity's identifiers, which the footer printed as literal text
     expect(html).not.toContain('U92190KL2021PTC068241')
     expect(html).not.toContain('32AAUCA9985H1ZX')
-    expect(html).toContain('PAN AAAFS1234A')
+    // name and address only — the footer repeats no identifiers on this document
+    expect(html).not.toContain('AAAPA1234A')
+    expect(html).toContain('ADPEDIA DIGITAL SOLUTIONS')
+    expect(html).toContain('Thommana')
 
     // and the title is what a saved file and the PDF's metadata report
     expect(html).toContain('<title>Bill of Supply — ADPEDIA DIGITAL SOLUTIONS</title>')

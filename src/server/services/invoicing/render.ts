@@ -152,7 +152,7 @@ export async function renderInvoiceHtml(companyId: string, invoiceId: string): P
     // name nobody entered.
     [/(<div class="line" data-bind="company\.signatoryName">)[^<]*/, `$1${esc(co.signatoryName || 'Authorised Signatory')}`],
     [/(<div class="desig" data-bind="company\.signatoryDesignation">)[^<]*/, `$1${esc(co.signatoryDesignation ?? '')}`],
-    [/(<span class="ids" data-bind="company\.footerIds">)[^<]*/, `$1${esc([
+    [/(<span class="ids" data-bind="company\.footerIds">)[^<]*/, `$1${esc(inv.docType === 'BILL_OF_SUPPLY' ? '' : [
       co.cin ? `CIN ${co.cin}` : null,
       co.gstin ? `GSTIN ${co.gstin}` : null,
       `PAN ${co.pan}`,
@@ -284,6 +284,18 @@ export async function renderInvoiceHtml(companyId: string, invoiceId: string): P
   // 🔴 A proprietorship has no CIN, and the row printed its label with nothing after it —
   // which on a legal document reads as a particular somebody forgot to fill in.
   if (!co.cin) html = html.replace(/<span><span class="lbl">CIN<\/span>[\s\S]*?<\/b><\/span>/, '')
+
+  /**
+   * 🔴 A bill of supply carries the supplier's NAME and ADDRESS and nothing else.
+   *
+   * Rule 49 asks for no PAN and no CIN, and there is no GSTIN to give. They are REMOVED rather
+   * than hidden with CSS, because hidden text still travels inside the PDF and whoever receives
+   * it can read it straight back out. The recipient's own block is untouched — rule 49(d) wants
+   * their GSTIN where they are registered.
+   */
+  if (inv.docType === 'BILL_OF_SUPPLY') {
+    html = html.replace(/(<div class="party from">[\s\S]*?)<div class="idlist">[\s\S]*?<\/div>/, '$1')
+  }
 
   const [logo, signature] = await Promise.all([
     brandAsset(co.logoUrl),
