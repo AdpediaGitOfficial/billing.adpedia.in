@@ -165,6 +165,27 @@ duplication to be cleaned up — they are customers of two different suppliers.
   confirmed: if the supplies are taxable and the threshold is crossed, registration is required
   and the bill-of-supply path in §5 stops being correct. To be confirmed before B bills
   anything near it.
+- 🔴 **The turnover limits B is actually watching.** Asked for an ₹80 lakh threshold; clarified
+  as the **tax audit** limit, which is not the GST one. Three separate figures, and they are
+  not interchangeable:
+
+  | | |
+  |---|---|
+  | GST registration | **₹20 lakh** of taxable supplies (services, normal state). Statutory, not a setting |
+  | Tax audit — business | **₹1 crore** turnover, or ₹10 crore where cash receipts *and* cash payments are each ≤5% — s.44AB(a) |
+  | Tax audit — profession | **₹50 lakh** gross receipts — s.44AB(b) |
+
+  **₹80 lakh is recorded as B's early-warning level**, not as any statutory trigger: the
+  turnover monitor warns there so the audit limit is never met by surprise. docs/31 already
+  has a turnover monitor for e-invoicing to model it on.
+
+  🔴 **Whether B is a business or a profession decides which limit applies, and it changes the
+  warning.** At ₹1 crore, warning at ₹80 lakh gives real notice. If B is a *profession* —
+  film artistry and technical consultancy are both notified professions, and a good deal of
+  this work could be either — the limit is ₹50 lakh and an ₹80 lakh alert fires **thirty lakh
+  after the obligation has already arisen**. The classification is the CA's call, and the
+  alert level must follow it rather than the other way round.
+
 - **Whether A's HRA exemption is being claimed** — §4. It is already in the payroll structure.
 
 ## 9. Build order
