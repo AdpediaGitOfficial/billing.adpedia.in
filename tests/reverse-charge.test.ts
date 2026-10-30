@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { Decimal } from '@/lib/money'
 import { postRcmSelfInvoice, INPUT_GST, RCM_PAYABLE } from '@/server/services/accounting/rules/purchase'
 import { GST_ACCOUNTS } from '@/server/services/tax/gst-ledger'
+import { chartFor } from '@/server/services/company/chart'
 
 /**
  * 🔴 docs/63 — the invariant that lets `1240` be read as IGST.
@@ -45,10 +46,11 @@ describe('🔴 reverse charge here is always IGST', () => {
   })
 
   it('🔴 the chart of accounts says IGST, so the ledger reader is not guessing', () => {
-    const seed = readFileSync(join(process.cwd(), 'prisma', 'seed', 'accounts.ts'), 'utf8')
-    const line = seed.split('\n').find((l) => l.includes("'1240'"))
-    expect(line).toBeTruthy()
-    expect(line!).toMatch(/IGST/)
+    // the chart is data, not a file to parse — it moved to the domain in docs/82 step 1 and
+    // this assertion broke, which is its own small lesson about reading source by path
+    const rcm = chartFor().find((r) => r.code === '1240')
+    expect(rcm, 'account 1240 is gone from the chart').toBeTruthy()
+    expect(rcm!.name).toMatch(/IGST/)
   })
 
   it('🔴 only one place computes a reverse charge, and it is the import rate', () => {

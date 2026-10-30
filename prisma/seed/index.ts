@@ -1,7 +1,8 @@
 import { PrismaClient } from '@prisma/client'
 import { hashPassword } from '../../src/server/auth/password'
-import { seedAccounts } from './accounts'
-import { seedTdsRates, seedExpenseCategories } from './tax-rates'
+import { seedAccounts } from '../../src/server/services/company/chart'
+import { seedTdsRates } from './tax-rates'
+import { seedExpenseCategories } from '../../src/server/services/company/categories'
 import { seedProfessionTax, seedEmployees } from './payroll'
 import { renderPattern, validateInvoiceNumber } from '../../src/server/services/invoicing/numbering'
 import { shortFy } from '../../src/lib/fy'
@@ -111,7 +112,11 @@ export async function seedAll(prisma: PrismaClient, opts: SeedOptions = {}) {
   log('  series       ADP/26-27/0026 next, + ADPX / ADPC / ADPD / ADPR / ADPS / ADPP / ADPF  (all Rule 46 compliant)')
 
   // ── chart of accounts ──
-  const nAccounts = await seedAccounts(prisma, company.id)
+  const nAccounts = await seedAccounts(prisma, company.id, {
+    constitution: 'PRIVATE_LIMITED',
+    // the real account number lives here, with the rest of Adpedia's identifiers — not in the chart
+    bankLabel: 'Axis Bank — Current 921020015185413',
+  })
   log(`  accounts     ${nAccounts} ledger accounts`)
 
   // ── bank account, mapped to GL 1010 ──

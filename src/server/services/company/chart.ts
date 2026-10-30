@@ -1,12 +1,17 @@
-import type { AccountType, PrismaClient } from '@prisma/client'
+import type { AccountType, Constitution, Prisma, PrismaClient } from '@prisma/client'
 
-type Row = { code: string; name: string; type: AccountType; subType?: string; parent?: string }
+/** Usable inside `$transaction`, because a company is born in one — docs/82 §2. */
+type Db = PrismaClient | Prisma.TransactionClient
+
+export type Row = { code: string; name: string; type: AccountType; subType?: string; parent?: string }
 
 /** docs/12 §1. isSystem — posting rules reference these by code, so they are not user-deletable. */
 export const CHART: Row[] = [
   // ASSETS
   { code: '1000', name: 'Bank Accounts', type: 'ASSET' },
-  { code: '1010', name: 'Axis Bank — Current 921020015185413', type: 'ASSET', subType: 'BANK', parent: '1000' },
+  // 🔴 generic on purpose. Adpedia's own label is passed in by the seed; baked into the chart
+  // it followed every company created afterwards, account number and all.
+  { code: '1010', name: 'Bank — Current', type: 'ASSET', subType: 'BANK', parent: '1000' },
   { code: '1050', name: 'Cash in Hand', type: 'ASSET', subType: 'CASH' },
   { code: '1100', name: 'Accounts Receivable', type: 'ASSET', subType: 'AR' },
   { code: '1200', name: 'Input GST', type: 'ASSET' },
@@ -48,10 +53,6 @@ export const CHART: Row[] = [
   { code: '2400', name: 'Advances from Customers', type: 'LIABILITY' },
   { code: '2500', name: "Director's Current Account", type: 'LIABILITY' },
 
-  // EQUITY
-  { code: '3000', name: 'Share Capital', type: 'EQUITY' },
-  { code: '3100', name: 'Retained Earnings', type: 'EQUITY' },
-  { code: '3200', name: 'Current Year Profit', type: 'EQUITY' },
 
   // INCOME
   { code: '4000', name: 'Revenue', type: 'INCOME' },
@@ -81,16 +82,68 @@ export const CHART: Row[] = [
   { code: '5900', name: 'Forex Loss', type: 'EXPENSE' },
 ]
 
-export async function seedAccounts(prisma: PrismaClient, companyId: string) {
+/**
+ * 🔴 The equity section is the one part of the chart that depends on WHO OWNS the entity.
+ *
+ * A company has share capital and no drawings — a shareholder is paid a dividend, which is a
+ * distribution of taxed profit, not a withdrawal. A proprietor has the opposite: no share
+ * capital, and drawings, because the proprietor and the business are one person and money
+ * moves between them freely.
+ *
+ * 🔴 Drawings is EQUITY, never an expense. It is how rent, groceries and medical bills are
+ * recorded in full without moving taxable profit by a paisa — `profitAndLoss` reads INCOME and
+ * EXPENSE only, so an equity contra cannot reach it. Booked as an expense instead, household
+ * spending would understate the profit the proprietor declares. docs/82 §4.
+ */
+export function equityRows(constitution: Constitution): Row[] {
+  const common: Row[] = [
+    { code: '3100', name: 'Retained Earnings', type: 'EQUITY' },
+    { code: '3200', name: 'Current Year Profit', type: 'EQUITY' },
+  ]
+  switch (constitution) {
+    case 'PRIVATE_LIMITED':
+    case 'PUBLIC_LIMITED':
+      return [{ code: '3000', name: 'Share Capital', type: 'EQUITY' }, ...common]
+    case 'LLP':
+    case 'PARTNERSHIP':
+      return [
+        { code: '3000', name: "Partners' Capital", type: 'EQUITY' },
+        ...common,
+        { code: '3300', name: "Partners' Drawings", type: 'EQUITY', subType: 'DRAWINGS' },
+      ]
+    case 'PROPRIETORSHIP':
+      return [
+        { code: '3000', name: "Proprietor's Capital", type: 'EQUITY' },
+        ...common,
+        { code: '3300', name: 'Drawings', type: 'EQUITY', subType: 'DRAWINGS' },
+      ]
+  }
+}
+
+export interface ChartOptions {
+  /** decides the equity section — see `equityRows` */
+  constitution?: Constitution
+  /** what GL 1010 is called for this company, e.g. "Axis Bank — Current 9210…" */
+  bankLabel?: string
+}
+
+export function chartFor(opts: ChartOptions = {}): Row[] {
+  const rows = CHART.map((r) =>
+    r.code === '1010' && opts.bankLabel ? { ...r, name: opts.bankLabel } : r)
+  return [...rows, ...equityRows(opts.constitution ?? 'PRIVATE_LIMITED')]
+}
+
+export async function seedAccounts(prisma: Db, companyId: string, opts: ChartOptions = {}) {
+  const chart = chartFor(opts)
   // two passes so parents exist before children reference them
-  for (const r of CHART.filter((r) => !r.parent)) {
+  for (const r of chart.filter((r) => !r.parent)) {
     await prisma.account.upsert({
       where: { companyId_code: { companyId, code: r.code } },
       update: { name: r.name, type: r.type, subType: r.subType },
       create: { companyId, code: r.code, name: r.name, type: r.type, subType: r.subType, isSystem: true },
     })
   }
-  for (const r of CHART.filter((r) => r.parent)) {
+  for (const r of chart.filter((r) => r.parent)) {
     const parent = await prisma.account.findUniqueOrThrow({ where: { companyId_code: { companyId, code: r.parent! } } })
     await prisma.account.upsert({
       where: { companyId_code: { companyId, code: r.code } },
@@ -98,5 +151,5 @@ export async function seedAccounts(prisma: PrismaClient, companyId: string) {
       create: { companyId, code: r.code, name: r.name, type: r.type, subType: r.subType, parentId: parent.id, isSystem: true },
     })
   }
-  return CHART.length
+  return chart.length
 }

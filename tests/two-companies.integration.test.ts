@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { PrismaClient } from '@prisma/client'
 import { resetDb } from './helpers/db'
-import { seedAccounts } from '../prisma/seed/accounts'
+import { seedAccounts } from '@/server/services/company/chart'
 import { createInvoice, sendInvoice } from '@/server/services/invoicing/invoice'
 import { createReceipt } from '@/server/services/sales/receipt'
 import { trialBalance, profitAndLoss } from '@/server/services/reports/statements'
@@ -45,7 +45,7 @@ beforeAll(async () => {
       registeredAddress: {}, currencyDefault: 'INR', fyStartMonth: 4,
     },
   })
-  await seedAccounts(prisma, b.id)
+  await seedAccounts(prisma, b.id, { constitution: 'PROPRIETORSHIP' })
   const fyB = await prisma.financialYear.create({
     data: {
       companyId: b.id, label: '2026-27',
