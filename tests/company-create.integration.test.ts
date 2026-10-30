@@ -49,11 +49,15 @@ describe('a second entity, born complete', () => {
       customerType: 'B2C', paymentTermDays: 15, billingAddress: {},
     } })
     const draft = await createInvoice(ctxB, { customerId: customer.id, date: '2026-10-01',
-      lines: [{ description: 'Freelance work', sacCode: '998314', quantity: '1', rate: '40000', gstRatePct: '18' }] })
+      // 🔴 nil rate, because this entity has no GSTIN: docs/82 §5 refuses GST from an
+      // unregistered supplier, and what it issues is a bill of supply (rule 49) rather than a
+      // tax invoice — which is why the number below carries the B series.
+      lines: [{ description: 'Freelance work', sacCode: '998314', quantity: '1', rate: '40000', gstRatePct: '0' }] })
     const sent = await sendInvoice(ctxB, draft.id)
 
     // its own series, its own numbering, from its own financial year
-    expect(sent.number).toBe('SEC/26-27/0001')
+    expect(sent.docType).toBe('BILL_OF_SUPPLY')
+    expect(sent.number).toBe('SECB/26-27/0001')
     expect((await trialBalance(ctxB, PERIOD)).balanced).toBe(true)
   })
 
