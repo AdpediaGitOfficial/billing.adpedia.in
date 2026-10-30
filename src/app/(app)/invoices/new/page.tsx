@@ -16,7 +16,7 @@ export default async function NewInvoicePage() {
 
   return (
     <div className="max-w-3xl">
-      <PageHeader title="New invoice" sub="Tax mode and totals are computed as you type — nothing here is typed by hand." />
+      <PageHeader back={{ href: '/invoices', label: 'Invoices' }} title="New invoice" sub="Tax mode and totals are computed as you type — nothing here is typed by hand." />
       <InvoiceForm
         customers={customers}
         projects={projects}

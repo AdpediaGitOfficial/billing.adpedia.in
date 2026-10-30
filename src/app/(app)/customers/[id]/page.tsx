@@ -25,7 +25,7 @@ export default async function EditCustomerPage({ params }: { params: Promise<{ i
 
   return (
     <div className="max-w-2xl">
-      <PageHeader title={customer.name} sub="Tax treatment is derived from the country and state — you never pick it." />
+      <PageHeader back={{ href: '/customers', label: 'Customers' }} title={customer.name} sub="Tax treatment is derived from the country and state — you never pick it." />
       <EditCustomerForm
         issuedInvoices={issued}
         customer={{

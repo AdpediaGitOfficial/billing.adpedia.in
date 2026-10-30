@@ -1,8 +1,7 @@
 import { notFound } from 'next/navigation'
 import { requireContext } from '@/server/context'
 import { prisma } from '@/server/db'
-import Link from 'next/link'
-import { PageHeader, Alert, Button } from '@/components/ui/kit'
+import { PageHeader, Alert } from '@/components/ui/kit'
 import { InvoiceForm } from '../../new/form'
 import { updateInvoiceAction } from '../../actions'
 
@@ -42,7 +41,7 @@ export default async function EditInvoicePage({ params }: { params: Promise<{ id
     return (
       <div className="max-w-3xl space-y-5">
         <PageHeader title={invoice.number} sub="Issued — and therefore fixed"
-          action={<Link href={`/invoices/${invoice.id}`}><Button variant="ghost">Back to the invoice</Button></Link>} />
+          back={{ href: `/invoices/${invoice.id}`, label: `Invoice ${invoice.number ?? ''}`.trim() }} />
         <Alert tone="critical" title={`${invoice.number} has been sent`}>
           An issued invoice is frozen: the client has it, its number is in the series and its figures are in a
           return. Raise a credit or debit note against it, or cancel it and raise a new one.

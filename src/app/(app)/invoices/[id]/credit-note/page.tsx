@@ -23,7 +23,7 @@ export default async function NewCreditNotePage({ params }: { params: Promise<{ 
   } catch (e) {
     return (
       <div className="max-w-2xl space-y-4">
-        <PageHeader title="Credit note" sub={inv.number} />
+        <PageHeader back={{ href: `/invoices/${id}`, label: 'Invoice' }} title="Credit note" sub={inv.number} />
         <Alert tone="critical" title="This invoice cannot be credited">
           {e instanceof Error ? e.message : 'Unknown problem'}
         </Alert>
@@ -35,7 +35,7 @@ export default async function NewCreditNotePage({ params }: { params: Promise<{ 
 
   return (
     <div className="max-w-2xl space-y-4">
-      <PageHeader title="Credit note"
+      <PageHeader back={{ href: `/invoices/${id}`, label: 'Invoice' }} title="Credit note"
         sub={`Against ${inv.number} · ${inv.customer.name}`} />
 
       <Alert tone={preview.gstAdjustable ? 'info' : 'critical'}

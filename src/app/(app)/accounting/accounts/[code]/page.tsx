@@ -33,7 +33,7 @@ export default async function AccountLedgerPage({ params, searchParams }: {
 
   return (
     <div className="space-y-5">
-      <PageHeader title={`${account.code} · ${account.name}`}
+      <PageHeader back={{ href: '/accounting/accounts', label: 'Chart of accounts' }} title={`${account.code} · ${account.name}`}
         sub={`${account.type.toLowerCase()} · ${period.label}`}
         action={
           <div className="flex gap-2">

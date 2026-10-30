@@ -1,9 +1,8 @@
-import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireContext } from '@/server/context'
 import { prisma } from '@/server/db'
 import { formatINR, Decimal } from '@/lib/money'
-import { Card, CardHeader, PageHeader, Pill, Button, Alert } from '@/components/ui/kit'
+import { Card, CardHeader, PageHeader, Pill, Alert } from '@/components/ui/kit'
 import { BillActions } from './actions-client'
 import { ReverseButton } from '@/components/corrections/reverse-button'
 import { cancelBillPaymentAction } from '../actions'
@@ -36,7 +35,7 @@ export default async function BillDetail({ params }: { params: Promise<{ id: str
   return (
     <div className="max-w-3xl space-y-4">
       <PageHeader title={bill.billNumber} sub={`${bill.vendor.name}${bill.project ? ` · ${bill.project.name}` : ''}`}
-        action={<Link href="/bills"><Button variant="ghost">Back</Button></Link>} />
+        back={{ href: '/bills', label: 'Bills' }} />
 
       <AttachmentPanel
         entityType="VendorBill" entityId={bill.id} kind="VENDOR_INVOICE"

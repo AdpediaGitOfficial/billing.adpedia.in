@@ -47,7 +47,7 @@ export function VendorForm({ action: submit, initial, title, sub, submitLabel }:
 
   return (
     <div className="max-w-2xl">
-      <PageHeader title={title} sub={sub} />
+      <PageHeader title={title} sub={sub} back={{ href: '/vendors', label: 'Vendors' }} />
 
       <form action={action}>
         {initial?.id && <input type="hidden" name="id" value={initial.id} />}

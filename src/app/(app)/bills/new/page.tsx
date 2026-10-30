@@ -13,7 +13,7 @@ export default async function NewBillPage() {
   ])
   return (
     <div className="max-w-3xl">
-      <PageHeader title="New vendor bill" sub="TDS, reverse charge and input credit are computed as you type." />
+      <PageHeader back={{ href: '/bills', label: 'Bills' }} title="New vendor bill" sub="TDS, reverse charge and input credit are computed as you type." />
       <BillForm vendors={vendors} projects={projects} accounts={accounts} />
     </div>
   )

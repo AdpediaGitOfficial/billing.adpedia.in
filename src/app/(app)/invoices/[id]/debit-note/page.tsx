@@ -22,7 +22,7 @@ export default async function NewDebitNotePage({ params }: { params: Promise<{ i
   } catch (e) {
     return (
       <div className="max-w-2xl space-y-4">
-        <PageHeader title="Debit note" sub={inv.number} />
+        <PageHeader back={{ href: `/invoices/${id}`, label: 'Invoice' }} title="Debit note" sub={inv.number} />
         <Alert tone="critical" title="This invoice cannot carry a debit note">
           {e instanceof Error ? e.message : 'Unknown problem'}
         </Alert>
@@ -32,7 +32,7 @@ export default async function NewDebitNotePage({ params }: { params: Promise<{ i
 
   return (
     <div className="max-w-2xl space-y-4">
-      <PageHeader title="Debit note" sub={`Against ${inv.number} · ${inv.customer.name}`} />
+      <PageHeader back={{ href: `/invoices/${id}`, label: 'Invoice' }} title="Debit note" sub={`Against ${inv.number} · ${inv.customer.name}`} />
 
       {/* 🔴 The asymmetry that is easy to get wrong by reading across from the credit note. */}
       <Alert tone="info" title="A debit note has no deadline">

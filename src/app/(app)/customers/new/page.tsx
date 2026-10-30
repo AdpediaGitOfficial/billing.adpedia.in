@@ -22,7 +22,7 @@ export default function NewCustomerPage() {
 
   return (
     <div className="max-w-2xl">
-      <PageHeader title="New customer" sub="Tax treatment is derived from the country and state — you never pick it." />
+      <PageHeader back={{ href: '/customers', label: 'Customers' }} title="New customer" sub="Tax treatment is derived from the country and state — you never pick it." />
 
       <form action={action}>
         <Card className="p-5">

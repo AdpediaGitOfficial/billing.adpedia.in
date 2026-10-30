@@ -12,7 +12,7 @@ export default async function NewExpensePage() {
   ])
   return (
     <div className="max-w-2xl">
-      <PageHeader title="New expense" sub="Input credit eligibility follows the category — an override needs a reason." />
+      <PageHeader back={{ href: '/expenses', label: 'Expenses' }} title="New expense" sub="Input credit eligibility follows the category — an override needs a reason." />
       <ExpenseForm categories={categories} projects={projects} />
     </div>
   )

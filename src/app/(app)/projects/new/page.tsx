@@ -13,7 +13,7 @@ export default async function NewProjectPage() {
 
   return (
     <div className="max-w-xl">
-      <PageHeader title="New project"
+      <PageHeader back={{ href: '/projects', label: 'Projects' }} title="New project"
         sub="A project is how cost and revenue get grouped — tag invoices, bills and payroll to it and the margin becomes real." />
       <ProjectForm customers={customers} action={createProjectAction} />
     </div>

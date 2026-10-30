@@ -53,7 +53,7 @@ export default async function InvoiceDetail({ params }: { params: Promise<{ id: 
 
   return (
     <div className="max-w-3xl">
-      <PageHeader
+      <PageHeader back={{ href: '/invoices', label: 'Invoices' }}
         title={isDraft ? 'Draft invoice' : inv.number}
         sub={`${inv.customer.name} · ${taxModeLabel(inv.taxMode)}`}
         action={
@@ -78,7 +78,6 @@ export default async function InvoiceDetail({ params }: { params: Promise<{ id: 
             {!isDraft && inv.status !== 'CANCELLED' && (
               <Link href={`/invoices/${inv.id}/amend`}><Button variant="ghost">Amend</Button></Link>
             )}
-            <Link href="/invoices"><Button variant="ghost">Back</Button></Link>
           </div>
         }
       />

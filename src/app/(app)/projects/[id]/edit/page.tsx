@@ -18,7 +18,7 @@ export default async function EditProjectPage({ params }: { params: Promise<{ id
 
   return (
     <div className="max-w-xl space-y-4">
-      <PageHeader title={`Edit ${project.code}`} sub={project.name} />
+      <PageHeader back={{ href: '/projects', label: 'Projects' }} title={`Edit ${project.code}`} sub={project.name} />
 
       {invoiced > 0 && (
         /* 🔴 The code is printed on the invoice document. Changing it now relabels the

@@ -13,7 +13,7 @@ export default async function NewAdvancePage() {
 
   return (
     <div className="max-w-2xl space-y-4">
-      <PageHeader title="Advance received"
+      <PageHeader back={{ href: '/receipts', label: 'Receipts' }} title="Advance received"
         sub="Money in before an invoice exists — a receipt voucher under s.31(3)(d), not a tax invoice" />
 
       <Card className="p-4">

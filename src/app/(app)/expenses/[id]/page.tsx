@@ -1,9 +1,8 @@
-import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireContext } from '@/server/context'
 import { prisma } from '@/server/db'
 import { Decimal, formatINR } from '@/lib/money'
-import { Card, CardHeader, PageHeader, Button, Pill, Alert } from '@/components/ui/kit'
+import { Card, CardHeader, PageHeader, Pill, Alert } from '@/components/ui/kit'
 import { listAttachments } from '@/server/services/storage/attachment'
 import { AttachmentPanel } from '@/components/attachments/attachment-panel'
 import { ReverseButton } from '@/components/corrections/reverse-button'
@@ -28,7 +27,7 @@ export default async function ExpenseDetail({ params }: { params: Promise<{ id: 
     <div className="max-w-2xl space-y-5">
       <PageHeader title={expense.description}
         sub={`${expense.category.name}${expense.project ? ` · ${expense.project.name}` : ''} · ${expense.date.toISOString().slice(0, 10)}`}
-        action={<Link href="/expenses"><Button variant="ghost">Back</Button></Link>} />
+        back={{ href: '/expenses', label: 'Expenses' }} />
 
       {expense.cancelledAt && (
         <Alert tone="info" title="This expense has been reversed">

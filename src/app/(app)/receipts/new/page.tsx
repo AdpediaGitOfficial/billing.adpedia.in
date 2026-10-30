@@ -52,7 +52,7 @@ export default async function NewReceiptPage({ searchParams }: {
   if (open.length === 0) {
     return (
       <div className="max-w-2xl space-y-5">
-        <PageHeader title="Record a receipt" />
+        <PageHeader back={{ href: '/receipts', label: 'Receipts' }} title="Record a receipt" />
         <Card><Empty icon="Receipt" title="Nothing is outstanding"
           hint="A receipt is allocated against an invoice, and every invoice is settled. Send one first." /></Card>
       </div>
@@ -61,7 +61,7 @@ export default async function NewReceiptPage({ searchParams }: {
 
   return (
     <div className="max-w-2xl">
-      <PageHeader title="Record a receipt"
+      <PageHeader back={{ href: '/receipts', label: 'Receipts' }} title="Record a receipt"
         sub="For money that did not come through a bank line — a cheque, cash, or a payment you are booking ahead of the statement." />
       <ReceiptForm invoices={open} banks={banks}
         preselect={open.some((i) => i.id === wantedInvoiceId) ? wantedInvoiceId : undefined} />

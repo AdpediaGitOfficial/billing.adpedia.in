@@ -23,7 +23,7 @@ export default async function AmendNotePage({ params }: { params: Promise<{ id: 
   } catch (e) {
     return (
       <div className="max-w-2xl space-y-4">
-        <PageHeader title="Amend" sub={note.number} />
+        <PageHeader back={{ href: '/notes', label: 'Credit & debit notes' }} title="Amend" sub={note.number} />
         <Alert tone="critical" title="This note cannot be amended">
           {e instanceof Error ? e.message : 'Unknown problem'}
         </Alert>
@@ -35,7 +35,7 @@ export default async function AmendNotePage({ params }: { params: Promise<{ id: 
 
   return (
     <div className="max-w-2xl space-y-4">
-      <PageHeader title={`Amend ${note.number}`}
+      <PageHeader back={{ href: '/notes', label: 'Credit & debit notes' }} title={`Amend ${note.number}`}
         sub={`${isCredit ? 'Credit' : 'Debit'} note${p.againstInvoice ? ` against ${p.againstInvoice}` : ''} · filed in ${p.originalPeriod}`} />
 
       <Alert tone="info" title="The note itself is never edited">

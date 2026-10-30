@@ -22,7 +22,7 @@ export default async function AmendPage({ params }: { params: Promise<{ id: stri
   } catch (e) {
     return (
       <div className="max-w-2xl space-y-4">
-        <PageHeader title="Amend" sub={inv.number} />
+        <PageHeader back={{ href: `/invoices/${id}`, label: 'Invoice' }} title="Amend" sub={inv.number} />
         <Alert tone="critical" title="This invoice cannot be amended">
           {e instanceof Error ? e.message : 'Unknown problem'}
         </Alert>
@@ -34,7 +34,7 @@ export default async function AmendPage({ params }: { params: Promise<{ id: stri
 
   return (
     <div className="max-w-2xl space-y-4">
-      <PageHeader title={`Amend ${inv.number}`}
+      <PageHeader back={{ href: `/invoices/${id}`, label: 'Invoice' }} title={`Amend ${inv.number}`}
         sub={`${inv.customer.name} · filed in ${preview.originalPeriod}`} />
 
       <Alert tone={preview.withinDeadline ? 'info' : 'critical'}

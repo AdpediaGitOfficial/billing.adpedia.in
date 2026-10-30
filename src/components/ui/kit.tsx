@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { Icon } from '@/components/shell/icon'
 import type { IconName } from '@/components/shell/icons'
@@ -24,14 +25,43 @@ export function CardHeader({ title, sub, action, className }: {
   )
 }
 
-export function PageHeader({ title, sub, action }: { title: string; sub?: string; action?: React.ReactNode }) {
+/**
+ * 🔴 `back` is for a page the NAV cannot return you from.
+ *
+ * A page in the sidebar needs no back link — the rail is its navigation. A page below one does:
+ * `/customers/[id]` is reached by clicking a row, and before this it had no way out at all
+ * except the browser's own button, which a PWA opened from the home screen does not show. On a
+ * phone, with the rail collapsed to tabs, an edit screen was a dead end.
+ *
+ * The href is explicit rather than derived from the pathname, because the parent is not always
+ * the path minus a segment: `/projects/[id]/edit` has no `/projects/[id]` to return to.
+ */
+export function PageHeader({ title, sub, action, back }: {
+  title: string
+  sub?: string
+  action?: React.ReactNode
+  back?: { href: string; label: string }
+}) {
   return (
-    <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-      <div>
-        <h1 className="text-[22px] font-semibold leading-tight tracking-[-0.01em]">{title}</h1>
-        {sub && <p className="mt-1 text-[13px]" style={{ color: 'var(--text-secondary)' }}>{sub}</p>}
+    <div className="mb-6">
+      {back && (
+        <Link href={back.href}
+          className="mb-2 inline-flex items-center gap-1.5 text-[12.5px] transition-colors hover:underline"
+          style={{ color: 'var(--text-secondary)' }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M19 12H5M12 19l-7-7 7-7" />
+          </svg>
+          {back.label}
+        </Link>
+      )}
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-[22px] font-semibold leading-tight tracking-[-0.01em]">{title}</h1>
+          {sub && <p className="mt-1 text-[13px]" style={{ color: 'var(--text-secondary)' }}>{sub}</p>}
+        </div>
+        {action && <div className="flex gap-2">{action}</div>}
       </div>
-      {action && <div className="flex gap-2">{action}</div>}
     </div>
   )
 }
