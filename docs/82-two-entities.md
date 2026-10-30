@@ -157,8 +157,24 @@ duplication to be cleaned up — they are customers of two different suppliers.
 
 ## 8. Open, and for the CA rather than for code
 
-- **B's constitution** — proprietorship or individual. Decides which PAN, which ITR, and
-  whether `Constitution.PROPRIETORSHIP` is the right value.
+- ✅ **B's constitution — settled 30 Oct 2026: a PROPRIETORSHIP on the proprietor's own
+  personal PAN.** Confirmed against the PAN card itself: the 4th character is `P`, which the
+  income tax department issues to an **individual**, so `createCompany` accepts it for
+  `PROPRIETORSHIP` and would refuse it for a partnership or an LLP. "Managing Partner" on the
+  document is a signing title, not a legal form — and on a proprietorship's document
+  **"Proprietor" is the accurate designation**, since a partner implies partners.
+
+  What follows from it: §4 stands as written. The income is taxed in the proprietor's own
+  hands, not in the entity's, so drawings is how personal spending is recorded and the
+  personal deductions — HRA against the salary from A, 80D, 80C — belong in the proprietor's
+  ITR rather than in B's books. An LLP or a firm would have been a separate taxpayer filing
+  ITR-5, and none of that reasoning would have held.
+
+  🔴 **The PAN is deliberately NOT written into this repository.** Adpedia Films' identifiers
+  are here because they are the company's, on a repo with no remote; a living person's PAN is
+  a different thing to commit, and this repo was nearly pushed to a PUBLIC GitHub repository
+  on 5 Oct. It belongs in the database, entered through Settings → Companies, where it is
+  data rather than source. The test fixtures keep a fictional PAN for the same reason.
 - **The ₹20 lakh threshold.** The client's position is that B stays unregistered above it.
   Registration is mandatory above ₹20 lakh of *taxable* supplies, so this holds only if B's
   supplies are exempt or non-taxable. The spec does not encode an exemption nobody has
