@@ -62,7 +62,7 @@ export function ProjectForm({ customers, action: submit, initial, submitLabel = 
         </Field>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Contract value" hint="Optional — drives the billed-against-contract bar">
+          <Field label="Contract value (excluding GST)" hint="Optional. Enter the contract net of GST — a figure entered inclusive understates billed-against-contract for ever">
             <input name="contractValue" inputMode="decimal" placeholder="800000"
               defaultValue={initial?.contractValue ?? ''} className={inputClass} style={inputStyle} />
           </Field>

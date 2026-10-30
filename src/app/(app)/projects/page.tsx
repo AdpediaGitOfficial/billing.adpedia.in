@@ -44,7 +44,7 @@ export default async function ProjectsPage() {
         const p = byId.get(r.id)
         return p ? formatINR(p.totalCost, { decimals: false }) : '—'
       } },
-    { key: 'contract', header: 'Contract', align: 'right', width: '14%', mobile: false,
+    { key: 'contract', header: 'Contract (ex GST)', align: 'right', width: '14%', mobile: false,
       cell: (r) => r.contractValue
         ? formatINR(r.contractValue.toString(), { decimals: false })
         : <span style={{ color: 'var(--text-muted)' }}>not set</span> },
@@ -83,7 +83,7 @@ export default async function ProjectsPage() {
 
           {projects.some((p) => p.contractValue) && (
             <Card className="p-4">
-              <p className="eyebrow mb-3">Billed against contract value</p>
+              <p className="eyebrow mb-3">Billed against contract value — both excluding GST</p>
               <div className="space-y-3">
                 {projects.filter((p) => p.contractValue).map((p) => {
                   const billed = byId.get(p.id)?.revenue ?? new Decimal(0)
