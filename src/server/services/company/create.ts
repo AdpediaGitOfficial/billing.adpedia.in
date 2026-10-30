@@ -50,6 +50,9 @@ export interface CreateCompanyInput {
   seriesPrefix: string
   /** what GL 1010 is called here, e.g. "Axis Bank — Current 9210…" */
   bankLabel?: string
+  /** who signs this entity's documents — "Shinelal C P" — and as what — "Managing Partner" */
+  signatoryName?: string
+  signatoryDesignation?: string
   fyStartMonth?: number
 }
 
@@ -70,15 +73,12 @@ const PAN_ENTITY_FOR: Record<Constitution, PanEntity> = {
   PROPRIETORSHIP: 'INDIVIDUAL',
 }
 
-/**
- * The series a new entity needs on day one, suffixed off its own prefix.
- *
- * 🔴 There is no BILL_OF_SUPPLY here because `DocType` has no such value yet — docs/82 §5.
- * An unregistered entity must not issue a tax invoice, so until that lands its TAX_INVOICE
- * series exists but should not be used; the gate goes in with the document, not before it.
- */
+/** The series a new entity needs on day one, suffixed off its own prefix. */
 const SERIES: ReadonlyArray<readonly [DocType, string]> = [
   ['TAX_INVOICE', ''],
+  // 🔴 docs/82 §5 — an unregistered entity issues this INSTEAD of a tax invoice. Created for
+  // every entity so a later registration change does not need a backfill migration.
+  ['BILL_OF_SUPPLY', 'B'],
   ['EXPORT_INVOICE', 'X'],
   ['CREDIT_NOTE', 'C'],
   ['DEBIT_NOTE', 'D'],
@@ -204,6 +204,8 @@ export async function createCompany(ctx: RequestContext, input: CreateCompanyInp
         },
         currencyDefault: 'INR',
         fyStartMonth,
+        signatoryName: input.signatoryName?.trim() || null,
+        signatoryDesignation: input.signatoryDesignation?.trim() || null,
       },
     })
 

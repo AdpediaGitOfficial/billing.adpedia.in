@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { getContext } from '@/server/context'
 import { prisma } from '@/server/db'
 import { navFor, mobileTabsFor } from '@/components/shell/nav'
+import { isGstRegistered } from '@/server/services/invoicing/document-type'
 import { Sidebar } from '@/components/shell/sidebar'
 import { BottomTabs } from '@/components/shell/bottom-tabs'
 import { Topbar } from '@/components/shell/topbar'
@@ -16,7 +17,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const [user, company, fy] = await Promise.all([
     prisma.user.findUniqueOrThrow({ where: { id: ctx.userId }, select: { name: true } }),
-    prisma.company.findUniqueOrThrow({ where: { id: ctx.companyId }, select: { legalName: true, tradeName: true, logoUrl: true } }),
+    prisma.company.findUniqueOrThrow({ where: { id: ctx.companyId }, select: { legalName: true, tradeName: true, logoUrl: true, gstRegistrationType: true } }),
     currentFinancialYear(ctx.companyId),
   ])
   const alerts = await complianceAlerts(ctx.companyId)
@@ -27,7 +28,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <OfflineProvider>
     <div className="min-h-dvh" style={{ background: 'var(--app-bg)' }}>
-      <Sidebar groups={navFor(ctx.role)} company={name} fyLabel={fy?.label} alerts={alerts.length}
+      <Sidebar groups={navFor(ctx.role, { gstRegistered: isGstRegistered(company.gstRegistrationType) })} company={name} fyLabel={fy?.label} alerts={alerts.length}
         logoUrl={company.logoUrl} multi={memberships > 1} />
       <div className="transition-[padding] md:pl-[232px]">
         <Topbar name={user.name} role={ctx.role} fyLabel={fy?.label} alerts={alerts.length} />

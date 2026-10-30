@@ -45,6 +45,10 @@ model Company {
 
   logoUrl           String?
   signatureImageUrl String?
+  /// who signs this entity's documents, and as what — a company has a director, a firm a
+  /// managing partner. Blank falls back to a generic "Authorised Signatory".
+  signatoryName        String?
+  signatoryDesignation String?
   stampImageUrl     String?
   brandPrimaryHex   String? @default("#4135AF")
   brandFont         String? @default("Poppins")
@@ -209,6 +213,9 @@ model DocumentSeries {
 enum DocType {
   TAX_INVOICE
   EXPORT_INVOICE
+  /// docs/82 §5 — rule 49. What an UNREGISTERED supplier issues instead of a tax invoice: no
+  /// GSTIN, no tax, its own heading. Not a tax invoice at 0%.
+  BILL_OF_SUPPLY
   PROFORMA
   QUOTATION
   CREDIT_NOTE
@@ -1744,6 +1751,8 @@ enum AttachmentKind {
   /// docs/59 — the tax invoice exactly as it was issued, kept because re-rendering it later
   /// produces a different document
   TAX_INVOICE
+  /// docs/82 §5 — a bill of supply as issued
+  BILL_OF_SUPPLY
   /// docs/59 — a credit or debit note as issued
   CREDIT_NOTE
   /// docs/65 — a receipt or refund voucher as issued

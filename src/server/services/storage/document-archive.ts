@@ -86,7 +86,7 @@ export async function archivedDocument(companyId: string, entityType: string, en
       companyId, entityType, entityId, detachedAt: null,
       // 🔴 the issued-document kinds only. A file somebody uploaded against the same record
       // is evidence of something else and must not be served as "the document as issued".
-      kind: { in: ['TAX_INVOICE', 'CREDIT_NOTE', 'VOUCHER', 'PAYSLIP'] },
+      kind: { in: ['TAX_INVOICE', 'BILL_OF_SUPPLY', 'CREDIT_NOTE', 'VOUCHER', 'PAYSLIP'] },
     },
     orderBy: { createdAt: 'asc' },
   })
@@ -109,7 +109,11 @@ export async function unarchivedInvoices(ctx: RequestContext) {
 
   const archived = await prisma.attachment.findMany({
     where: {
-      companyId: ctx.companyId, entityType: 'Invoice', kind: 'TAX_INVOICE', detachedAt: null,
+      companyId: ctx.companyId, entityType: 'Invoice',
+      // docs/82 §5 — an unregistered entity's invoices are bills of supply, and a report of
+      // "sent with no copy on file" that only knew about tax invoices would call every one of
+      // them missing
+      kind: { in: ['TAX_INVOICE', 'BILL_OF_SUPPLY'] }, detachedAt: null,
       entityId: { in: sent.map((i) => i.id) },
     },
     select: { entityId: true },

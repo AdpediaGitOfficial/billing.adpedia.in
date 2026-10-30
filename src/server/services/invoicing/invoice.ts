@@ -12,6 +12,7 @@ import { resolveTaxMode, placeOfSupplyLabel, requiresLut } from '@/server/servic
 import { computeInvoice, type LineInput } from '@/server/services/tax/gst'
 import { computeInvoiceTds, defaultRateFor } from '@/server/services/tax/tds'
 import { allocateNumber, peekNextNumber } from './numbering'
+import { docTypeFor, assertMayChargeGst } from './document-type'
 import { resolveLutForInvoice } from './lut'
 import { validateSac, sacLooksWrongForDescription } from './sac'
 import { archiveIssuedDocument } from '@/server/services/storage/document-archive'
@@ -132,7 +133,7 @@ export async function previewInvoice(ctx: RequestContext, input: CreateInvoiceIn
     nextNumber: await peekNextNumber(prisma, {
       companyId: ctx.companyId,
       financialYearId: fy.id,
-      docType: taxMode === 'EXPORT' ? 'EXPORT_INVOICE' : 'TAX_INVOICE',
+      docType: docTypeFor(company.gstRegistrationType, taxMode),
       fyLabel: fy.label,
     }),
   }
@@ -143,6 +144,7 @@ export async function createInvoice(ctx: RequestContext, input: CreateInvoiceInp
   if (input.lines.length === 0) throw new AppError('An invoice needs at least one line')
 
   const { company, customer, taxMode } = await loadCustomerAndMode(ctx.companyId, input.customerId)
+  assertMayChargeGst(company.gstRegistrationType, input.lines)
   const date = new Date(input.date)
   const fy = await assertPostable(ctx.companyId, date)
 
@@ -166,7 +168,7 @@ export async function createInvoice(ctx: RequestContext, input: CreateInvoiceInp
         financialYearId: fy.id,
         customerId: customer.id,
         projectId: input.projectId,
-        docType: taxMode === 'EXPORT' ? 'EXPORT_INVOICE' : 'TAX_INVOICE',
+        docType: docTypeFor(company.gstRegistrationType, taxMode),
         number: `DRAFT-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         seq: 0,
         date,
@@ -286,7 +288,7 @@ export async function updateInvoiceDraft(ctx: RequestContext, invoiceId: string,
         financialYearId: fy.id,
         customerId: customer.id,
         projectId: input.projectId ?? null,
-        docType: taxMode === 'EXPORT' ? 'EXPORT_INVOICE' : 'TAX_INVOICE',
+        docType: docTypeFor(company.gstRegistrationType, taxMode),
         date,
         dueDate,
         customerRef: input.customerRef ?? null,
@@ -453,7 +455,10 @@ export async function sendInvoice(ctx: RequestContext, invoiceId: string) {
    * issued either way, and `unarchivedInvoices` names the ones with no copy on file.
    */
   await archiveIssuedDocument(ctx, {
-    kind: 'TAX_INVOICE', entityType: 'Invoice', entityId: sent.id,
+    // 🔴 docs/82 §5 — a bill of supply is archived as what it IS. Filed under TAX_INVOICE it
+    // would be indistinguishable later from a document this entity may not legally issue.
+    kind: sent.docType === 'BILL_OF_SUPPLY' ? 'BILL_OF_SUPPLY' : 'TAX_INVOICE',
+    entityType: 'Invoice', entityId: sent.id,
     filename: `${sent.number ?? 'invoice'}.pdf`,
     render: () => renderInvoiceHtml(ctx.companyId, sent.id),
   })

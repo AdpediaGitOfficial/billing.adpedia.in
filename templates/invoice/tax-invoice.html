@@ -63,6 +63,11 @@
   /* ---------------- header ---------------- */
   .head{ display:flex; justify-content:space-between; align-items:flex-start; gap:10mm; }
   .logo{ height:11mm; width:auto; }
+  /* docs/82 §5 — an entity with no mark of its own puts its NAME on the letterhead rather
+     than inheriting somebody else's logo */
+  .logo-text{ font-size:13pt; font-weight:700; letter-spacing:-0.2pt; color:var(--brand); }
+  .desig{ font-size:7.6pt; color:var(--ink-soft); margin-top:0.4mm; }
+  .desig:empty{ display:none; }
   .doc-title{ text-align:right; }
   .doc-title h1{
     font-size:20pt; font-weight:700; letter-spacing:.18em; color:var(--brand);
@@ -169,6 +174,24 @@
   .mode-inter  .r-igst{ display:flex !important; }
   .mode-export .r-zero{ display:flex !important; }
 
+  /* 🔴 docs/82 §5 — RULE 49. A bill of supply is what an UNREGISTERED supplier issues, and it
+     is not a tax invoice with the tax removed: different heading, no supplier GSTIN, no tax
+     anywhere. These rules carry !important because the mode class (.mode-intra and friends)
+     is still present and still wants to show its tax rows.
+     The RECIPIENT's GSTIN stays — rule 49(d) asks for it when the recipient is registered. */
+  .t-bos{ display:none; }
+  .doc-bos .t-bos{ display:inline; }
+  .doc-bos .t-tax, .doc-bos .t-export{ display:none !important; }
+  .doc-bos .r-cgst, .doc-bos .r-sgst, .doc-bos .r-igst, .doc-bos .r-zero{ display:none !important; }
+  .doc-bos th.c-cgst, .doc-bos th.c-sgst, .doc-bos th.c-igst,
+  .doc-bos td.c-cgst, .doc-bos td.c-sgst, .doc-bos td.c-igst{ display:none !important; }
+  .doc-bos .supplier-gstin{ display:none !important; }
+  .doc-bos .lut{ display:none !important; }
+  .bos-note{ display:none; margin-top:2.6mm; padding:2.6mm 3.2mm; background:var(--brand-tint);
+             border:1px solid var(--brand-line); border-radius:1.5mm;
+             font-size:8.6pt; font-weight:600; color:var(--brand); line-height:1.5; }
+  .doc-bos .bos-note{ display:block; }
+
   .hide-sac .c-sac{ display:none; }
   .hide-sac .hsn{ display:none; }
   .hide-sac .words{ margin-top:0; }
@@ -252,7 +275,7 @@
   <header class="head">
     <img class="logo" src="assets/adpedia-logo.svg" alt="adpedia" data-bind="company.logoUrl">
     <div class="doc-title">
-      <h1><span class="t-tax">Tax Invoice</span><span class="t-export">Export Invoice</span></h1>
+      <h1><span class="t-tax">Tax Invoice</span><span class="t-export">Export Invoice</span><span class="t-bos">Bill of Supply</span></h1>
       <div class="copy-mark" data-bind="doc.copyType">Original for Recipient</div>
     </div>
   </header>
@@ -274,7 +297,7 @@
         Thrissur, Kerala &ndash; 680683, India
       </address>
       <div class="idlist">
-        <span><span class="lbl">GSTIN</span> <b data-bind="company.gstin">32AAUCA9985H1ZX</b></span>
+        <span class="supplier-gstin"><span class="lbl">GSTIN</span> <b data-bind="company.gstin">32AAUCA9985H1ZX</b></span>
         <span><span class="lbl">PAN</span> <b data-bind="company.pan">AAUCA9985H</b></span><br>
         <span><span class="lbl">CIN</span> <b data-bind="company.cin">U92190KL2021PTC068241</b></span>
       </div>
@@ -431,7 +454,8 @@
       <div class="sign">
         <div class="for">For <span data-bind="company.legalName">Adpedia Films Private Limited</span></div>
         <div class="space"><img src="assets/signature.png" alt="" data-bind="company.signatureImageUrl"></div>
-        <div class="line">Authorised Signatory</div>
+        <div class="line" data-bind="company.signatoryName">Authorised Signatory</div>
+        <div class="desig" data-bind="company.signatoryDesignation"></div>
       </div>
     </div>
   </section>
@@ -444,6 +468,14 @@
       <li>Please quote the invoice number in your payment reference so the receipt can be matched correctly.</li>
       <li>Any discrepancy must be reported in writing within 7 days of receipt of this invoice.</li>
     </ol>
+
+    <!-- 🔴 docs/82 §5 — a statement of fact, not a statutory declaration. Rule 49 prescribes no
+         wording; what matters is that the document does not read as though tax were charged
+         and simply came to nil. A recipient seeing no tax column is owed the reason. -->
+    <p class="bos-note">
+      Not registered under GST. No tax is charged on this supply, and no input tax credit
+      is available to the recipient in respect of it.
+    </p>
 
     <p class="lut" data-bind="company.lutDeclaration">
       Supply meant for export of services under Letter of Undertaking without payment of Integrated Tax.<br>
@@ -461,7 +493,7 @@
 
   <footer class="brandbar">
     <img src="assets/adpedia-logo.svg" alt="adpedia">
-    <span class="ids">CIN U92190KL2021PTC068241 &nbsp;·&nbsp; GSTIN 32AAUCA9985H1ZX &nbsp;·&nbsp; PAN AAUCA9985H</span>
+    <span class="ids" data-bind="company.footerIds">CIN U92190KL2021PTC068241 &nbsp;·&nbsp; GSTIN 32AAUCA9985H1ZX &nbsp;·&nbsp; PAN AAUCA9985H</span>
   </footer>
 
 </div>

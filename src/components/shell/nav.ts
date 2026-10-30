@@ -2,7 +2,11 @@ import type { Role } from '@prisma/client'
 import { can, type Capability } from '@/server/auth/permissions'
 import type { IconName } from '@/components/shell/icons'
 
-export interface NavItem { label: string; href: string; cap: Capability; icon: IconName; badge?: number }
+export interface NavItem {
+  label: string; href: string; cap: Capability; icon: IconName; badge?: number
+  /** docs/82 §5 — meaningless for an entity that is not registered for GST */
+  gstOnly?: true
+}
 export interface NavGroup { label: string; items: NavItem[] }
 
 /** docs/13 §2.1. Filtered by role — the server also refuses whatever the UI hides. */
@@ -36,7 +40,7 @@ export const NAV: NavGroup[] = [
     { label: 'Import', href: '/banking/import', cap: 'banking', icon: 'Upload' },
   ]},
   { label: 'Tax', items: [
-    { label: 'GST', href: '/tax/gst', cap: 'tax', icon: 'Percent' },
+    { label: 'GST', href: '/tax/gst', cap: 'tax', gstOnly: true, icon: 'Percent' },
     { label: 'TDS payable', href: '/tax/tds', cap: 'tax', icon: 'ScrollText' },
     { label: 'TDS receivable', href: '/tax/tds-receivable', cap: 'tax', icon: 'HandCoins' },
     { label: 'PAN register', href: '/tax/pan', cap: 'tax', icon: 'IdCard' },
@@ -65,18 +69,25 @@ export const NAV: NavGroup[] = [
     // docs/82 — more than one entity under one login, and the way between them
     { label: 'Companies', href: '/settings/companies', cap: 'dashboard', icon: 'Building2' },
     { label: 'Services', href: '/settings/services', cap: 'invoices', icon: 'Package' },
-    { label: 'LUT register', href: '/settings/lut', cap: 'settings.company', icon: 'FileCheck' },
+    { label: 'LUT register', href: '/settings/lut', cap: 'settings.company', gstOnly: true, icon: 'FileCheck' },
     { label: 'Document series', href: '/settings/series', cap: 'invoices', icon: 'Hash' },
     { label: 'Users', href: '/settings/users', cap: 'settings.users', icon: 'UserCog' },
     { label: 'Reminders', href: '/settings/reminders', cap: 'settings.company', icon: 'BellRing' },
     { label: 'This device', href: '/settings/device', cap: 'dashboard', icon: 'Smartphone' },
-    { label: 'E-invoicing', href: '/settings/e-invoice', cap: 'tax', icon: 'QrCode' },
+    { label: 'E-invoicing', href: '/settings/e-invoice', cap: 'tax', gstOnly: true, icon: 'QrCode' },
   ]},
 ]
 
-export function navFor(role: Role): NavGroup[] {
+export function navFor(role: Role, opts: { gstRegistered?: boolean } = {}): NavGroup[] {
+  // 🔴 docs/82 §5 — GSTR-1, QRMP, the LUT register and e-invoicing are all things a REGISTERED
+  // person does. Offered to an unregistered entity they are screens that cannot mean anything,
+  // and the LUT one invites zero-rating an export that is not zero-rated.
+  const gstRegistered = opts.gstRegistered ?? true
   return NAV
-    .map((g) => ({ ...g, items: g.items.filter((i) => can(role, i.cap, 'read')) }))
+    .map((g) => ({
+      ...g,
+      items: g.items.filter((i) => can(role, i.cap, 'read') && (gstRegistered || !i.gstOnly)),
+    }))
     .filter((g) => g.items.length > 0)
 }
 

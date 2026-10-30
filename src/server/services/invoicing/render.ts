@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import QRCode from 'qrcode'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { prisma } from '@/server/db'
 import { Decimal, formatINR, amountInWords } from '@/lib/money'
 import { NotFound } from '@/server/errors'
@@ -78,6 +78,14 @@ export async function renderInvoiceHtml(companyId: string, invoiceId: string): P
   const tdsClass = inv.tdsSection === '194J' ? 'tds-194j' : inv.tdsSection === '194C' ? 'tds-194c' : 'tds-none'
   const sacClass = co.showSacOnInvoice ? '' : ' hide-sac'
   const lutClass = isExport && !inv.lut ? ' lut-expired' : ''
+  /**
+   * 🔴 docs/82 §5 — the document an UNREGISTERED supplier issues.
+   *
+   * Kept as a class on the same sheet rather than a second template: docs/59's whole argument
+   * is that re-rendering uses today's template, and two 469-line templates would drift from
+   * each other invoice by invoice. The CSS does what the mode classes already do for tax rows.
+   */
+  const docClass = inv.docType === 'BILL_OF_SUPPLY' ? ' doc-bos' : ''
 
   const fmtDate = (d: Date) =>
     d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' })
@@ -110,8 +118,15 @@ export async function renderInvoiceHtml(companyId: string, invoiceId: string): P
               <td class="num">${money(s.total.toFixed(2))}</td>
             </tr>`).join('')
 
+  const docLabel = inv.docType === 'BILL_OF_SUPPLY' ? 'Bill of Supply'
+    : inv.docType === 'EXPORT_INVOICE' ? 'Export Invoice'
+    : 'Tax Invoice'
+
   const SUBS: [RegExp, string][] = [
-    [/class="sheet mode-intra tds-194j hide-sac"/, `class="sheet ${taxClass} ${tdsClass}${sacClass}${lutClass}"`],
+    // 🔴 the document said "Bill of Supply" in its heading and "Tax Invoice" in its title, which
+    // is what a saved file, a browser tab and the PDF's own metadata report
+    [/<title>[^<]*<\/title>/, `<title>${esc(`${docLabel} — ${co.legalName}`)}</title>`],
+    [/class="sheet mode-intra tds-194j hide-sac"/, `class="sheet ${taxClass} ${tdsClass}${sacClass}${lutClass}${docClass}"`],
     [/(<div class="v" data-bind="invoice\.number">)[^<]*/, `$1${esc(inv.number)}`],
     [/(<div class="v" data-bind="invoice\.date">)[^<]*/, `$1${fmtDate(inv.date)}`],
     [/(<div class="v" data-bind="invoice\.dueDate">)[^<]*/, `$1${fmtDate(inv.dueDate)}`],
@@ -126,6 +141,22 @@ export async function renderInvoiceHtml(companyId: string, invoiceId: string): P
     [/(<b data-bind="company\.gstin">)[^<]*/, `$1${esc(co.gstin)}`],
     [/(<b data-bind="company\.pan">)[^<]*/, `$1${esc(co.pan)}`],
     [/(<b data-bind="company\.cin">)[^<]*/, `$1${esc(co.cin)}`],
+    /**
+     * 🔴 The footer printed CIN, GSTIN and PAN as LITERAL TEXT with no bind point at all, so
+     * every document of every entity carried Adpedia's three identifiers. On a bill of supply
+     * from an unregistered person that means displaying somebody else's GSTIN on a document
+     * whose whole point is that there is no GSTIN — found by rendering it and reading the
+     * footer. Only the identifiers this entity actually has are printed.
+     */
+    // who signed it, and as what. Blank falls back to the generic line rather than printing a
+    // name nobody entered.
+    [/(<div class="line" data-bind="company\.signatoryName">)[^<]*/, `$1${esc(co.signatoryName || 'Authorised Signatory')}`],
+    [/(<div class="desig" data-bind="company\.signatoryDesignation">)[^<]*/, `$1${esc(co.signatoryDesignation ?? '')}`],
+    [/(<span class="ids" data-bind="company\.footerIds">)[^<]*/, `$1${esc([
+      co.cin ? `CIN ${co.cin}` : null,
+      co.gstin ? `GSTIN ${co.gstin}` : null,
+      `PAN ${co.pan}`,
+    ].filter(Boolean).join('  ·  '))}`],
 
     [/(<div class="name" data-bind="customer\.name">)[^<]*/, `$1${esc(billTo.name)}`],
     [/(<address data-bind="customer\.billingAddress">)[\s\S]*?(<\/address>)/, `$1${addressHtml(billTo.address)}$2`],
@@ -153,6 +184,10 @@ export async function renderInvoiceHtml(companyId: string, invoiceId: string): P
     [/(<dd data-bind="bank\.accountNo">)[^<]*/, `$1${esc(bank?.accountNo ?? '—')}`],
     [/(<dd data-bind="bank\.ifsc">)[^<]*/, `$1${esc(bank?.ifsc ?? '—')}`],
     [/(<dd data-bind="bank\.bankBranch">)[^<]*/, `$1${esc([bank?.bankName, bank?.branch].filter(Boolean).join(', '))}`],
+    // 🔴 Unbound until docs/82 §5, so the template's own "AXISINBB" printed on EVERY document
+    // of every company — telling another entity's client to remit overseas funds to Adpedia's
+    // bank. Found by rendering a bill of supply for an entity with no bank account at all.
+    [/(<dd data-bind="bank\.swift">)[^<]*/, `$1${esc(bank?.swift ?? '—')}`],
 
     [/(<span data-bind="company\.lut\.arn">)[^<]*/, `$1${esc(inv.lut?.arn ?? '—')}`],
     [/(<span data-bind="company\.lut\.filedOn">)[^<]*/, `$1${inv.lut?.filedOn ? fmtDate(inv.lut.filedOn) : '—'}`],
@@ -233,24 +268,64 @@ export async function renderInvoiceHtml(companyId: string, invoiceId: string): P
   //
   // Inlining also makes the document self-contained: no network at render time, and the
   // same bytes whether it is printed from the browser, emailed or shared over WhatsApp.
+  /**
+   * 🔴 docs/82 §5 — the entity's OWN mark, not the first company's.
+   *
+   * These read `adpedia-logo.svg` and `signature.png` by name, so every document of every
+   * company carried Adpedia's letterhead and Adpedia's signature. `Company.logoUrl` and
+   * `signatureImageUrl` existed and nothing read them — a field nothing binds, docs/67 §2's
+   * class, invisible until a second entity issued its first document. Found by rendering a
+   * bill of supply and looking at it: an unregistered proprietor's invoice, on Adpedia's
+   * letterhead, going to that proprietor's client.
+   *
+   * With no logo the entity's own name takes the letterhead's place, because an unbranded
+   * document is fine and somebody else's brand is not.
+   */
+  // 🔴 A proprietorship has no CIN, and the row printed its label with nothing after it —
+  // which on a legal document reads as a particular somebody forgot to fill in.
+  if (!co.cin) html = html.replace(/<span><span class="lbl">CIN<\/span>[\s\S]*?<\/b><\/span>/, '')
+
   const [logo, signature] = await Promise.all([
-    dataUri('adpedia-logo.svg', 'image/svg+xml'),
-    dataUri('signature.png', 'image/png'),
+    brandAsset(co.logoUrl),
+    brandAsset(co.signatureImageUrl),
   ])
-  html = html.replace(/src="assets\/adpedia-logo\.svg"/g, `src="${logo}"`)
-             .replace(/src="assets\/signature\.png"/g, `src="${signature}"`)
+  html = logo
+    ? html.replace(/src="assets\/adpedia-logo\.svg"/g, `src="${logo}"`)
+    // 🔴 the mark appears TWICE — the letterhead and the footer brandbar. Replacing only the
+    // classed one left the other entity's logo at the foot of the page, which is how this was
+    // found: the guard said "adpedia-logo" was still in the document.
+    : html.replace(/<img class="logo"[^>]*>/, `<div class="logo-text">${esc(co.tradeName ?? co.legalName)}</div>`)
+          .replace(/<img[^>]*src="assets\/adpedia-logo\.svg"[^>]*>/g, '')
+  // the signature is an <img> inside .sign; dropping just the image leaves the "For <company>"
+  // line and "Authorised Signatory" rule, which every document needs whether or not a
+  // specimen signature is on file
+  html = signature
+    ? html.replace(/src="assets\/signature\.png"/g, `src="${signature}"`)
+    : html.replace(/<img src="assets\/signature\.png"[^>]*>/g, '')
   return html
 }
 
-const BRAND_DIR = join(process.cwd(), 'public', 'brand')
+/** A public asset as a data URI — '' when there is none, or it cannot be read. */
+async function brandAsset(url: string | null | undefined): Promise<string> {
+  if (!url) return ''
+  // 🔴 the path comes from company settings, so it is resolved and then checked to be inside
+  // public/ — a stored "../../.env" would otherwise be inlined into a document sent to a client
+  const target = resolve(join(process.cwd(), 'public'), '.' + (url.startsWith('/') ? url : `/${url}`))
+  if (!target.startsWith(resolve(join(process.cwd(), 'public')))) return ''
 
-/** Read a brand asset as a data URI, or '' if it is missing — a missing logo must not
- *  take the whole invoice down. */
-async function dataUri(file: string, mime: string): Promise<string> {
+  const mime = target.endsWith('.svg') ? 'image/svg+xml'
+    : target.endsWith('.png') ? 'image/png'
+    : /\.jpe?g$/.test(target) ? 'image/jpeg'
+    : target.endsWith('.webp') ? 'image/webp'
+    : ''
+  if (!mime) return ''
+
   try {
-    const bytes = await readFile(join(BRAND_DIR, file))
+    const bytes = await readFile(target)
     return `data:${mime};base64,${bytes.toString('base64')}`
   } catch {
     return ''
   }
 }
+
+

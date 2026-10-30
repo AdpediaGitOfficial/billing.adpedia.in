@@ -4,9 +4,13 @@ import { listLuts } from '@/server/services/invoicing/lut'
 import { Card, CardHeader, PageHeader, Pill, Alert, Empty } from '@/components/ui/kit'
 import { LutForm } from './form'
 import { currentFinancialYear } from '@/server/services/accounting/period'
+import { requireGstRegistered } from '@/components/shell/not-registered'
 
 export default async function LutPage() {
   const ctx = await requireContext()
+  // 🔴 docs/82 §5 — hidden from the rail is not refused
+  const unregistered = await requireGstRegistered(ctx.companyId, 'The LUT register')
+  if (unregistered) return unregistered
   const [luts, fy, exportCustomers] = await Promise.all([
     listLuts(ctx),
     currentFinancialYear(ctx.companyId),

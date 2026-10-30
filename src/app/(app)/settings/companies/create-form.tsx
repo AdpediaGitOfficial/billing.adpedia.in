@@ -56,6 +56,12 @@ export function CreateCompanyForm() {
         <Field label="Bank account label" hint="Optional — what GL 1010 is called here, e.g. “HDFC — Current 50200…”">
           <input name="bankLabel" className={inputClass} style={inputStyle} />
         </Field>
+        <Field label="Signatory" hint="Who signs this entity's documents — printed above the rule">
+          <input name="signatoryName" className={inputClass} style={inputStyle} placeholder="Shinelal C P" />
+        </Field>
+        <Field label="Designation" hint="A company has a director; a firm has a managing partner">
+          <input name="signatoryDesignation" className={inputClass} style={inputStyle} placeholder="Managing Partner" />
+        </Field>
       </div>
 
       <div className="flex flex-wrap items-center gap-3">

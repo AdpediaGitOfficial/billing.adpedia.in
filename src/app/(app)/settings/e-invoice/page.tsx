@@ -5,9 +5,13 @@ import { eInvoiceApplicability } from '@/server/services/einvoice/applicability'
 import { previewEInvoice } from '@/server/services/einvoice/register'
 import { formatINR } from '@/lib/money'
 import { Card, PageHeader, Alert, Pill, ProgressBar, Empty } from '@/components/ui/kit'
+import { requireGstRegistered } from '@/components/shell/not-registered'
 
 export default async function EInvoicePage() {
   const ctx = await requireContext()
+  // 🔴 docs/82 §5 — hidden from the rail is not refused
+  const unregistered = await requireGstRegistered(ctx.companyId, 'E-invoicing')
+  if (unregistered) return unregistered
   const a = await eInvoiceApplicability(ctx)
 
   // dry-run the most recent issued invoices: this is the useful part today

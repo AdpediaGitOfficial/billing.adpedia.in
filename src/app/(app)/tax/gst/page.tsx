@@ -12,9 +12,13 @@ import { previewSetOff, listSetOffs } from '@/server/services/tax/gst-setoff'
 import { electronicLedgers } from '@/server/services/tax/gst-electronic-ledgers'
 import { ElectronicLedgers, toLedgerView } from './ledgers'
 import { SetOff } from './setoff'
+import { requireGstRegistered } from '@/components/shell/not-registered'
 
 export default async function GstPage({ searchParams }: { searchParams: Promise<{ period?: string; on?: string }> }) {
   const ctx = await requireContext()
+  // 🔴 docs/82 §5 — hidden from the rail is not refused
+  const unregistered = await requireGstRegistered(ctx.companyId, 'GST')
+  if (unregistered) return unregistered
   const { period, on } = await searchParams
   // 🔴 One date for the whole screen. The set-off plan depends on what the ledgers hold on
   // the day it is posted, so previewing as at today while the form posts another date would
