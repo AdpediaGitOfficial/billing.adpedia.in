@@ -191,16 +191,29 @@ duplication to be cleaned up — they are customers of two different suppliers.
   | Tax audit — business | **₹1 crore** turnover, or ₹10 crore where cash receipts *and* cash payments are each ≤5% — s.44AB(a) |
   | Tax audit — profession | **₹50 lakh** gross receipts — s.44AB(b) |
 
-  **₹80 lakh is recorded as B's early-warning level**, not as any statutory trigger: the
-  turnover monitor warns there so the audit limit is never met by surprise. docs/31 already
-  has a turnover monitor for e-invoicing to model it on.
+  ✅ **Settled 30 Oct 2026: B is a PROFESSION**, so the audit limit is **₹50 lakh** of gross
+  receipts under s.44AB(b) — not the ₹1 crore that applies to a business.
 
-  🔴 **Whether B is a business or a profession decides which limit applies, and it changes the
-  warning.** At ₹1 crore, warning at ₹80 lakh gives real notice. If B is a *profession* —
-  film artistry and technical consultancy are both notified professions, and a good deal of
-  this work could be either — the limit is ₹50 lakh and an ₹80 lakh alert fires **thirty lakh
-  after the obligation has already arisen**. The classification is the CA's call, and the
-  alert level must follow it rather than the other way round.
+  🔴 **Which makes the ₹80 lakh asked for unusable: it is ABOVE the limit it was meant to warn
+  about.** It was chosen when the limit was thought to be ₹1 crore, where it gave real notice.
+  Against ₹50 lakh it would fire thirty lakh after the obligation had already arisen. Recorded
+  instead as **₹40 lakh** — the same proportion of the real limit that ₹80 lakh was of the
+  assumed one. Say so if you want it elsewhere; what it must not be is higher than ₹50 lakh.
+
+  🔴 **And the ceiling is not the only trigger.** For a profession there are three, and the
+  second is the one that bites a freelance practice with real costs:
+
+  | | |
+  |---|---|
+  | s.44AB(b) | gross receipts above **₹50 lakh** |
+  | 🔴 s.44AB(d) | declaring **less than 50%** of receipts as income under s.44ADA, while total income exceeds the basic exemption — this triggers an audit at **any** turnover, not just near the ceiling |
+  | s.44ADA | presumptive 50% is available up to ₹50 lakh, or **₹75 lakh** where cash receipts are 5% or less. Declaring at or above the deemed 50% keeps an audit away entirely |
+
+  So a profession billing ₹20 lakh with genuine costs that leave it below 50% margin can need
+  an audit, while one billing ₹45 lakh and declaring the presumptive 50% does not. The monitor
+  therefore has to watch the **declared margin against 50%**, not only the receipts against a
+  ceiling — which is a different figure from the ₹40 lakh alert and needs the CA's view on
+  whether B declares presumptively at all.
 
 - **Whether A's HRA exemption is being claimed** — §4. It is already in the payroll structure.
 
