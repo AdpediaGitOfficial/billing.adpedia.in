@@ -180,9 +180,9 @@ export async function createDebitNote(ctx: RequestContext, input: DebitNoteInput
       postings: [
         { accountCode: '1100', debit: p.grandTotal, customerId: inv.customerId, projectId: inv.projectId ?? undefined },
         { accountCode: '4010', credit: p.taxableValue, customerId: inv.customerId, projectId: inv.projectId ?? undefined },
-        ...(p.cgst.gt(0) ? [{ accountCode: '2110', credit: p.cgst, customerId: inv.customerId }] : []),
-        ...(p.sgst.gt(0) ? [{ accountCode: '2120', credit: p.sgst, customerId: inv.customerId }] : []),
-        ...(p.igst.gt(0) ? [{ accountCode: '2130', credit: p.igst, customerId: inv.customerId }] : []),
+        ...(p.cgst.gt(0) ? [{ accountCode: '2110', credit: p.cgst, customerId: inv.customerId, projectId: inv.projectId ?? undefined }] : []),
+        ...(p.sgst.gt(0) ? [{ accountCode: '2120', credit: p.sgst, customerId: inv.customerId, projectId: inv.projectId ?? undefined }] : []),
+        ...(p.igst.gt(0) ? [{ accountCode: '2130', credit: p.igst, customerId: inv.customerId, projectId: inv.projectId ?? undefined }] : []),
       ],
     }, tx)
 

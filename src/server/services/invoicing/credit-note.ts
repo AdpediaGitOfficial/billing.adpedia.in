@@ -223,9 +223,12 @@ export async function createCreditNote(ctx: RequestContext, input: CreditNoteInp
             ? `includes ${preview.taxNotAdjusted.toFixed(2)} of GST that cannot be recovered — s.34(2) deadline passed`
             : undefined,
         },
-        ...(preview.cgst.gt(0) ? [{ accountCode: '2110', debit: preview.cgst, customerId: inv.customerId }] : []),
-        ...(preview.sgst.gt(0) ? [{ accountCode: '2120', debit: preview.sgst, customerId: inv.customerId }] : []),
-        ...(preview.igst.gt(0) ? [{ accountCode: '2130', debit: preview.igst, customerId: inv.customerId }] : []),
+        // 🔴 the tax lines carry the PROJECT too. The invoice credited 2110/2120 against it;
+        // a reversal that drops the dimension leaves per-project output GST permanently
+        // overstated — it would only ever go up.
+        ...(preview.cgst.gt(0) ? [{ accountCode: '2110', debit: preview.cgst, customerId: inv.customerId, projectId: inv.projectId ?? undefined }] : []),
+        ...(preview.sgst.gt(0) ? [{ accountCode: '2120', debit: preview.sgst, customerId: inv.customerId, projectId: inv.projectId ?? undefined }] : []),
+        ...(preview.igst.gt(0) ? [{ accountCode: '2130', debit: preview.igst, customerId: inv.customerId, projectId: inv.projectId ?? undefined }] : []),
       ],
     }, tx)
 

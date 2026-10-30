@@ -281,32 +281,35 @@ export async function recordNoteAmendment(ctx: RequestContext, input: NoteAmendm
       },
     })
 
-    const customerId = note.invoice?.customerId
+    // 🔴 the project travels with every line, not just revenue. A note amendment moves the
+    // same output tax the invoice booked against the project, so dropping the dimension on
+    // the tax and the receivable leaves the project's own figures behind.
+    const dim = { customerId: note.invoice?.customerId, projectId: note.invoice?.projectId ?? undefined }
     const postings = [
       ...(p.delta.revenue.isZero() ? [] : [{
         accountCode: '4010',
         ...(p.delta.revenue.gt(0) ? { debit: p.delta.revenue } : { credit: p.delta.revenue.abs() }),
-        customerId, projectId: note.invoice?.projectId ?? undefined,
+        ...dim,
       }]),
       ...(p.delta.cgst.isZero() ? [] : [{
         accountCode: '2110',
         ...(p.delta.cgst.gt(0) ? { debit: p.delta.cgst } : { credit: p.delta.cgst.abs() }),
-        customerId,
+        ...dim,
       }]),
       ...(p.delta.sgst.isZero() ? [] : [{
         accountCode: '2120',
         ...(p.delta.sgst.gt(0) ? { debit: p.delta.sgst } : { credit: p.delta.sgst.abs() }),
-        customerId,
+        ...dim,
       }]),
       ...(p.delta.igst.isZero() ? [] : [{
         accountCode: '2130',
         ...(p.delta.igst.gt(0) ? { debit: p.delta.igst } : { credit: p.delta.igst.abs() }),
-        customerId,
+        ...dim,
       }]),
       ...(p.delta.receivable.isZero() ? [] : [{
         accountCode: '1100',
         ...(p.delta.receivable.gt(0) ? { credit: p.delta.receivable } : { debit: p.delta.receivable.abs() }),
-        customerId,
+        ...dim,
       }]),
     ]
 

@@ -261,17 +261,21 @@ export async function recordAmendment(ctx: RequestContext, input: AmendmentInput
     })
 
     const d = p.delta
+    // 🔴 one dimension object for every line. Spelled out per posting, four lines carried the
+    // project and six did not, and the six were the tax — so an amended invoice moved its
+    // project's output GST without the project ever hearing about it.
+    const dim = { customerId: inv.customerId, projectId: inv.projectId ?? undefined }
     const postings = [
-      ...(d.receivable.gt(0) ? [{ accountCode: '1100', debit: d.receivable, customerId: inv.customerId, projectId: inv.projectId ?? undefined }] : []),
-      ...(d.receivable.lt(0) ? [{ accountCode: '1100', credit: d.receivable.abs(), customerId: inv.customerId, projectId: inv.projectId ?? undefined }] : []),
-      ...(d.revenue.gt(0) ? [{ accountCode: '4010', credit: d.revenue, customerId: inv.customerId, projectId: inv.projectId ?? undefined }] : []),
-      ...(d.revenue.lt(0) ? [{ accountCode: '4010', debit: d.revenue.abs(), customerId: inv.customerId, projectId: inv.projectId ?? undefined }] : []),
-      ...(d.cgst.gt(0) ? [{ accountCode: '2110', credit: d.cgst, customerId: inv.customerId }] : []),
-      ...(d.cgst.lt(0) ? [{ accountCode: '2110', debit: d.cgst.abs(), customerId: inv.customerId }] : []),
-      ...(d.sgst.gt(0) ? [{ accountCode: '2120', credit: d.sgst, customerId: inv.customerId }] : []),
-      ...(d.sgst.lt(0) ? [{ accountCode: '2120', debit: d.sgst.abs(), customerId: inv.customerId }] : []),
-      ...(d.igst.gt(0) ? [{ accountCode: '2130', credit: d.igst, customerId: inv.customerId }] : []),
-      ...(d.igst.lt(0) ? [{ accountCode: '2130', debit: d.igst.abs(), customerId: inv.customerId }] : []),
+      ...(d.receivable.gt(0) ? [{ accountCode: '1100', debit: d.receivable, ...dim }] : []),
+      ...(d.receivable.lt(0) ? [{ accountCode: '1100', credit: d.receivable.abs(), ...dim }] : []),
+      ...(d.revenue.gt(0) ? [{ accountCode: '4010', credit: d.revenue, ...dim }] : []),
+      ...(d.revenue.lt(0) ? [{ accountCode: '4010', debit: d.revenue.abs(), ...dim }] : []),
+      ...(d.cgst.gt(0) ? [{ accountCode: '2110', credit: d.cgst, ...dim }] : []),
+      ...(d.cgst.lt(0) ? [{ accountCode: '2110', debit: d.cgst.abs(), ...dim }] : []),
+      ...(d.sgst.gt(0) ? [{ accountCode: '2120', credit: d.sgst, ...dim }] : []),
+      ...(d.sgst.lt(0) ? [{ accountCode: '2120', debit: d.sgst.abs(), ...dim }] : []),
+      ...(d.igst.gt(0) ? [{ accountCode: '2130', credit: d.igst, ...dim }] : []),
+      ...(d.igst.lt(0) ? [{ accountCode: '2130', debit: d.igst.abs(), ...dim }] : []),
     ]
 
     // a particulars-only correction — a wrong GSTIN, say — moves no money at all, and a
