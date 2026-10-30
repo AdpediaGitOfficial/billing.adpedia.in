@@ -41,6 +41,7 @@ beforeAll(async () => {
     pan: 'AAAPA1234A', stateCode: '32', seriesPrefix: 'ADS',
     address: { line1: 'Thommana', city: 'Thrissur', pincode: '680683' },
     signatoryName: 'Shinelal C P', signatoryDesignation: 'Managing Partner',
+    email: 'shinelalcp@gmail.com', phone: '9447768570',
   })
   ctxB = { userId: user.id, companyId: b.id, role: 'OWNER' }
 
@@ -125,8 +126,11 @@ describe('an unregistered entity issues a bill of supply', () => {
     // 🔴 and NOT the other entity's identifiers, which the footer printed as literal text
     expect(html).not.toContain('U92190KL2021PTC068241')
     expect(html).not.toContain('32AAUCA9985H1ZX')
-    // name and address only — the footer repeats no identifiers on this document
+    // name and address only — the footer repeats no identifiers on this document, and carries
+    // how to reach the supplier instead, which is what a recipient of one actually needs
     expect(html).not.toContain('AAAPA1234A')
+    expect(html).toContain('shinelalcp@gmail.com')
+    expect(html).toContain('9447768570')
     expect(html).toContain('ADPEDIA DIGITAL SOLUTIONS')
     expect(html).toContain('Thommana')
 

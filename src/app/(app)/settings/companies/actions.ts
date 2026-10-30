@@ -58,6 +58,8 @@ export async function createCompanyAction(
       bankLabel: str('bankLabel') || undefined,
       signatoryName: str('signatoryName') || undefined,
       signatoryDesignation: str('signatoryDesignation') || undefined,
+      email: str('email') || undefined,
+      phone: str('phone') || undefined,
       address: {
         line1: str('line1'), line2: str('line2'), city: str('city'),
         state: str('state'), pincode: str('pincode'),

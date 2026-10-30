@@ -53,6 +53,10 @@ export interface CreateCompanyInput {
   /** who signs this entity's documents — "Shinelal C P" — and as what — "Managing Partner" */
   signatoryName?: string
   signatoryDesignation?: string
+  /** printed in the document footer — how a recipient reaches this entity about it */
+  email?: string
+  phone?: string
+  website?: string
   fyStartMonth?: number
 }
 
@@ -206,6 +210,9 @@ export async function createCompany(ctx: RequestContext, input: CreateCompanyInp
         fyStartMonth,
         signatoryName: input.signatoryName?.trim() || null,
         signatoryDesignation: input.signatoryDesignation?.trim() || null,
+        email: input.email?.trim() || null,
+        phone: input.phone?.trim() || null,
+        website: input.website?.trim() || null,
       },
     })
 

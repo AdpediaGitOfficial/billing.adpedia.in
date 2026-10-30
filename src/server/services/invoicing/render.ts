@@ -152,7 +152,14 @@ export async function renderInvoiceHtml(companyId: string, invoiceId: string): P
     // name nobody entered.
     [/(<div class="line" data-bind="company\.signatoryName">)[^<]*/, `$1${esc(co.signatoryName || 'Authorised Signatory')}`],
     [/(<div class="desig" data-bind="company\.signatoryDesignation">)[^<]*/, `$1${esc(co.signatoryDesignation ?? '')}`],
-    [/(<span class="ids" data-bind="company\.footerIds">)[^<]*/, `$1${esc(inv.docType === 'BILL_OF_SUPPLY' ? '' : [
+    /**
+     * 🔴 A bill of supply carries none of the three identifiers (rule 49, and there is no GSTIN
+     * to give), which left the footer empty. What a recipient of one actually needs there is
+     * how to reach the supplier about it — so the same strip carries contact details instead.
+     */
+    [/(<span class="ids" data-bind="company\.footerIds">)[^<]*/, `$1${esc(inv.docType === 'BILL_OF_SUPPLY' ? [
+      co.email, co.phone, co.website,
+    ].filter(Boolean).join('  ·  ') : [
       co.cin ? `CIN ${co.cin}` : null,
       co.gstin ? `GSTIN ${co.gstin}` : null,
       `PAN ${co.pan}`,

@@ -62,6 +62,12 @@ export function CreateCompanyForm() {
         <Field label="Designation" hint="A company has a director; a firm has a managing partner">
           <input name="signatoryDesignation" className={inputClass} style={inputStyle} placeholder="Managing Partner" />
         </Field>
+        <Field label="Email" hint="Printed in the document footer — how a client reaches this entity">
+          <input name="email" type="email" className={inputClass} style={inputStyle} placeholder="name@example.com" />
+        </Field>
+        <Field label="Phone" hint="Optional — also printed in the footer">
+          <input name="phone" inputMode="tel" className={inputClass} style={inputStyle} placeholder="9447768570" />
+        </Field>
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
