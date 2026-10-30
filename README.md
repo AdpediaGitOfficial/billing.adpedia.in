@@ -84,6 +84,8 @@ payroll, projects and bank reconciliation on a double-entry ledger.
 | [77 · Membership](docs/77-membership.md) | Removing somebody and changing a role — and the role that was read from the token |
 | [78 · Pagination](docs/78-pagination.md) | The lever docs/68 measured, and the total order a paginated list needs |
 | [79 · Domestic reverse charge](docs/79-domestic-reverse-charge.md) | Why 1240 stays one account, what would change that, and the silence it leaves |
+| [80 · The bug hunt](docs/80-bug-hunt.md) | Errors that vanished from nine file routes, a caller docs/72 never added, and a fixture lookup that passed by luck |
+| [81 · Project money & ledgers](docs/81-project-money.md) | **Spec, not built** — three answers to "what do I get", direct margin, and a clear ledger per project, vendor and client |
 | [90 · Deployment](docs/90-deployment.md) | Step by step on a plain Ubuntu box — npm, pm2, Postgres, nginx, Chromium, the daily run, backups. No Docker |
 
 **1,028 tests passing** · typecheck and lint clean · production build passes.
