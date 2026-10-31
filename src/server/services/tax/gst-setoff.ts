@@ -8,6 +8,7 @@ import { postJournal } from '@/server/services/accounting/journal'
 import { assertPostable, currentFinancialYear } from '@/server/services/accounting/period'
 import { GST_ACCOUNTS, CASH_LEDGER_ACCOUNTS, gstPosition } from './gst-ledger'
 import { gstInterest } from './gst-payment'
+import { assertGstRegistered } from './gst-registration'
 import { creditLedgerBalance, cashLedgerBalance } from './gst-electronic-ledgers'
 import {
   planSetOff, type LiabilityHeads, type CreditHeads, type CashHeads, type SetOffPlan,
@@ -166,6 +167,7 @@ export interface RecordSetOffInput {
  */
 export async function recordSetOff(ctx: RequestContext, input: RecordSetOffInput) {
   assertCan(ctx.role, 'tax', 'write')
+  await assertGstRegistered(ctx.companyId, 'setting off a liability through the electronic ledgers')
 
   const on = new Date(input.setOffOn)
   if (Number.isNaN(on.getTime())) throw new AppError('That is not a valid set-off date')

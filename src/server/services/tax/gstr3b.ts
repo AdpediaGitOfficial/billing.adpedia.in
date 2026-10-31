@@ -1,4 +1,5 @@
 import { Decimal, ZERO } from '@/lib/money'
+import { assertFilesGstr1And3b } from './gst-registration'
 import { gstPosition, outwardSupplies } from './gst-ledger'
 import { planSetOff } from './gst-setoff-engine'
 
@@ -48,6 +49,7 @@ export interface Gstr3b {
 export interface HeadSettlement { liability: Decimal; byCredit: Decimal; inCash: Decimal }
 
 export async function buildGstr3b(companyId: string, from: Date, to: Date, label: string): Promise<Gstr3b> {
+  await assertFilesGstr1And3b(companyId, 'GSTR-3B')
   const [pos, supplies] = await Promise.all([
     gstPosition(companyId, from, to),
     outwardSupplies(companyId, from, to),

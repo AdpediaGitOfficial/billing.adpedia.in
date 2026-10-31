@@ -6,6 +6,7 @@ import { prisma } from '@/server/db'
 import { formatINR, amountInWords, Decimal } from '@/lib/money'
 import { placeOfSupplyLabel, taxModeLabel } from '@/server/services/tax/tax-mode'
 import { lutStatus } from '@/server/services/invoicing/lut'
+import { carriesTax } from '@/server/services/invoicing/document-type'
 import { Card, PageHeader, Pill, Button, Alert } from '@/components/ui/kit'
 import { InvoiceActions } from './actions-client'
 import { ShareInvoice } from '@/components/pwa/share-invoice'
@@ -30,7 +31,10 @@ export default async function InvoiceDetail({ params }: { params: Promise<{ id: 
   if (!inv) notFound()
 
   const isDraft = inv.status === 'DRAFT'
-  const lut = inv.taxMode === 'EXPORT' ? await lutStatus(prisma, ctx.companyId, inv.financialYear.label) : null
+  // 🔴 docs/82 §4 — a bill of supply for an overseas client needs no LUT, so it is not missing one
+  const lut = inv.taxMode === 'EXPORT' && carriesTax(inv.docType)
+    ? await lutStatus(prisma, ctx.companyId, inv.financialYear.label)
+    : null
   const journal = await prisma.journalEntry.findFirst({
     where: { companyId: ctx.companyId, sourceType: 'INVOICE', sourceId: inv.id },
     include: { lines: { include: { account: true } } },

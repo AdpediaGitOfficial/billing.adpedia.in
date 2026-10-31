@@ -128,7 +128,62 @@ enum value in the transaction that added it.
 **And the GST screens must be gated.** `gstRegistrationType` is read nowhere in `src/` — a
 field nothing consumes, which is `docs/67 §2`'s class. Ungated, B would be offered GSTR-1,
 QRMP periods, GST filing, the LUT register and e-invoice readiness, all meaningless for an
-unregistered entity. The gate is a test, not a convention.
+unregistered entity. The gate is a test, not a convention. → **§5a, built.**
+
+## 5a. 🔴 Step 4 — the gate, and what hiding it did not cover
+
+Step 3 took the GST items out of an unregistered entity's rail and put an explanation on three
+screens. Neither is a refusal, and `nav.ts` says so of itself: *"the server also refuses
+whatever the UI hides."* It did not.
+
+🔴 **Nothing here failed. Every one of these paths WORKED for B**, and that is the whole
+problem: what comes out is a plausible return for a taxpayer that does not exist.
+
+| Reached by | What it did for B |
+|---|---|
+| `/api/tax/gst/export?return=gstr1` — a URL, not a screen | built a GSTR-1 out of its bills of supply and served the CSV |
+| the filing form's action | recorded a GSTR-1 as filed against a return it must not file |
+| the payment form's action | posted a challan for tax it never collected |
+| the set-off form's action | debited electronic ledgers it does not hold |
+| the LUT form's action | accepted a Letter of Undertaking — the one `§5` singles out |
+| `/tax/portal`'s import | reconciled its books against a cash ledger of zero, and called them agreed |
+
+So the gate is now in the services, where the refusal belongs: `tax/gst-registration.ts`, with
+`requireGstRegistered` left as the *explanation* on the screens rather than the enforcement.
+
+🔴 **And the condition was being asked of the wrong field.** The calendar read
+`if (company.gstin)`. An unregistered entity has none, so its GST items happened not to appear
+— correct by accident. A **composition** taxpayer has one and files CMP-08 and GSTR-4, so it
+was told to file a GSTR-1 on the 11th and a GSTR-3B it never files, both stuck overdue for
+ever because nothing could ever clear them. `filesGstr1And3b()` is that question asked once.
+
+### 🔴 The invoice B could not issue at all
+
+The find that was not a screen. `resolveLutForInvoice` keyed off the tax **mode**, and an
+unregistered supplier billing abroad resolves to `EXPORT` like anybody else — so **send
+refused**, demanding Form RFD-11, which requires the registration B does not have. B had no
+way to bill a foreign client, and the error named the one remedy it cannot perform.
+
+A LUT belongs to zero-rating a **taxable** supply. Where no tax is charged there is no rate to
+zero: `carriesTax(docType)` is the condition, and a bill of supply needs no LUT, shows no
+"needs a LUT" pill on the form and no missing-LUT banner on the document.
+
+### What is deliberately NOT gated
+
+- **`/tax/portal` is not `gstOnly`.** OLTAS challan status is the one statement there that an
+  unregistered entity still uses, so the GST half is gated section by section and the TDS half
+  stays. Hiding the page would have taken away something it needs.
+- **`unrecordGstFiling` and `cancelGstSetOff`** each require an existing row of B's, and there
+  is now no way to create one. A guard there would be code no test could reach — `docs/80 §7`'s
+  class, which is what this module spent its time closing rather than adding to.
+- **The dashboard's Output GST tile** reads ₹0 for B, which is true. It is noise, not a false
+  obligation.
+
+🔴 **Found while gating, and NOT fixed here:** the calendar tells B to *"file the company
+income tax return"* on **31 October**. B is a proprietorship — its proprietor files ITR-3, and
+under s.139(1) the date is **31 July** unless a s.44AB audit applies, in which case it is 31
+October. Which one is right depends on the audit question that is still open in §8, so the
+date is not something to encode on a guess. The wording is wrong for a non-company either way.
 
 ## 6. What the two share, and what they never do
 
@@ -226,7 +281,7 @@ duplication to be cleaned up — they are customers of two different suppliers.
 | 1 | Company creation, per-constitution chart, onboarding |
 | 2 | Switcher, the `companies[0]` ordering fix, `lastCompanyId`, audited switch, unmistakable UI |
 | 3 | Bill of supply — enum, series, template, archive kind |
-| 4 | Gate the GST screens on registration type |
+| ✅ 4 | Gate the GST screens on registration type — §5a. Done 31 Oct 2026 |
 | 5 | Drawings, and B's own expense categories |
 
 Each ships with its guard: close the gap, then write the test that fails without the fix.

@@ -59,13 +59,13 @@ describe('🔴 invoice numbering under concurrency', () => {
 describe('🔴 the LUT guard', () => {
   it('blocks a zero-rated export when no LUT covers the financial year', async () => {
     await expect(
-      resolveLutForInvoice(prisma, { companyId, taxMode: 'EXPORT', fyLabel: '2026-27' }),
+      resolveLutForInvoice(prisma, { companyId, taxMode: 'EXPORT', fyLabel: '2026-27', docType: 'EXPORT_INVOICE' }),
     ).rejects.toThrow(LutMissing)
   })
 
   it('names the remedy, not just the problem', async () => {
     await expect(
-      resolveLutForInvoice(prisma, { companyId, taxMode: 'EXPORT', fyLabel: '2026-27' }),
+      resolveLutForInvoice(prisma, { companyId, taxMode: 'EXPORT', fyLabel: '2026-27', docType: 'EXPORT_INVOICE' }),
     ).rejects.toThrow(/Form RFD-11[\s\S]*or raise this invoice with IGST/)
   })
 
@@ -76,13 +76,26 @@ describe('🔴 the LUT guard', () => {
         validFrom: new Date('2026-04-01'), validTo: new Date('2027-03-31'),
       },
     })
-    const id = await resolveLutForInvoice(prisma, { companyId, taxMode: 'EXPORT', fyLabel: '2026-27' })
+    const id = await resolveLutForInvoice(prisma, { companyId, taxMode: 'EXPORT', fyLabel: '2026-27', docType: 'EXPORT_INVOICE' })
     expect(id).toBeTruthy()
     await prisma.companyLut.deleteMany({ where: { arn: 'AD320326TEST001' } })
   })
 
+  /**
+   * 🔴 docs/82 §4 — the case that could not be sent at all.
+   *
+   * An unregistered supplier billing abroad resolves to taxMode EXPORT, and this guard then
+   * demanded Form RFD-11 — which only a registered person can file. The remedy it named was
+   * one the supplier cannot perform, so the invoice simply could not be issued.
+   */
+  it('🔴 does not require a LUT for a bill of supply, which has no rate to zero', async () => {
+    expect(await resolveLutForInvoice(prisma, {
+      companyId, taxMode: 'EXPORT', fyLabel: '2026-27', docType: 'BILL_OF_SUPPLY',
+    })).toBeNull()
+  })
+
   it('does not require a LUT for domestic invoices', async () => {
-    expect(await resolveLutForInvoice(prisma, { companyId, taxMode: 'INTRA', fyLabel: '2026-27' })).toBeNull()
-    expect(await resolveLutForInvoice(prisma, { companyId, taxMode: 'INTER', fyLabel: '2026-27' })).toBeNull()
+    expect(await resolveLutForInvoice(prisma, { companyId, taxMode: 'INTRA', fyLabel: '2026-27', docType: 'TAX_INVOICE' })).toBeNull()
+    expect(await resolveLutForInvoice(prisma, { companyId, taxMode: 'INTER', fyLabel: '2026-27', docType: 'TAX_INVOICE' })).toBeNull()
   })
 })

@@ -7,6 +7,7 @@ import { AppError, NotFound } from '@/server/errors'
 import { postJournal } from '@/server/services/accounting/journal'
 import { assertPostable } from '@/server/services/accounting/period'
 import { buildGstr3b } from './gstr3b'
+import { assertGstRegistered } from './gst-registration'
 import { periodsInFy } from './periods'
 import { CASH_LEDGER_ACCOUNTS } from './gst-ledger'
 import { cashLedgerBalance } from './gst-electronic-ledgers'
@@ -188,6 +189,7 @@ export interface RecordPaymentInput {
  */
 export async function recordGstPayment(ctx: RequestContext, input: RecordPaymentInput) {
   assertCan(ctx.role, 'tax', 'write')
+  await assertGstRegistered(ctx.companyId, 'a GST challan')
 
   const paidOn = new Date(input.paidOn)
   if (Number.isNaN(paidOn.getTime())) throw new AppError('That is not a valid payment date')

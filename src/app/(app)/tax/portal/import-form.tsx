@@ -28,10 +28,12 @@ const today = () => new Date().toISOString().slice(0, 10)
  * downloaded on Monday showing Friday's position, filed under Monday, compares our Monday
  * balance against the portal's Friday one and reports a difference that is not there.
  */
-export function ImportStatement() {
+export function ImportStatement({ gstRegistered = true }: { gstRegistered?: boolean }) {
   const [state, action, pending] = useActionState(importStatementAction, null)
-  const [kind, setKind] = useState<string>(KINDS[0].value)
-  const chosen = KINDS.find((k) => k.value === kind)!
+  // docs/82 §4 — an unregistered entity has only OLTAS to compare itself against
+  const kinds = gstRegistered ? KINDS : KINDS.filter((k) => !k.value.startsWith('GST_'))
+  const [kind, setKind] = useState<string>(kinds[0].value)
+  const chosen = kinds.find((k) => k.value === kind) ?? kinds[0]
 
   return (
     <form action={action} className="space-y-3">
@@ -39,7 +41,7 @@ export function ImportStatement() {
         <Field label="Which statement">
           <select name="kind" value={kind} onChange={(e) => setKind(e.target.value)}
             className={inputClass} style={inputStyle}>
-            {KINDS.map((k) => <option key={k.value} value={k.value}>{k.label}</option>)}
+            {kinds.map((k) => <option key={k.value} value={k.value}>{k.label}</option>)}
           </select>
         </Field>
         <Field label="Portal figures as at" hint="the date on the download, not today">

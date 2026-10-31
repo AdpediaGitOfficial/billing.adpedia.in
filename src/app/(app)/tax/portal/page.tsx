@@ -1,4 +1,6 @@
 import { requireContext } from '@/server/context'
+import { prisma } from '@/server/db'
+import { isGstRegistered } from '@/server/services/invoicing/document-type'
 import { Card, CardHeader, PageHeader, StatCard, Alert, Pill } from '@/components/ui/kit'
 import {
   reconcileLedger, reconcileChallans, portalConfidence, listPortalStatements,
@@ -15,16 +17,27 @@ const KIND_LABEL: Record<string, string> = {
 
 export default async function PortalPage() {
   const ctx = await requireContext()
-  const [cash, credit, confidence, statements] = await Promise.all([
-    reconcileLedger(ctx, 'GST_CASH_LEDGER'),
-    reconcileLedger(ctx, 'GST_CREDIT_LEDGER'),
+  /**
+   * 🔴 docs/82 §4 — this page is not `gstOnly`, and must not be: OLTAS challan status is the
+   * one statement here that an unregistered entity still has a use for. So the GST half is
+   * gated section by section instead. Reconciling an electronic ledger it does not hold would
+   * compare its books against zero and call the agreement good.
+   */
+  const company = await prisma.company.findUniqueOrThrow({
+    where: { id: ctx.companyId }, select: { gstRegistrationType: true },
+  })
+  const gst = isGstRegistered(company.gstRegistrationType)
+
+  const [confidence, statements] = await Promise.all([
     portalConfidence(ctx),
     listPortalStatements(ctx),
   ])
-  // 🔴 these two write (they persist the confirmation), so they run after the reads
+  const cash = gst ? await reconcileLedger(ctx, 'GST_CASH_LEDGER') : null
+  const credit = gst ? await reconcileLedger(ctx, 'GST_CREDIT_LEDGER') : null
+  // 🔴 these write (they persist the confirmation), so they run after the reads
   const tdsChallans = await reconcileChallans(ctx, 'TDS_CHALLANS')
-  const gstChallans = await reconcileChallans(ctx, 'GST_CHALLANS')
-  const itc = await reconcile2b(ctx)
+  const gstChallans = gst ? await reconcileChallans(ctx, 'GST_CHALLANS') : null
+  const itc = gst ? await reconcile2b(ctx) : null
 
   const unconfirmed = confidence.tds.unconfirmed + confidence.gst.unconfirmed
   const total = confidence.tds.total + confidence.gst.total
@@ -67,23 +80,25 @@ export default async function PortalPage() {
             : `of ${total} · a challan records itself as paid and then looks exactly like one somebody verified`} />
         <StatCard label="TDS challans confirmed" value={`${confidence.tds.confirmed} / ${confidence.tds.total}`} icon="ScrollText"
           foot="Against OLTAS — the CIN here is constructed, not issued" />
-        <StatCard label="GST challans confirmed" value={`${confidence.gst.confirmed} / ${confidence.gst.total}`} icon="Percent"
-          foot="Against the portal's own challan history" />
+        {gst && (
+          <StatCard label="GST challans confirmed" value={`${confidence.gst.confirmed} / ${confidence.gst.total}`} icon="Percent"
+            foot="Against the portal's own challan history" />
+        )}
         <StatCard label="Statements on file" value={String(statements.length)} icon="FileStack"
           foot={statements.length === 0 ? 'Nothing imported yet' : `Latest ${statements[0].importedAt.toISOString().slice(0, 10)}`} />
       </div>
 
       <Card>
         <CardHeader title="Import a statement" sub="Paste what the portal shows — the date matters more than the format" />
-        <div className="mt-4"><ImportStatement /></div>
+        <div className="mt-4"><ImportStatement gstRegistered={gst} /></div>
       </Card>
 
-      <LedgerComparison r={cash} />
-      <LedgerComparison r={credit} />
+      {cash && <LedgerComparison r={cash} />}
+      {credit && <LedgerComparison r={credit} />}
       {/* docs/62 — the credit ledger says how much is wrong; this says whose */}
-      <Itc2b r={itc} />
+      {itc && <Itc2b r={itc} />}
       <ChallanComparison r={tdsChallans} title="TDS challans against OLTAS" />
-      <ChallanComparison r={gstChallans} title="GST challans against the portal" />
+      {gstChallans && <ChallanComparison r={gstChallans} title="GST challans against the portal" />}
 
       {statements.length > 0 && (
         <Card flush className="overflow-hidden">

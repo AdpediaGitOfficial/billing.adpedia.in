@@ -1,4 +1,5 @@
 import { prisma } from '@/server/db'
+import { assertFilesGstr1And3b } from './gst-registration'
 import { refundsInPeriod } from '@/server/services/sales/refund'
 import { noteAmendmentsForPeriod } from './gst-note-amendment'
 import { Decimal, ZERO } from '@/lib/money'
@@ -103,6 +104,9 @@ export interface Gstr1 {
 function rateOf(line: { gstRatePct: unknown }) { return Number(line.gstRatePct) }
 
 export async function buildGstr1(companyId: string, from: Date, to: Date, label: string): Promise<Gstr1> {
+  // 🔴 docs/82 §4 — an unregistered entity has no GSTR-1, and this would have built one out of
+  // its bills of supply. /api/tax/gst/export is a URL, so the screen gate does not reach it.
+  await assertFilesGstr1And3b(companyId, 'GSTR-1')
   const company = await prisma.company.findUniqueOrThrow({ where: { id: companyId } })
 
   const invoices = await prisma.invoice.findMany({

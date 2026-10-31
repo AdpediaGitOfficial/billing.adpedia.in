@@ -12,7 +12,7 @@ import { resolveTaxMode, placeOfSupplyLabel, requiresLut } from '@/server/servic
 import { computeInvoice, type LineInput } from '@/server/services/tax/gst'
 import { computeInvoiceTds, defaultRateFor } from '@/server/services/tax/tds'
 import { allocateNumber, peekNextNumber } from './numbering'
-import { docTypeFor, assertMayChargeGst } from './document-type'
+import { docTypeFor, carriesTax, assertMayChargeGst } from './document-type'
 import { resolveLutForInvoice } from './lut'
 import { validateSac, sacLooksWrongForDescription } from './sac'
 import { archiveIssuedDocument } from '@/server/services/storage/document-archive'
@@ -109,6 +109,8 @@ export async function previewInvoice(ctx: RequestContext, input: CreateInvoiceIn
   const { company, customer, taxMode } = await loadCustomerAndMode(ctx.companyId, input.customerId)
   const date = new Date(input.date)
   const fy = await resolveFy(ctx.companyId, date)
+  // what this entity would actually issue, which decides both the LUT pill and the number
+  const docType = docTypeFor(company.gstRegistrationType, taxMode)
 
   const totals = computeInvoice(toLineInputs(input.lines), taxMode)
   const tds = computeInvoiceTds({
@@ -126,14 +128,15 @@ export async function previewInvoice(ctx: RequestContext, input: CreateInvoiceIn
     currency: invoiceCurrency(taxMode, customer.currency),
     totals,
     tds,
-    requiresLut: requiresLut(taxMode),
+    // 🔴 docs/82 §4 — not for a bill of supply: there is no zero-rating without a rate
+    requiresLut: requiresLut(taxMode) && carriesTax(docType),
     // surfaced on the form so a wrong SAC is caught before the invoice is numbered, not
     // after it has been sent and reported in GSTR-1
     sacIssues: sacIssuesFor(input.lines),
     nextNumber: await peekNextNumber(prisma, {
       companyId: ctx.companyId,
       financialYearId: fy.id,
-      docType: docTypeFor(company.gstRegistrationType, taxMode),
+      docType,
       fyLabel: fy.label,
     }),
   }
@@ -365,6 +368,7 @@ export async function sendInvoice(ctx: RequestContext, invoiceId: string) {
       companyId: ctx.companyId,
       taxMode: inv.taxMode,
       fyLabel: inv.financialYear.label,
+      docType: inv.docType,
     })
 
     const { number, seq } = await allocateNumber(tx, {

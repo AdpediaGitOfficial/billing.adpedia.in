@@ -1,11 +1,13 @@
 import type { Tx } from '@/server/db'
-import type { TaxMode } from '@prisma/client'
+import type { DocType, TaxMode } from '@prisma/client'
 import { AppError } from '@/server/errors'
 import { requiresLut } from '@/server/services/tax/tax-mode'
+import { carriesTax } from './document-type'
 import { prisma } from '@/server/db'
 import type { RequestContext } from '@/server/context'
 import { assertCan } from '@/server/auth/permissions'
 import { audit } from '@/server/audit'
+import { assertGstRegistered } from '@/server/services/tax/gst-registration'
 
 export class LutMissing extends AppError {
   constructor(fyLabel: string) {
@@ -27,9 +29,19 @@ export class LutMissing extends AppError {
  */
 export async function resolveLutForInvoice(
   tx: Tx,
-  args: { companyId: string; taxMode: TaxMode; fyLabel: string },
+  args: { companyId: string; taxMode: TaxMode; fyLabel: string; docType: DocType },
 ): Promise<string | null> {
   if (!requiresLut(args.taxMode)) return null
+  /**
+   * 🔴 docs/82 §4 — a bill of supply has nothing to zero-rate.
+   *
+   * An unregistered supplier billing an overseas client resolves to taxMode EXPORT, and this
+   * then refused to send the document until a Letter of Undertaking was on file — Form RFD-11,
+   * which only a registered person can file. Entity B could not invoice a foreign client at
+   * all, and the message told it to do the one thing it cannot. The LUT belongs to zero-rating
+   * a TAXABLE supply; where no tax is charged in the first place there is no rate to zero.
+   */
+  if (!carriesTax(args.docType)) return null
 
   const lut = await tx.companyLut.findFirst({
     where: { companyId: args.companyId, fyLabel: args.fyLabel },
@@ -67,6 +79,9 @@ export async function listLuts(ctx: RequestContext) {
 
 export async function addLut(ctx: RequestContext, input: { arn: string; fyLabel: string; filedOn?: string }) {
   assertCan(ctx.role, 'settings.company', 'write')
+  // 🔴 the LUT is the one docs/82 §5 singles out: it invites zero-rating an export that an
+  // unregistered person cannot zero-rate, and the screen gate does not stop the form post.
+  await assertGstRegistered(ctx.companyId, 'a Letter of Undertaking')
   const arn = input.arn.trim().toUpperCase()
 
   const decoded = decodeArn(arn)

@@ -5,6 +5,7 @@ import { assertCan } from '@/server/auth/permissions'
 import { audit } from '@/server/audit'
 import { AppError, NotFound } from '@/server/errors'
 import { buildGstr3b } from './gstr3b'
+import { assertFilesGstr1And3b } from './gst-registration'
 import { periodsInFy, periodFor } from './periods'
 import type { GstReturnType } from '@prisma/client'
 import { currentFinancialYear } from '@/server/services/accounting/period'
@@ -67,11 +68,14 @@ export async function recordGstFiling(ctx: RequestContext, input: RecordFilingIn
     throw new AppError(`"${input.arn}" does not look like a GST ARN — 15 characters, as shown on the portal acknowledgement`)
   }
 
+  // 🔴 docs/82 §4 — was `if (!company.gstin)`, which asks the registration question of the
+  // wrong field: a composition taxpayer has a GSTIN and files neither of these returns.
+  await assertFilesGstr1And3b(ctx.companyId, `a ${input.returnType}`)
+
   const company = await prisma.company.findUniqueOrThrow({
     where: { id: ctx.companyId },
     select: { gstFilingFrequency: true, gstin: true },
   })
-  if (!company.gstin) throw new AppError('This company has no GSTIN, so there is no return to file')
 
   const fy = await currentFinancialYear(ctx.companyId)
   if (!fy) throw new NotFound('No open financial year')

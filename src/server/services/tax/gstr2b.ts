@@ -2,6 +2,7 @@ import { prisma } from '@/server/db'
 import { Decimal, ZERO, formatINR } from '@/lib/money'
 import type { RequestContext } from '@/server/context'
 import { assertCan } from '@/server/auth/permissions'
+import { assertGstRegistered } from './gst-registration'
 import { audit } from '@/server/audit'
 import { AppError } from '@/server/errors'
 import { randomUUID } from 'node:crypto'
@@ -240,6 +241,7 @@ export async function import2b(
   ctx: RequestContext, input: { asOn: string; text: string; filename?: string },
 ) {
   assertCan(ctx.role, 'tax', 'write')
+  await assertGstRegistered(ctx.companyId, 'a GSTR-2B')
 
   const asOn = new Date(input.asOn)
   if (Number.isNaN(asOn.getTime())) throw new AppError('Say which date this 2B is as at')

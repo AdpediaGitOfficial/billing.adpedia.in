@@ -3,6 +3,8 @@ import { Decimal, ZERO, formatINR } from '@/lib/money'
 import type { RequestContext } from '@/server/context'
 import { assertCan } from '@/server/auth/permissions'
 import { filedPeriods } from '@/server/services/tax/gst-filing'
+import { filesGstr1And3b } from '@/server/services/tax/gst-registration'
+import { isGstRegistered } from '@/server/services/invoicing/document-type'
 import { paidPeriods } from '@/server/services/tax/gst-payment'
 import { dischargedPeriods } from '@/server/services/tax/gst-setoff'
 import { filedTdsQuarters, formForSectionCode } from '@/server/services/tax/tds-filing'
@@ -54,7 +56,7 @@ export async function complianceCalendar(ctx: RequestContext, now = new Date()):
 
   const company = await prisma.company.findUniqueOrThrow({
     where: { id: ctx.companyId },
-    select: { stateCode: true, gstFilingFrequency: true, gstin: true },
+    select: { stateCode: true, gstFilingFrequency: true, gstin: true, gstRegistrationType: true },
   })
   const fy = await currentFinancialYear(ctx.companyId)
   if (!fy) return []
@@ -192,7 +194,16 @@ export async function complianceCalendar(ctx: RequestContext, now = new Date()):
 
   /* ── GST returns, per filed period ────────────────────────────────────────── */
 
-  if (company.gstin) {
+  /**
+   * 🔴 docs/82 §4 — was `if (company.gstin)`, and a GSTIN is not the question.
+   *
+   * An unregistered entity has no GSTIN, so the items happened not to appear — correct by
+   * accident. A composition taxpayer HAS one and files CMP-08 and GSTR-4, so the calendar told
+   * it to file a GSTR-1 on the 11th and a GSTR-3B it never files, both marked overdue for ever
+   * because nothing could ever clear them. A calendar that nags about the wrong return is how
+   * the right one gets missed (docs/43 §1).
+   */
+  if (filesGstr1And3b(company.gstRegistrationType)) {
     const invoices = await prisma.invoice.findMany({
       where: {
         companyId: ctx.companyId, financialYearId: fy.id,
@@ -290,7 +301,9 @@ export async function complianceCalendar(ctx: RequestContext, now = new Date()):
     prisma.customer.count({ where: { companyId: ctx.companyId, country: { not: 'IN' }, isActive: true } }),
     prisma.companyLut.findFirst({ where: { companyId: ctx.companyId, fyLabel: fy.label } }),
   ])
-  if (exportCustomers > 0) {
+  // 🔴 and only if the export is zero-rated at all: an unregistered supplier's overseas bill
+  // is a bill of supply, which carries no IGST to be relieved of and needs no RFD-11
+  if (exportCustomers > 0 && isGstRegistered(company.gstRegistrationType)) {
     push({
       id: 'lut',
       obligation: 'LUT_RENEWAL',
@@ -445,7 +458,7 @@ export async function complianceCalendar(ctx: RequestContext, now = new Date()):
    * the filing is recorded by hand beside the ROC dates.
    */
   if (reported) {
-    if (company.gstin) {
+    if (filesGstr1And3b(company.gstRegistrationType)) {
       push({
         id: 'gstr9',
         obligation: 'GSTR9',

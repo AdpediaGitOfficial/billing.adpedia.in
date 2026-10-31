@@ -2,6 +2,7 @@ import { prisma } from '@/server/db'
 import { Decimal, ZERO, formatINR } from '@/lib/money'
 import type { RequestContext } from '@/server/context'
 import { assertCan } from '@/server/auth/permissions'
+import { assertGstRegistered } from './gst-registration'
 import { audit } from '@/server/audit'
 import { AppError } from '@/server/errors'
 import { randomUUID } from 'node:crypto'
@@ -239,6 +240,13 @@ export async function importPortalStatement(ctx: RequestContext, input: ImportIn
   if (Number.isNaN(asOn.getTime())) throw new AppError('Say what date the portal figures are as at')
   if (asOn.getTime() > Date.now() + 86_400_000) {
     throw new AppError('A statement cannot be as at a future date — use the date printed on the download')
+  }
+
+  // 🔴 docs/82 §4 — four of the five statements here are the GST portal's. An unregistered
+  // entity has no electronic ledgers and no challan history to compare against, so importing
+  // one would file a reconciliation of figures that belong to nobody.
+  if (input.kind.startsWith('GST_')) {
+    await assertGstRegistered(ctx.companyId, 'the GST portal')
   }
 
   const isLedger = input.kind === 'GST_CASH_LEDGER' || input.kind === 'GST_CREDIT_LEDGER'
