@@ -1,7 +1,9 @@
-# 82 · Two entities, one login — SPEC
+# 82 · Two entities, one login
 
-**Status: agreed, not built.** Like `docs/81`, this records decisions and findings before any
-code, so the build does not re-derive them.
+**Status: built — steps 0 to 5, 30–31 Oct 2026.** This began as a spec, written before any
+code so the build would not re-derive its decisions, and the decisions are kept here as they
+were taken. What each step actually found is in §1, §5a and §5c; §8 is what remains, and it is
+for the CA rather than for code.
 
 **Entity A** — ADPEDIA FILMS PRIVATE LIMITED. GST-registered, Kerala (32), QRMP quarterly,
 exports under LUT. The system as it stands.
@@ -112,6 +114,8 @@ against the HRA component already present in A's payroll (s.10(13A) — `prisma/
 sets HRA at 20% of gross), medical insurance under s.80D, 80C items. B records them as
 drawings and claims nothing.
 
+→ **§5c, built.**
+
 ## 5. Bill of supply — the document B actually issues
 
 🔴 **`DocType` has no `BILL_OF_SUPPLY`**, and `AttachmentKind` has no equivalent either. An
@@ -184,6 +188,86 @@ income tax return"* on **31 October**. B is a proprietorship — its proprietor 
 under s.139(1) the date is **31 July** unless a s.44AB audit applies, in which case it is 31
 October. Which one is right depends on the audit question that is still open in §8, so the
 date is not something to encode on a guess. The wording is wrong for a non-company either way.
+
+## 5c. Step 5 — drawings, and the categories B can act on
+
+### The register
+
+`OwnerMovement` — a `DRAWING` out or `CAPITAL` in, each with a date, an amount, the account it
+moved through and a note. A drawing also carries a **purpose**, and that field is the only
+reason the record is worth keeping: rent against HRA (s.10(13A)), insurance under s.80D, 80C
+investments are all claimed in the owner's **personal** return, and none of them can be sorted
+out from "₹85,000 taken out" with no purpose against it. The purpose is required on a drawing
+and refused on capital — money coming in needs no story.
+
+🔴 **The posting is `Dr 3300 Drawings · Cr bank`, and nothing else.** `profitAndLoss` reads
+INCOME and EXPENSE, so an equity contra cannot reach it however much goes through. That is the
+whole mechanism: rent, groceries and medical bills are recorded in full, the bank statement
+reconciles to the rupee, and the profit the proprietor declares does not move. The same
+spending put through an expense category would have understated that profit by its entire
+value, with s.37(1)'s "wholly and exclusively" as the provision cited when it was noticed.
+
+**There is no cancel, and there is no delete** — the table has the same `BEFORE DELETE`
+trigger every other financial table has. A drawing entered wrongly is corrected by a CAPITAL
+movement for the same amount, which is what happened if the money went back and an honest
+correction if it did not.
+
+🔴 **`ownerFunds` is asked of the balance sheet, not computed again.** Summing the EQUITY
+accounts reads too low for eleven months of the year, because this year's profit does not reach
+`3200 Current Year Profit` until the year-end close — `statements.ts` derives it instead. Two
+computations of one figure would have let the drawings screen disagree with the statement it
+gets checked against, and then neither number is worth anything. It can legitimately go
+**negative**, which is information rather than an error: a proprietor may take out more than
+the business earned, and that means its creditors are funding it.
+
+### 🔴 A company is refused, and the refusal is the tax point
+
+`hasDrawings` is false for a company, and both the rail and the service say so. What looks like
+a director's drawing is one of three transactions, and they are not three labels for the same
+transfer:
+
+| | |
+|---|---|
+| Remuneration | salary in the director's hands, TDS under s.192 |
+| Dividend | a distribution of profit that has already been taxed |
+| Loan | GL 2500 Director's Current Account — s.185 limits it, and it has to come back |
+
+### B's expense categories: the same nine, different defaults
+
+The nine categories were A's, and seeded unchanged they told B two things that were false.
+Neither failed, which is why it matters:
+
+| | |
+|---|---|
+| 🔴 `itcDefault: 'FULL'` | ₹1,800 of GST on a ₹10,000 bill debited to `1210 Input CGST` and `1220 Input SGST` as an **asset** — one that can never be utilised, because s.16(1) gives credit to a registered person. The cost was understated by the tax and the balance sheet carried a receivable from nobody |
+| 🔴 `tdsSection: '194J'` | B withholding tax it has no TAN to deposit, a TDS Payable it cannot clear, a 26Q it cannot file — and the deductee losing the credit |
+
+So the defaults now follow what the entity can actually do. Not the constitution alone: ITC and
+RCM are **registration** facts, while who must deduct TDS is a fact about the payer —
+s.194C and s.194J exclude an individual below the s.44AB limits, and a company, firm or LLP
+deducts from the first rupee whatever its size. `deductsTdsByDefault` is that distinction, and
+🔴 it is not permanent: the year after the **preceding** year crosses ₹1 crore, B becomes
+liable to deduct. That is the same limit §8 watches with the ₹80 lakh alert.
+
+**And the rule lives in the service, not only in the data.** `createExpense` reads the
+registration itself, so a category edited by hand cannot put tax into an input-credit asset.
+The blocking is also not a s.17(5) clause: none of those clauses apply, so the reason is
+supplied — *"the entity is not registered for GST — s.16(1) gives credit to a registered person
+only"* — rather than demanded from a list that has no right answer in it. Before this, an
+expense with tax on the line was a dead end for B: it refused to save until a clause was picked.
+
+🔴 **Two of the blocked-credit reasons said "Adpedia" on every entity's screen.** `docs/82 §1`'s
+class, found here: generic now.
+
+### Open, and worth asking the CA before B buys anything abroad
+
+🔴 **An import of services makes registration compulsory.** If B subscribes to Adobe, Google or
+any overseas supplier, that is an import of service: the recipient pays the tax under reverse
+charge, and s.24(iii) makes a person liable to pay tax under reverse charge liable to register
+**with no threshold at all**. The ₹20 lakh limit in §8 does not protect it. `rcmPossible` is
+false on B's categories because an unregistered entity has no RCM to raise — but the answer to
+"what if it buys software from abroad" is *register*, not *ignore it*, and that is a question
+for the CA rather than a default in a table.
 
 ## 6. What the two share, and what they never do
 
@@ -282,6 +366,9 @@ duplication to be cleaned up — they are customers of two different suppliers.
 | 2 | Switcher, the `companies[0]` ordering fix, `lastCompanyId`, audited switch, unmistakable UI |
 | 3 | Bill of supply — enum, series, template, archive kind |
 | ✅ 4 | Gate the GST screens on registration type — §5a. Done 31 Oct 2026 |
-| 5 | Drawings, and B's own expense categories |
+| ✅ 5 | Drawings, and B's own expense categories — §5c. Done 31 Oct 2026 |
+
+**All six steps are built.** What is left is in §8, and all of it is for the CA rather than
+for code.
 
 Each ships with its guard: close the gap, then write the test that fails without the fix.

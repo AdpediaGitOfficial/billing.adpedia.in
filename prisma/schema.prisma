@@ -43,15 +43,15 @@ model Company {
   phone   String?
   website String?
 
-  logoUrl           String?
-  signatureImageUrl String?
+  logoUrl              String?
+  signatureImageUrl    String?
   /// who signs this entity's documents, and as what — a company has a director, a firm a
   /// managing partner. Blank falls back to a generic "Authorised Signatory".
   signatoryName        String?
   signatoryDesignation String?
-  stampImageUrl     String?
-  brandPrimaryHex   String? @default("#4135AF")
-  brandFont         String? @default("Poppins")
+  stampImageUrl        String?
+  brandPrimaryHex      String? @default("#4135AF")
+  brandFont            String? @default("Poppins")
 
   currencyDefault    String  @default("INR")
   fyStartMonth       Int     @default(4) // April
@@ -80,6 +80,7 @@ model Company {
   attachments     Attachment[]
   gstChallans     GstChallan[]
   gstSetOffs      GstSetOff[]
+  ownerMovements  OwnerMovement[]
   tdsFilings      TdsReturnFiling[]
   tdsCorrections  TdsCorrection[]
   tdsCertificates TdsCertificate[]
@@ -167,14 +168,14 @@ model FinancialYear {
   /// from the AGM for AOC-4 and s.92(4) sixty for MGT-7 — so an AGM held early makes both
   /// forms due early, and a company that assumes 30 October because the meeting could have
   /// been held on 30 September is late without knowing it.
-  agmHeldOn  DateTime?
+  agmHeldOn    DateTime?
   /// where the date came from — the minutes, the CS, the MCA portal
-  agmSource  String?
+  agmSource    String?
   /// docs/72 · filed on the MCA portal, which this system does not talk to. Recorded here so
   /// the obligation can clear: without a fact to clear it, an annual item nags for ever once
   /// its date passes, and a calendar that nags is one people stop reading (docs/43 §1).
-  aoc4FiledOn DateTime?
-  mgt7FiledOn DateTime?
+  aoc4FiledOn  DateTime?
+  mgt7FiledOn  DateTime?
   /// docs/76 · the two annual TAX returns, for the same reason and in the same place. Both are
   /// filed on a government portal this system does not talk to, and both are about a year that
   /// has ENDED — which is the question docs/72 §2 left open.
@@ -186,8 +187,74 @@ model FinancialYear {
   journalEntries JournalEntry[]
   invoices       Invoice[]
   series         DocumentSeries[]
+  ownerMovements OwnerMovement[]
 
   @@unique([companyId, label])
+}
+
+/// docs/82 §4 · Money moving between an owner and their own business.
+///
+/// 🔴 This is EQUITY, and the whole point is that it never reaches the P&L. A proprietor and
+/// their proprietorship are one person for income tax, so rent, groceries and medical bills
+/// are recorded here IN FULL — the money trail stays complete — and the profit the proprietor
+/// declares does not move by a paisa. The same spending booked as an expense would understate
+/// that profit, which is the one line between a complete record and a wrong return.
+///
+/// A company has no row in this table: a shareholder is paid a dividend out of taxed profit
+/// and a director is paid remuneration or lent money through 2500. See `hasDrawings`.
+model OwnerMovement {
+  id              String            @id @default(cuid())
+  companyId       String
+  company         Company           @relation(fields: [companyId], references: [id])
+  financialYearId String
+  financialYear   FinancialYear     @relation(fields: [financialYearId], references: [id])
+  kind            OwnerMovementKind
+  /// what the money was for. Only meaningful on a DRAWING — capital coming in has no purpose
+  /// beyond funding the business.
+  purpose         DrawingPurpose?
+  date            DateTime
+  amount          Decimal           @db.Decimal(18, 2)
+  source          MoneySource       @default(BANK)
+  /// which bank it moved through, where there is more than one. The journal records the ledger
+  /// account; this records the instrument, for the statement it will be reconciled against.
+  bankAccountId   String?
+  narration       String
+  createdById     String?
+  createdAt       DateTime          @default(now())
+
+  @@index([companyId, date])
+  @@index([companyId, kind])
+}
+
+enum OwnerMovementKind {
+  /// money taken out of the business by its owner
+  DRAWING
+  /// money put in — opening the account, funding a shortfall, or correcting a drawing
+  CAPITAL
+}
+
+/// 🔴 Recorded, and deductible NOWHERE in these books.
+///
+/// Several of these ARE deductible — in the owner's personal return, not here: rent against
+/// the HRA in a salary (s.10(13A)), medical insurance under s.80D, 80C investments. The
+/// purpose is kept so the personal return can be prepared from a complete record, which is
+/// the only reason it is worth asking for. docs/82 §4.
+enum DrawingPurpose {
+  RENT
+  HOUSEHOLD
+  MEDICAL
+  EDUCATION
+  INSURANCE_INVESTMENT
+  /// the owner's own income tax, advance tax or self-assessment — never the business's expense
+  PERSONAL_TAX
+  /// moved to a personal account with nothing else said about it
+  TRANSFER
+  OTHER
+}
+
+enum MoneySource {
+  BANK
+  CASH
 }
 
 enum FyStatus {
@@ -259,22 +326,22 @@ model User {
 /// password: forwarded, logged by a proxy, and sitting in a mailbox for years. Accepting sets
 /// a password and ends; the person then signs in like anybody else.
 model Invitation {
-  id          String    @id @default(cuid())
-  companyId   String
-  company     Company   @relation(fields: [companyId], references: [id])
-  email       String
-  name        String
+  id             String    @id @default(cuid())
+  companyId      String
+  company        Company   @relation(fields: [companyId], references: [id])
+  email          String
+  name           String
   /// fixed by the inviter, never chosen by the invitee
-  role        Role
+  role           Role
   /// sha256 of the opaque token — the plaintext is never stored
-  tokenHash   String    @unique
-  invitedById String
-  expiresAt   DateTime
+  tokenHash      String    @unique
+  invitedById    String
+  expiresAt      DateTime
   acceptedAt     DateTime?
   acceptedUserId String?
   revokedAt      DateTime?
   revokeReason   String?
-  createdAt   DateTime  @default(now())
+  createdAt      DateTime  @default(now())
 
   @@index([companyId, email])
 }
@@ -413,6 +480,8 @@ enum SourceType {
   OPENING_BALANCE
   /// the year-end entry that sweeps income and expense into retained earnings
   YEAR_END_CLOSE
+  /// docs/82 §4 — a proprietor's or partner's own money in or out. EQUITY, never the P&L.
+  OWNER_MOVEMENT
 }
 
 model JournalLine {
@@ -466,11 +535,11 @@ model Customer {
   defaultTdsSection String? // "194J" — clients deduct from us
   aliases           String[] @default([]) // learned bank-narration aliases
 
-  projects Project[]
-  invoices Invoice[]
-  receipts Receipt[]
+  projects       Project[]
+  invoices       Invoice[]
+  receipts       Receipt[]
   refundVouchers RefundVoucher[]
-  isActive Boolean   @default(true)
+  isActive       Boolean         @default(true)
 
   @@index([companyId, name])
 }
@@ -601,10 +670,10 @@ model Invoice {
   status         InvoiceStatus @default(DRAFT)
 
   // — e-invoicing: hooks only, unimplemented until ₹5 Cr —
-  irn      String?
-  ackNo    String?
-  ackDate  DateTime?
-  signedQr String?
+  irn       String?
+  ackNo     String?
+  ackDate   DateTime?
+  signedQr  String?
   /// docs/75 · WHICH IRP produced the IRN above.
   ///
   /// 🔴 A mock registration writes into exactly the same four columns as a real one, and until
@@ -682,31 +751,31 @@ model InvoiceLine {
 /// flag, and the posting is a mirror. The table keeps its original name rather than taking a
 /// migration for a word; `noteType` is what distinguishes them everywhere it matters.
 model CreditNote {
-  noteType        NoteType  @default(CREDIT)
-  id              String    @id @default(cuid())
+  noteType        NoteType           @default(CREDIT)
+  id              String             @id @default(cuid())
   companyId       String
   financialYearId String
   invoiceId       String?
-  invoice         Invoice?  @relation(fields: [invoiceId], references: [id])
+  invoice         Invoice?           @relation(fields: [invoiceId], references: [id])
   number          String
   date            DateTime
   reason          String
-  taxableValue    Decimal   @db.Decimal(18, 2)
-  cgst            Decimal   @default(0) @db.Decimal(18, 2)
-  sgst            Decimal   @default(0) @db.Decimal(18, 2)
-  igst            Decimal   @default(0) @db.Decimal(18, 2)
-  grandTotal      Decimal   @db.Decimal(18, 2)
+  taxableValue    Decimal            @db.Decimal(18, 2)
+  cgst            Decimal            @default(0) @db.Decimal(18, 2)
+  sgst            Decimal            @default(0) @db.Decimal(18, 2)
+  igst            Decimal            @default(0) @db.Decimal(18, 2)
+  grandTotal      Decimal            @db.Decimal(18, 2)
   /// 🔴 docs/48 · whether this note reduces OUTPUT TAX, which s.34(2) allows only until
   /// 30 November following the financial year of supply. After that the note is still valid
   /// between the parties, but the GST already paid stays paid — so it carries no tax, is not
   /// reported in GSTR-1, and the document says so on its face.
-  gstAdjusted     Boolean   @default(true)
+  gstAdjusted     Boolean            @default(true)
   /// docs/51 — reversed in the ledger; kept on file with its number and its reason
   cancelledAt     DateTime?
   cancelReason    String?
   /// the tax that could not be recovered, where gstAdjusted is false. Kept so the row still
   /// adds up — taxableValue + taxNotAdjusted = grandTotal — and so the cost is visible.
-  taxNotAdjusted  Decimal   @default(0) @db.Decimal(18, 2)
+  taxNotAdjusted  Decimal            @default(0) @db.Decimal(18, 2)
   pdfUrl          String?
   /// docs/66 — amendments reported against this note in table 9C
   amendments      GstNoteAmendment[]
@@ -1209,7 +1278,7 @@ model Payslip {
   tdsNote           String?
   professionTaxNote String?
 
-  pdfUrl        String?
+  pdfUrl String?
 
   @@unique([payrollRunId, employeeId])
 }
@@ -1965,7 +2034,6 @@ model ChaseLog {
   @@index([companyId, sentAt])
 }
 
-
 /// docs/62 · One invoice as GSTR-2B reports it.
 ///
 /// 🔴 Its own table rather than more columns on `PortalStatementLine`. A ledger balance and a
@@ -2004,7 +2072,6 @@ model Gst2bLine {
   @@index([companyId, supplierGstin, docKey])
   @@index([statementId])
 }
-
 
 /// docs/65 · A refund voucher under s.31(3)(e) and rule 51.
 ///
@@ -2047,7 +2114,6 @@ model RefundVoucher {
   @@unique([companyId, number])
   @@index([companyId, receiptId])
 }
-
 
 /// docs/66 · An amendment to a credit or debit note already reported in a filed GSTR-1
 /// (table 9C).

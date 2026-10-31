@@ -6,6 +6,8 @@ export interface NavItem {
   label: string; href: string; cap: Capability; icon: IconName; badge?: number
   /** docs/82 §5 — meaningless for an entity that is not registered for GST */
   gstOnly?: true
+  /** docs/82 §4 — a company has no drawings: a director is paid, or lent to, not helped out */
+  drawingsOnly?: true
 }
 export interface NavGroup { label: string; items: NavItem[] }
 
@@ -38,6 +40,8 @@ export const NAV: NavGroup[] = [
   { label: 'Banking', items: [
     { label: 'Reconcile', href: '/banking/reconcile', cap: 'banking', icon: 'Landmark' },
     { label: 'Import', href: '/banking/import', cap: 'banking', icon: 'Upload' },
+    // docs/82 §4 — the owner's own money, in and out. Equity, never the P&L
+    { label: 'Drawings', href: '/drawings', cap: 'journal', drawingsOnly: true, icon: 'Banknote' },
   ]},
   { label: 'Tax', items: [
     { label: 'GST', href: '/tax/gst', cap: 'tax', gstOnly: true, icon: 'Percent' },
@@ -78,15 +82,24 @@ export const NAV: NavGroup[] = [
   ]},
 ]
 
-export function navFor(role: Role, opts: { gstRegistered?: boolean } = {}): NavGroup[] {
+export function navFor(
+  role: Role,
+  opts: { gstRegistered?: boolean; hasDrawings?: boolean } = {},
+): NavGroup[] {
   // 🔴 docs/82 §5 — GSTR-1, QRMP, the LUT register and e-invoicing are all things a REGISTERED
   // person does. Offered to an unregistered entity they are screens that cannot mean anything,
   // and the LUT one invites zero-rating an export that is not zero-rated.
   const gstRegistered = opts.gstRegistered ?? true
+  // 🔴 docs/82 §4 — and the mirror of it: drawings belong to an entity whose owner and
+  // business are the same person. On a company's rail it would invite recording a director's
+  // withdrawal as something that needs no salary, no TDS and no repayment.
+  const hasDrawings = opts.hasDrawings ?? false
   return NAV
     .map((g) => ({
       ...g,
-      items: g.items.filter((i) => can(role, i.cap, 'read') && (gstRegistered || !i.gstOnly)),
+      items: g.items.filter((i) => can(role, i.cap, 'read')
+        && (gstRegistered || !i.gstOnly)
+        && (hasDrawings || !i.drawingsOnly)),
     }))
     .filter((g) => g.items.length > 0)
 }

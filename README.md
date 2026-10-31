@@ -86,10 +86,10 @@ payroll, projects and bank reconciliation on a double-entry ledger.
 | [79 · Domestic reverse charge](docs/79-domestic-reverse-charge.md) | Why 1240 stays one account, what would change that, and the silence it leaves |
 | [80 · The bug hunt](docs/80-bug-hunt.md) | Errors that vanished from nine file routes, a caller docs/72 never added, and a fixture lookup that passed by luck |
 | [81 · Project money & ledgers](docs/81-project-money.md) | **Spec, not built** — three answers to "what do I get", direct margin, and a clear ledger per project, vendor and client |
-| [82 · Two entities, one login](docs/82-two-entities.md) | **Spec, not built** — a second company kept genuinely independent, and the leak sweep that must come first |
+| [82 · Two entities, one login](docs/82-two-entities.md) | A second entity kept genuinely independent — the leak sweep that came first, a bill of supply, the GST screens refused rather than hidden, and drawings that never touch the P&L |
 | [90 · Deployment](docs/90-deployment.md) | Step by step on a plain Ubuntu box — npm, pm2, Postgres, nginx, Chromium, the daily run, backups. No Docker |
 
-**1,028 tests passing** · typecheck and lint clean · production build passes.
+**1,154 tests passing** · typecheck and lint clean · production build passes.
 
 ```bash
 cp .env.example .env     # set DATABASE_URL and JWT_SECRET

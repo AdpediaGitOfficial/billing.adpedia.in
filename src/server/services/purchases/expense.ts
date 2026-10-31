@@ -7,6 +7,7 @@ import { AppError, NotFound } from '@/server/errors'
 import { assertPostable } from '@/server/services/accounting/period'
 import { postJournal } from '@/server/services/accounting/journal'
 import { postExpense } from '@/server/services/accounting/rules/purchase'
+import { isGstRegistered } from '@/server/services/invoicing/document-type'
 
 /**
  * s.17(5) blocked credits. The expense form sets eligibility from the category and
@@ -16,10 +17,10 @@ import { postExpense } from '@/server/services/accounting/rules/purchase'
 export const BLOCKED_REASONS = {
   S17_5_B_FOOD: 'Food, beverages, restaurant or outdoor catering — s.17(5)(b)',
   S17_5_B_CAB: 'Passenger transport — cab or taxi — s.17(5)(b)',
-  NO_REGISTRATION_IN_STATE: 'Hotel GST charged in a state where Adpedia has no registration',
+  NO_REGISTRATION_IN_STATE: 'Hotel GST charged in a state where this entity has no registration',
   S17_5_G_PERSONAL: 'Personal consumption — s.17(5)(g)',
   UNREGISTERED_SUPPLIER: 'Supplier is unregistered — no tax invoice, nothing to claim',
-  NO_GSTIN_ON_INVOICE: 'Invoice does not carry Adpedia’s GSTIN — the credit is lost, not deferred',
+  NO_GSTIN_ON_INVOICE: 'Invoice does not carry this entity’s GSTIN — the credit is lost, not deferred',
 } as const
 export type BlockedReason = keyof typeof BLOCKED_REASONS
 
@@ -80,10 +81,36 @@ export async function createExpense(ctx: RequestContext, input: ExpenseInput) {
   }
   const total = taxable.plus(cgst).plus(sgst).plus(igst)
 
+  /**
+   * 🔴 docs/82 §5b — credit under s.16(1) belongs to a REGISTERED person, so for an
+   * unregistered entity there is no eligibility question to answer.
+   *
+   * The category defaults carry this now, but the category is data and this is the rule: a
+   * category edited by hand, or seeded before the registration was known, must not be able to
+   * put tax into `1210 Input CGST` as an asset that can never be utilised. And the blocking is
+   * not a s.17(5) clause needing a reason picked from a list — none of those clauses apply.
+   * The absence of a registration is the reason, and it is supplied rather than demanded.
+   */
+  const company = await prisma.company.findUniqueOrThrow({
+    where: { id: ctx.companyId }, select: { gstRegistrationType: true },
+  })
+  const registered = isGstRegistered(company.gstRegistrationType)
+  if (!registered && input.itcEligible) {
+    throw new AppError(
+      'This entity is not registered for GST, so there is no input credit to claim — s.16(1) '
+      + 'gives credit to a registered person. The tax the supplier charged is part of the cost '
+      + 'of the expense, and that is where it is posted.',
+    )
+  }
+
   // default eligibility from the category; an override must name a reason
-  const defaultEligible = category.itcDefault === 'FULL'
-  const itcEligible = input.itcEligible ?? defaultEligible
-  if (!itcEligible && !input.itcBlockedReason && (cgst.gt(0) || sgst.gt(0) || igst.gt(0))) {
+  const defaultEligible = registered && category.itcDefault === 'FULL'
+  const itcEligible = registered ? (input.itcEligible ?? defaultEligible) : false
+  const blockedReason = !registered && (cgst.gt(0) || sgst.gt(0) || igst.gt(0))
+    ? 'The entity is not registered for GST — s.16(1) gives credit to a registered person only'
+    : input.itcBlockedReason ? BLOCKED_REASONS[input.itcBlockedReason] : null
+
+  if (!itcEligible && !blockedReason && (cgst.gt(0) || sgst.gt(0) || igst.gt(0))) {
     throw new AppError('Blocking input credit needs a reason — pick the clause that applies')
   }
   if (itcEligible && category.itcDefault === 'BLOCKED') {
@@ -103,7 +130,7 @@ export async function createExpense(ctx: RequestContext, input: ExpenseInput) {
       cgst: cgst.toFixed(2), sgst: sgst.toFixed(2), igst: igst.toFixed(2),
       total: total.toFixed(2),
       itcEligible,
-      itcBlockedReason: input.itcBlockedReason ? BLOCKED_REASONS[input.itcBlockedReason] : null,
+      itcBlockedReason: blockedReason,
       paidFrom: input.paidFrom ?? 'BANK',
       receiptUrl: input.receiptUrl,
       clientKey: input.clientKey,

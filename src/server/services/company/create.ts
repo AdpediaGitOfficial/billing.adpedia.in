@@ -5,7 +5,7 @@ import { assertCan } from '@/server/auth/permissions'
 import { AppError } from '@/server/errors'
 import { audit } from '@/server/audit'
 import { seedAccounts } from './chart'
-import { seedExpenseCategories } from './categories'
+import { seedExpenseCategories, deductsTdsByDefault } from './categories'
 import { isValidPanFormat, panEntity, panEntityLabel, type PanEntity } from '@/server/services/tax/pan'
 import { stateCodeFromGstin } from '@/server/services/tax/tax-mode'
 import { renderPattern, validateInvoiceNumber } from '@/server/services/invoicing/numbering'
@@ -220,7 +220,12 @@ export async function createCompany(ctx: RequestContext, input: CreateCompanyInp
       constitution: input.constitution,
       bankLabel: input.bankLabel?.trim() || undefined,
     })
-    await seedExpenseCategories(tx, created.id)
+    // 🔴 docs/82 §5b — the defaults differ by what the entity can actually do: no input
+    // credit without a registration, no TDS deduction below the s.194C/194J provisos.
+    await seedExpenseCategories(tx, created.id, {
+      gstRegistered: registration !== 'UNREGISTERED',
+      deductsTds: deductsTdsByDefault(input.constitution),
+    })
 
     const fy = await tx.financialYear.create({
       data: { companyId: created.id, label, startsOn, endsOn, status: 'OPEN' },
