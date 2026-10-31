@@ -17,6 +17,8 @@ export interface RocYear {
   itrFiledOn: string
   itrAckNo: string
   itrDue: string
+  /** docs/82 §5d — which of s.139(1)'s two dates this is, and why */
+  itrNote: string
 }
 
 /**
@@ -78,7 +80,7 @@ export function RocForm({ year }: { year: RocYear }) {
         <Field label="GSTR-9 ARN">
           <input name="gstr9Arn" defaultValue={year.gstr9Arn} className={inputClass} style={inputStyle} placeholder="AA3206260012345" />
         </Field>
-        <Field label="Income tax return filed on" hint={`With the audit report where one is required — due ${year.itrDue}`}>
+        <Field label="Income tax return filed on" hint={`Due ${year.itrDue} — ${year.itrNote}`}>
           <input name="itrFiledOn" type="date" defaultValue={year.itrFiledOn} className={inputClass} style={inputStyle} />
         </Field>
         <Field label="ITR acknowledgement number">

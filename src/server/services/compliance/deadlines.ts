@@ -150,9 +150,33 @@ export function lutRenewalDue(fyStartYear: number): Date {
   return utc(fyStartYear, 3, 31)
 }
 
-/** Company ITR where a tax audit applies — 31 October following the year. */
-export function itrDue(fyStartYear: number): Date {
-  return utc(fyStartYear + 1, 10, 31)
+/**
+ * 🔴 s.139(1) has TWO dates, and this returned only one of them.
+ *
+ * Clause (a) gives 31 October to a company, to any person whose accounts must be audited, and
+ * to a partner of a firm whose accounts must be audited. Clause (c) gives **31 July** to
+ * everybody else. The function was written when this system had one taxpayer and that taxpayer
+ * was a company, so 31 October was hardcoded and the comment even said "company ITR" — and
+ * then docs/82's proprietorship was told to file three months after its deadline, with s.234A
+ * interest, a s.234F fee and the loss carry-forward under s.80 denied for being late.
+ *
+ * 🔴 Which way the uncertainty is resolved matters more than the rule. Showing 31 October to
+ * somebody who owes 31 July makes them late; showing 31 July to somebody who has until
+ * October makes them early. So `audited` is only ever passed true where the system KNOWS it —
+ * see `itrPosition`.
+ */
+export function itrDue(fyStartYear: number, audited: boolean): Date {
+  return audited ? utc(fyStartYear + 1, 10, 31) : utc(fyStartYear + 1, 7, 31)
+}
+
+/**
+ * The tax audit report itself — Form 3CA/3CB with 3CD.
+ *
+ * 🔴 Due one month BEFORE the return, s.44AB's proviso: 30 September. The return date is the
+ * one people remember, and the report is the one that has to be signed by somebody else first.
+ */
+export function taxAuditReportDue(fyStartYear: number): Date {
+  return utc(fyStartYear + 1, 9, 30)
 }
 
 /* ── company law ─────────────────────────────────────────────────────────────── */

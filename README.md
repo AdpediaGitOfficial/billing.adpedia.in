@@ -89,7 +89,7 @@ payroll, projects and bank reconciliation on a double-entry ledger.
 | [82 · Two entities, one login](docs/82-two-entities.md) | A second entity kept genuinely independent — the leak sweep that came first, a bill of supply, the GST screens refused rather than hidden, and drawings that never touch the P&L |
 | [90 · Deployment](docs/90-deployment.md) | Step by step on a plain Ubuntu box — npm, pm2, Postgres, nginx, Chromium, the daily run, backups. No Docker |
 
-**1,154 tests passing** · typecheck and lint clean · production build passes.
+**1,170 tests passing** · typecheck and lint clean · production build passes.
 
 ```bash
 cp .env.example .env     # set DATABASE_URL and JWT_SECRET

@@ -3,7 +3,7 @@ import {
   tdsDepositDue, tdsReturnDue, form16aDue, form16Due,
   gstr1Due, gstr3bDue, pmt06Due, gstr9Due,
   professionTaxDue, advanceTaxDue, ADVANCE_TAX_SCHEDULE, ADVANCE_TAX_INTEREST_PCT_PER_MONTH,
-  lutRenewalDue, itrDue, agmDue, aoc4Due, mgt7Due, ROC_LATE_FEE_PER_DAY,
+  lutRenewalDue, itrDue, taxAuditReportDue, agmDue, aoc4Due, mgt7Due, ROC_LATE_FEE_PER_DAY,
 } from '@/server/services/compliance/deadlines'
 
 const d = (x: Date) => x.toISOString().slice(0, 10)
@@ -100,8 +100,20 @@ describe('other obligations', () => {
     expect(d(lutRenewalDue(2026))).toBe('2026-03-31')
   })
 
-  it('files the company ITR by 31 October', () => {
-    expect(d(itrDue(2026))).toBe('2027-10-31')
+  /**
+   * 🔴 s.139(1) has two dates, and this test asserted only the one a company gets.
+   *
+   * Clause (a) is 31 October — a company, or anyone whose accounts must be audited. Clause (c)
+   * is 31 July for everybody else, which is what docs/82's proprietorship owes. The hardcoded
+   * October would have made it three months late.
+   */
+  it('🔴 files by 31 October where an audit applies, and 31 JULY where it does not', () => {
+    expect(d(itrDue(2026, true))).toBe('2027-10-31')
+    expect(d(itrDue(2026, false))).toBe('2027-07-31')
+  })
+
+  it('wants the audit report a month before the return it holds up', () => {
+    expect(d(taxAuditReportDue(2026))).toBe('2027-09-30')
   })
 })
 

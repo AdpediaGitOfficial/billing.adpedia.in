@@ -3,6 +3,7 @@ import type { RequestContext } from '@/server/context'
 import { assertCan } from '@/server/auth/permissions'
 import { audit } from '@/server/audit'
 import { AppError, NotFound } from '@/server/errors'
+import { itrPositionFor } from './itr'
 import { agmDue } from './deadlines'
 
 /**
@@ -114,5 +115,11 @@ export async function rocYears(ctx: RequestContext, now = new Date()) {
     where: { companyId: ctx.companyId, endsOn: { lt: now } },
     orderBy: { endsOn: 'desc' },
   })
-  return years.map((fy) => ({ ...fy, agmLimit: agmDue(fy.endsOn) }))
+  // 🔴 docs/82 §5d — the ITR date is not a constant, so it is resolved per year rather than
+  // printed from `itrDue(…)` at the screen, where it said 31 October to every entity.
+  return Promise.all(years.map(async (fy) => ({
+    ...fy,
+    agmLimit: agmDue(fy.endsOn),
+    itr: await itrPositionFor(ctx, fy),
+  })))
 }

@@ -183,11 +183,9 @@ zero: `carriesTax(docType)` is the condition, and a bill of supply needs no LUT,
 - **The dashboard's Output GST tile** reads ₹0 for B, which is true. It is noise, not a false
   obligation.
 
-🔴 **Found while gating, and NOT fixed here:** the calendar tells B to *"file the company
-income tax return"* on **31 October**. B is a proprietorship — its proprietor files ITR-3, and
-under s.139(1) the date is **31 July** unless a s.44AB audit applies, in which case it is 31
-October. Which one is right depends on the audit question that is still open in §8, so the
-date is not something to encode on a guess. The wording is wrong for a non-company either way.
+🔴 **Found while gating, and fixed afterwards in §5d:** the calendar told B to *"file the
+company income tax return"* on **31 October**, three months after the 31 July its proprietor
+actually owes under s.139(1)(c).
 
 ## 5c. Step 5 — drawings, and the categories B can act on
 
@@ -268,6 +266,64 @@ charge, and s.24(iii) makes a person liable to pay tax under reverse charge liab
 false on B's categories because an unregistered entity has no RCM to raise — but the answer to
 "what if it buys software from abroad" is *register*, not *ignore it*, and that is a question
 for the CA rather than a default in a table.
+
+## 5d. The ITR date, which was a company's date on everybody's calendar
+
+Found while gating step 4, fixed after step 5.
+
+🔴 The calendar said *"File the company income tax return"* on **31 October** for every entity,
+and `deadlines.ts` had it hardcoded with a comment that said so: *"Company ITR where a tax
+audit applies"*. It was written when this system had one taxpayer and that taxpayer was a
+company. s.139(1) has **two** dates:
+
+| | |
+|---|---|
+| clause (a) | **31 October** — a company, anyone whose accounts must be audited, and a partner of a firm whose accounts must be audited |
+| clause (c) | **31 July** — everybody else |
+
+So B was being shown a deadline three months after its own. Filing late costs s.234A interest
+on the tax, a s.234F fee, and the loss carry-forward under s.80 — and nothing in the system
+would ever have noticed, because the date looked authoritative.
+
+### 🔴 Which way the uncertainty is resolved is the whole decision
+
+Whether an audit applies is a s.44AB question, and §8 leaves part of it open. The two mistakes
+are not symmetrical:
+
+- Showing 31 October to somebody who owes 31 July makes them **late**.
+- Showing 31 July to somebody who has until October makes them **early**, which costs nothing.
+
+So `itrPosition` only ever concludes "audited" where no unknown fact could change it: a company
+(clause (a) by being a company, whatever its turnover), or turnover past **₹10 crore**, which
+is above every limb of s.44AB(a). Between ₹1 crore and ₹10 crore the answer depends on whether
+cash receipts *and* cash payments were each 5% or less — a fact about every transaction in the
+year, including ones these books never see. 🔴 **It is deliberately not estimated from the cash
+ledger.** An estimate that pushed the date to October would be a guess in the one direction
+that costs money. The earlier date stands and the item says what would move it.
+
+Turnover is `revenue.total` from the P&L — the 40xx accounts — and not `totalIncome`:
+s.44AB(a) says "sales, turnover or gross receipts in **business**", so interest on a deposit
+and a forex gain are income and are not turnover. Counting them would push an entity over a
+limit it has not reached.
+
+### What the calendar says now
+
+| | | |
+|---|---|---|
+| Adpedia Films | ITR-6, 31 October | s.139(1)(a), plus **Form 3CA/3CB-3CD on 30 September** — a new item, because the report is due a month before the return it holds up and it is the half that waits on somebody else's diary |
+| B | ITR-3, **31 July**, *the proprietor's own return* | the income is taxed in the proprietor's hands, so it is their return and not the entity's |
+| a firm or LLP | ITR-5, 31 July | |
+
+🔴 **The audit-report item appears only where the audit is certain.** An item nobody owes is how
+a calendar gets ignored (`docs/43 §1`), so it is not shown "just in case".
+
+The annual-filings screen in Settings reads the same resolved date through `rocYears`, rather
+than calling `itrDue` itself — it was the second place printing 31 October, and two
+computations of one deadline is how a screen comes to disagree with the reminder chasing it.
+
+**Still open, and for the CA:** whether B's accounts need auditing at all in a year — the cash
+test, and the s.44AD(4) case in §8 where declaring under 8% of turnover as income requires
+books and an audit at *any* turnover. Both move this date to 31 October when they bite.
 
 ## 6. What the two share, and what they never do
 

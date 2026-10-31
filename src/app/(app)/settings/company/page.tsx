@@ -5,7 +5,7 @@ import { Card, PageHeader, Pill, Alert } from '@/components/ui/kit'
 import { CompanyEditForm } from './edit-form'
 import { RocForm } from './roc-form'
 import { rocYears } from '@/server/services/compliance/roc'
-import { gstr9Due, itrDue } from '@/server/services/compliance/deadlines'
+import { gstr9Due } from '@/server/services/compliance/deadlines'
 
 interface Addr { line1?: string; line2?: string; city?: string; state?: string; pincode?: string; country?: string }
 
@@ -169,7 +169,8 @@ export default async function CompanySettingsPage() {
                   gstr9Due: iso(gstr9Due(y.startsOn.getUTCFullYear())),
                   itrFiledOn: iso(y.itrFiledOn),
                   itrAckNo: y.itrAckNo ?? '',
-                  itrDue: iso(itrDue(y.startsOn.getUTCFullYear())),
+                  itrDue: iso(y.itr.dueOn),
+                  itrNote: y.itr.note,
                 }} />
               </div>
             ))}

@@ -12,9 +12,10 @@ import { certificatesOutstanding } from '@/server/services/tax/tds-certificate'
 import { periodFor } from '@/server/services/tax/periods'
 import { currentFinancialYear } from '@/server/services/accounting/period'
 import { advanceTaxPosition } from '@/server/services/tax/advance-tax'
+import { itrPositionFor } from './itr'
 import {
   tdsDepositDue, tdsReturnDue, form16aDue, form16Due,
-  gstr1Due, gstr3bDue, gstr9Due, professionTaxDue, lutRenewalDue, itrDue,
+  gstr1Due, gstr3bDue, gstr9Due, professionTaxDue, lutRenewalDue,
   agmDue, aoc4Due, mgt7Due, ROC_LATE_FEE_PER_DAY,
   type Obligation,
 } from './deadlines'
@@ -472,29 +473,54 @@ export async function complianceCalendar(ctx: RequestContext, now = new Date()):
       })
     }
 
+    /**
+     * 🔴 docs/82 §5d — s.139(1) has two dates, and this item showed one of them to everybody.
+     *
+     * `itrPosition` resolves which, from the constitution and the year's own turnover: a
+     * company is clause (a) and files by 31 October; anybody else is clause (c) and files by
+     * **31 July** unless an audit applies. Told October, docs/82's proprietorship would have
+     * filed three months late, with s.234A interest, a s.234F fee and no loss carry-forward.
+     */
+    const itr = await itrPositionFor(ctx, reported)
     push({
       id: 'itr',
       obligation: 'ITR',
-      title: `File the company income tax return for FY ${reported.label}`,
+      title: itr.title,
       detail: reported.itrFiledOn
         ? `Filed on ${reported.itrFiledOn.toISOString().slice(0, 10)}${reported.itrAckNo ? ` · ack ${reported.itrAckNo}` : ''}`
-        : 'With the tax audit report, where one is required',
-      dueOn: itrDue(reported.startsOn.getUTCFullYear()),
+        : `${itr.form} · ${itr.note}`,
+      dueOn: itr.dueOn,
       href: '/settings/company',
       done: Boolean(reported.itrFiledOn),
     })
+
+    // 🔴 and the report the return waits on, which is due a MONTH earlier — only where the
+    // audit is certain, because an item nobody owes is the kind that gets the calendar ignored
+    if (itr.reportDueOn && !reported.itrFiledOn) {
+      push({
+        id: 'tax-audit-report',
+        obligation: 'ITR',
+        title: `Tax audit report for FY ${reported.label}`,
+        detail: 'Form 3CA/3CB with 3CD, signed by the auditor — s.44AB. The return cannot go '
+          + 'without it, and it is the half that depends on somebody else\u2019s diary.',
+        dueOn: itr.reportDueOn,
+        href: '/settings/company',
+        done: Boolean(reported.itrFiledOn),
+      })
+    }
   }
 
   /**
    * The CURRENT year's two, kept as scheduled items so the year ahead is visible. They cannot
    * be filed yet and are never overdue, because their dates are after the year has ended.
    */
+  const itrCurrent = await itrPositionFor(ctx, fy, now)
   push({
     id: 'itr-current',
     obligation: 'ITR',
-    title: `File the company income tax return for FY ${fy.label}`,
-    detail: 'Not until the year has ended — shown so the date is on the calendar',
-    dueOn: itrDue(fyStartYear),
+    title: itrCurrent.title,
+    detail: `${itrCurrent.form}, not until the year has ended — shown so the date is on the calendar. ${itrCurrent.note}`,
+    dueOn: itrCurrent.dueOn,
     href: '/reports/pnl',
   })
 
