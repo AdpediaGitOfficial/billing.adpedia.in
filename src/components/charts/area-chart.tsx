@@ -1,6 +1,7 @@
 'use client'
 import { useId, useRef, useState } from 'react'
 import { formatBy, type ValueFormat } from './format'
+import { tapTarget } from '@/components/ui/kit'
 
 export interface SeriesPoint { label: string; values: number[] }
 export interface AreaChartProps {
@@ -68,7 +69,7 @@ export function AreaChart({ points, series, format = 'number', height = 220, cap
             </span>
           ))}
           <button type="button" onClick={() => setShowTable((v) => !v)}
-            className="ml-auto text-[11.5px] font-medium no-print" style={{ color: 'var(--text-muted)' }}>
+            className={`ml-auto text-[11.5px] font-medium no-print ${tapTarget}`} style={{ color: 'var(--text-muted)' }}>
             {showTable ? 'Hide table' : 'Table view'}
           </button>
         </div>

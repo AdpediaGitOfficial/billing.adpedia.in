@@ -1,6 +1,6 @@
 'use client'
 import { useRef, useState, useTransition } from 'react'
-import { Pill } from '@/components/ui/kit'
+import { Pill, tapTarget } from '@/components/ui/kit'
 import { confirmCardAction, unconfirmCardAction } from './actions'
 
 export interface PanCardView {
@@ -89,20 +89,20 @@ export function PanCard({ view }: { view: PanCardView }) {
 
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" onClick={() => fileRef.current?.click()} disabled={working}
-          className="text-[11.5px] underline underline-offset-2"
+          className={`text-[11.5px] underline underline-offset-2 ${tapTarget}`}
           style={{ color: 'var(--accent)' }}>
           {busy ? 'Uploading…' : cards.length > 0 ? 'Add another' : 'Upload card'}
         </button>
 
         {cards.length > 0 && evidence !== 'CARD_ON_FILE' && (
           <button type="button" onClick={confirm} disabled={working}
-            className="text-[11.5px] underline underline-offset-2" style={{ color: 'var(--good)' }}>
+            className={`text-[11.5px] underline underline-offset-2 ${tapTarget}`} style={{ color: 'var(--good)' }}>
             {pending ? 'Saving…' : 'It matches'}
           </button>
         )}
         {evidence === 'CARD_ON_FILE' && (
           <button type="button" onClick={unconfirm} disabled={working}
-            className="text-[11.5px] underline underline-offset-2" style={{ color: 'var(--text-muted)' }}>
+            className={`text-[11.5px] underline underline-offset-2 ${tapTarget}`} style={{ color: 'var(--text-muted)' }}>
             Withdraw
           </button>
         )}

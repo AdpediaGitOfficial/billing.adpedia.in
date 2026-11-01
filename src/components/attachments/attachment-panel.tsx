@@ -1,6 +1,6 @@
 'use client'
 import { useRef, useState } from 'react'
-import { Card, Button, Pill } from '@/components/ui/kit'
+import { Card, Button, Pill, tapTarget } from '@/components/ui/kit'
 
 export interface AttachmentRow {
   id: string; filename: string; contentType: string; sizeBytes: number
@@ -99,7 +99,7 @@ export function AttachmentPanel({ entityType, entityId, kind, initial, title = '
               <span className="flex shrink-0 items-center gap-2">
                 <Pill tone="neutral">{a.contentType.split('/')[1]}</Pill>
                 <button type="button" onClick={() => void detach(a.id)} disabled={busy}
-                  className="text-[11.5px] underline" style={{ color: 'var(--text-muted)' }}>
+                  className={`text-[11.5px] underline ${tapTarget}`} style={{ color: 'var(--text-muted)' }}>
                   detach
                 </button>
               </span>

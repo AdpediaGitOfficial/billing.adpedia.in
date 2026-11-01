@@ -3,7 +3,7 @@ import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { Icon } from './icon'
 
-export function Topbar({ name, role, fyLabel, alerts = 0, company, logoUrl }: {
+export function Topbar({ name, role, fyLabel, alerts = 0, company }: {
   name: string; role: string; fyLabel?: string; alerts?: number
   /**
    * 🔴 docs/83 — WHICH BOOKS AM I IN, on a phone.
@@ -13,9 +13,14 @@ export function Topbar({ name, role, fyLabel, alerts = 0, company, logoUrl }: {
    * the current entity must be impossible to mistake, because an invoice raised in the wrong
    * one is numbered from that entity's series, posted to its ledger and frozen on send. On the
    * device most likely to be used in a hurry, there was nothing to mistake it BY.
+   *
+   * 🔴 §4 — and the name is the whole of it. The first fix put the entity's own `logoUrl`
+   * here beside the name, which at the 20px a phone header can spare rendered a wordmark as
+   * an illegible smudge AND took 28px from the one thing that does identify the entity. Both
+   * of these begin with "A", so the initial is decoration: the name is the identifier, and it
+   * gets the width. The sidebar still shows the logo, where there is room for it to read.
    */
   company: string
-  logoUrl?: string | null
 }) {
   const router = useRouter()
   const [menu, setMenu] = useState(false)
@@ -30,15 +35,10 @@ export function Topbar({ name, role, fyLabel, alerts = 0, company, logoUrl }: {
     <header className="no-print sticky top-0 z-20 flex items-center gap-3 border-b px-4 py-2.5 md:px-6"
             style={{ borderColor: 'var(--rule)', background: 'color-mix(in srgb, var(--app-bg) 88%, transparent)', backdropFilter: 'blur(8px)' }}>
       <div className="flex min-w-0 items-center gap-2 md:hidden">
-        {logoUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={logoUrl} alt="" className="h-5 w-5 shrink-0 rounded object-contain" />
-        ) : (
-          <span className="grid h-5 w-5 shrink-0 place-items-center rounded text-[10px] font-bold"
-            style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}>
-            {company.slice(0, 1).toUpperCase()}
-          </span>
-        )}
+        <span className="grid h-5 w-5 shrink-0 place-items-center rounded text-[10px] font-bold"
+          style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}>
+          {company.slice(0, 1).toUpperCase()}
+        </span>
         <span className="truncate text-[13px] font-semibold">{company}</span>
       </div>
 
@@ -46,7 +46,7 @@ export function Topbar({ name, role, fyLabel, alerts = 0, company, logoUrl }: {
         <Icon name="Search" size={14} strokeWidth={2}
               style={{ position: 'absolute', left: 10, top: 9, color: 'var(--text-muted)' }} />
         <input placeholder="Search invoices, customers, vendors…"
-          className="w-full rounded-lg border py-[7px] pl-8 pr-3 text-[12.5px] outline-none focus:border-[var(--accent)]"
+          className="w-full rounded-lg border py-[7px] pl-8 pr-3 text-[16px] outline-none focus:border-[var(--accent)] md:text-[12.5px]"
           style={{ borderColor: 'var(--rule)', background: 'var(--surface-1)' }} />
       </div>
 

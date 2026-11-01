@@ -1,6 +1,6 @@
 'use client'
 import { useActionState, useState } from 'react'
-import { Button, Field, inputClass, inputStyle } from '@/components/ui/kit'
+import { Button, Field, inputClass, inputStyle, tapTarget } from '@/components/ui/kit'
 import { setOpeningBalancesAction } from './actions'
 
 type Row = { accountCode: string; debit: string; credit: string }
@@ -64,7 +64,7 @@ export function OpeningForm({ accounts, initial }: {
       </datalist>
 
       <button type="button" onClick={() => setRows((rs) => [...rs, blank()])}
-        className="text-[13px] font-semibold" style={{ color: 'var(--accent)' }}>+ Add line</button>
+        className={`text-[13px] font-semibold ${tapTarget}`} style={{ color: 'var(--accent)' }}>+ Add line</button>
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3 text-[12.5px]"
            style={{ borderColor: 'var(--rule)' }}>

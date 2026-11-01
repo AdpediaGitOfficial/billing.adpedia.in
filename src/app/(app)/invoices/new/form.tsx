@@ -2,7 +2,7 @@
 import { useActionState, useEffect, useRef, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { createInvoiceAction } from '../actions'
-import { Card, Field, Button, Pill, inputClass, inputStyle } from '@/components/ui/kit'
+import { Card, Field, Button, Pill, inputClass, inputStyle, tapTarget } from '@/components/ui/kit'
 
 type Customer = { id: string; name: string; country: string; stateCode: string | null; defaultTdsSection: string | null }
 type Project = { id: string; name: string; customerId: string }
@@ -194,7 +194,7 @@ export function InvoiceForm({ customers, projects, items, draft, submit, backHre
         <datalist id="svc">{items.map((i) => <option key={i.id} value={i.name} />)}</datalist>
 
         <button type="button" onClick={() => setLines((ls) => [...ls, blank()])}
-          className="mt-3 text-[13px] font-semibold" style={{ color: 'var(--accent)' }}>+ Add line</button>
+          className={`mt-3 text-[13px] font-semibold ${tapTarget}`} style={{ color: 'var(--accent)' }}>+ Add line</button>
       </Card>
 
       <Card className="mt-4 p-5">

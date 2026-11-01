@@ -1,6 +1,6 @@
 'use client'
 import { useActionState, useState } from 'react'
-import { Button, Field, inputClass, inputStyle } from '@/components/ui/kit'
+import { Button, Field, inputClass, inputStyle, tapTarget } from '@/components/ui/kit'
 import { refundAdvanceAction } from './advance/actions'
 
 /**
@@ -21,7 +21,7 @@ export function RefundAdvance({ receiptId, open }: { receiptId: string; open: st
   if (!showing) {
     return (
       <button type="button" onClick={() => setShowing(true)}
-        className="text-[11.5px] underline" style={{ color: 'var(--text-muted)' }}>
+        className={`text-[11.5px] underline ${tapTarget}`} style={{ color: 'var(--text-muted)' }}>
         refund it
       </button>
     )
@@ -50,7 +50,7 @@ export function RefundAdvance({ receiptId, open }: { receiptId: string; open: st
       <div className="flex items-center gap-2">
         <Button size="sm" disabled={pending}>{pending ? 'Issuing…' : 'Issue refund voucher'}</Button>
         <button type="button" onClick={() => setShowing(false)}
-          className="text-[11.5px] underline" style={{ color: 'var(--text-muted)' }}>cancel</button>
+          className={`text-[11.5px] underline ${tapTarget}`} style={{ color: 'var(--text-muted)' }}>cancel</button>
       </div>
       {state?.error && <p className="text-[11.5px]" style={{ color: 'var(--critical)' }}>{state.error}</p>}
     </form>

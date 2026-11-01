@@ -1,7 +1,7 @@
 'use client'
 import { useActionState, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Card, CardHeader, Button, Field, Pill, inputClass, inputStyle } from '@/components/ui/kit'
+import { Card, CardHeader, Button, Field, Pill, inputClass, inputStyle, tapTarget } from '@/components/ui/kit'
 import { saveServiceItemAction, retireServiceItemAction } from './actions'
 
 export interface ServiceView {
@@ -76,7 +76,7 @@ export function Catalogue({ rows, accounts }: { rows: ServiceView[]; accounts: A
       <div className="flex items-center gap-2">
         <Button size="sm" disabled={pending}>{pending ? 'Saving…' : r ? 'Save' : 'Add it'}</Button>
         <button type="button" onClick={() => { setEditing(null); setAdding(false) }}
-          className="text-[11.5px] underline" style={{ color: 'var(--text-muted)' }}>cancel</button>
+          className={`text-[11.5px] underline ${tapTarget}`} style={{ color: 'var(--text-muted)' }}>cancel</button>
       </div>
     </form>
   )
@@ -125,11 +125,11 @@ export function Catalogue({ rows, accounts }: { rows: ServiceView[]; accounts: A
               </div>
               <span className="flex shrink-0 items-center gap-3">
                 <button type="button" onClick={() => { setEditing(editing === r.id ? null : r.id); setAdding(false) }}
-                  className="text-[11.5px] underline" style={{ color: 'var(--text-muted)' }}>
+                  className={`text-[11.5px] underline ${tapTarget}`} style={{ color: 'var(--text-muted)' }}>
                   {editing === r.id ? 'close' : 'edit'}
                 </button>
                 <button type="button" disabled={busy} onClick={() => void retire(r.id, !r.isActive)}
-                  className="text-[11.5px] underline" style={{ color: 'var(--text-muted)' }}>
+                  className={`text-[11.5px] underline ${tapTarget}`} style={{ color: 'var(--text-muted)' }}>
                   {r.isActive ? 'retire' : 'bring back'}
                 </button>
               </span>

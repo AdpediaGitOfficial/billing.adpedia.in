@@ -1,7 +1,7 @@
 'use client'
 import { useActionState, useState } from 'react'
 import { importStatementAction } from '../actions'
-import { Field, Button, inputClass, inputStyle } from '@/components/ui/kit'
+import { Field, Button, inputClass, inputStyle, tapTarget } from '@/components/ui/kit'
 
 export function ImportForm({ accounts }: { accounts: { id: string; label: string; accountNo: string }[] }) {
   const [state, action, pending] = useActionState(importStatementAction, null)
@@ -39,7 +39,7 @@ export function ImportForm({ accounts }: { accounts: { id: string; label: string
         <>
           <p className="mt-3 rounded-lg px-3 py-2 text-[12.5px]" style={{ background: 'var(--critical-soft)', color: 'var(--critical)' }}>{state.error}</p>
           {state.error.includes('Balance check') && !failed && (
-            <button type="button" onClick={() => setFailed(true)} className="mt-2 text-[12px] underline" style={{ color: 'var(--text-muted)' }}>
+            <button type="button" onClick={() => setFailed(true)} className={`mt-2 text-[12px] underline ${tapTarget}`} style={{ color: 'var(--text-muted)' }}>
               Import anyway
             </button>
           )}

@@ -1,6 +1,6 @@
 'use client'
 import { useActionState, useState } from 'react'
-import { Button, Field, inputClass, inputStyle } from '@/components/ui/kit'
+import { Button, Field, inputClass, inputStyle, tapTarget } from '@/components/ui/kit'
 import { adjustAdvanceAction } from './advance/actions'
 
 /** `outstanding` arrives already formatted — the list is rendered on the server. */
@@ -31,7 +31,7 @@ export function AdjustAdvance({ receiptId, open, invoices }: {
   if (!showing) {
     return (
       <button type="button" onClick={() => setShowing(true)}
-        className="text-[11.5px] underline" style={{ color: 'var(--accent)' }}>
+        className={`text-[11.5px] underline ${tapTarget}`} style={{ color: 'var(--accent)' }}>
         adjust
       </button>
     )
@@ -56,7 +56,7 @@ export function AdjustAdvance({ receiptId, open, invoices }: {
       </Field>
       <Button size="sm" variant="ghost" disabled={pending}>{pending ? 'Adjusting…' : 'Adjust'}</Button>
       <button type="button" onClick={() => setShowing(false)}
-        className="text-[11.5px] underline" style={{ color: 'var(--text-muted)' }}>back</button>
+        className={`text-[11.5px] underline ${tapTarget}`} style={{ color: 'var(--text-muted)' }}>back</button>
       {state?.error && <span className="text-[11.5px]" style={{ color: 'var(--critical)' }}>{state.error}</span>}
     </form>
   )

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
+import { Decimal, formatINR } from '@/lib/money'
 import { ICONS } from '@/components/shell/icons'
 import { NAV, MORE_TAB, mobileTabsFor } from '@/components/shell/nav'
 import type { Role } from '@prisma/client'
@@ -92,6 +93,160 @@ describe('🔴 no control is hidden on the mobile card', () => {
       }
     }
     expect(offenders).toEqual([])
+  })
+})
+
+/**
+ * 🔴 docs/83 §4 — the P&L's bottom line said the opposite of what it meant.
+ *
+ * `formatINR` returns `-₹9,55,000.00`. A hyphen is a line-break opportunity, so in a narrow
+ * table cell at 375px the browser broke there: the minus alone on one line, `₹9,55,000.00`
+ * under it. A net LOSS of nine lakh read as a profit of nine lakh, and the only thing saying
+ * otherwise was a stray dash floating above the number.
+ *
+ * Nothing but CSS holds the sign to its digits, so this asserts the rule itself, and asserts
+ * the break opportunity is still there to be suppressed.
+ */
+describe('🔴 a money figure never breaks across lines', () => {
+  const CSS = readFileSync(join(SRC, 'app', 'globals.css'), 'utf8')
+
+  it('the .tabular rule every money figure carries declares nowrap', () => {
+    const rule = CSS.split('\n').find((l) => l.startsWith('.tabular'))
+    expect(rule, '.tabular rule not found in globals.css').toBeTruthy()
+    expect(rule).toMatch(/white-space:\s*nowrap/)
+  })
+
+  it('is not vacuous — formatINR still emits a hyphen the browser may break at', () => {
+    expect(formatINR(new Decimal(-955000))).toBe('-₹9,55,000.00')
+  })
+
+  /** the rule only reaches a figure that is inside an element carrying the class */
+  it('every figure on the P&L is inside an element that carries it', () => {
+    const pnl = read(join(APP, 'reports', 'pnl', 'page.tsx'))
+    const bare: string[] = []
+    for (const m of pnl.matchAll(/formatINR\(/g)) {
+      const before = pnl.slice(Math.max(0, m.index - 220), m.index)
+      if (!before.includes('tabular')) bare.push(pnl.slice(m.index, m.index + 40).split('\n')[0])
+    }
+    expect(bare).toEqual([])
+    expect([...pnl.matchAll(/formatINR\(/g)].length).toBeGreaterThanOrEqual(3)
+  })
+})
+
+/**
+ * 🔴 docs/83 §4 — mobile Safari zooms the page in on a focused control under 16px.
+ *
+ * Every field in the app was 13.5px, and the viewport is `initialScale: 1` with no
+ * `maximumScale` — deliberately, because disabling pinch-zoom is an accessibility failure.
+ * So on the device docs/30 was written for, focusing any field threw the layout up a notch
+ * and left the person to pinch back out, field after field. Nothing reports it: the form
+ * works, it just fights. The `md:` override keeps the density the design was drawn at.
+ */
+describe('🔴 no form control is small enough to zoom the page', () => {
+  /** an unprefixed `text-[Npx]` — a `md:` or `sm:` one only applies above the phone */
+  const BASE_SIZE = /(?<![a-z]:)text-\[(\d+(?:\.\d+)?)px\]/
+
+  it('the shared input class is 16px before the md breakpoint', () => {
+    const kit = read(join(SRC, 'components', 'ui', 'kit.tsx'))
+    const decl = kit.match(/export const inputClass =\s*'([^']*)'/)
+    expect(decl, 'inputClass not found').toBeTruthy()
+    const size = decl![1].match(BASE_SIZE)
+    expect(size, `inputClass sets no base font size: ${decl![1]}`).toBeTruthy()
+    expect(Number(size![1])).toBeGreaterThanOrEqual(16)
+  })
+
+  it('and no hand-rolled field undercuts it', () => {
+    const FIELD = /<(input|select|textarea)\b([\s\S]*?)\/?>/g
+    const offenders: string[] = []
+    for (const f of SOURCES) {
+      if (!f.endsWith('.tsx')) continue
+      const src = read(f)
+      for (const m of src.matchAll(FIELD)) {
+        const cls = m[2].match(/className="([^"]*)"/)?.[1]
+        if (!cls) continue
+        const size = cls.match(BASE_SIZE)
+        if (size && Number(size[1]) < 16) offenders.push(`${rel(f)} → <${m[1]}> ${size[0]}`)
+      }
+    }
+    expect(offenders).toEqual([])
+  })
+})
+
+/**
+ * 🔴 docs/83 §4 — a button that is only text has only the text's hit box.
+ *
+ * `+ Add line` on the invoice form was 20px tall — a 13px label with no padding at all, and
+ * the control pressed once per line item. `back`, `remove`, `It matches` and `Withdraw` were
+ * 17px, and two of those change a record. Apple's minimum is 44px, Android's 48; none of
+ * these reached half of it, and a mis-tap on `remove` is an undone GST filing.
+ */
+describe('🔴 a text-only button still has a thumb-sized hit box', () => {
+  const BOX = /\b(p|px|py|pt|pb|h|min-h|size)-/
+
+  /**
+   * 🔴 The first version of this read `<button\b([\s\S]*?)>` and found nothing — because a
+   * non-greedy match stops at the first `>`, which in almost every button here is the one in
+   * `onClick={() => …}`. It never reached a single className. A guard that cannot see what it
+   * is guarding passes forever, so the tag is scanned rather than matched.
+   */
+  function attrs(src: string, from: number): string {
+    let depth = 0, quote = ''
+    for (let i = from; i < src.length; i++) {
+      const c = src[i]
+      if (quote) { if (c === quote && src[i - 1] !== '\\') quote = '' ; continue }
+      if (c === '"' || c === "'" || c === '`') { quote = c; continue }
+      if (c === '{') depth++
+      else if (c === '}') depth--
+      else if (c === '>' && depth === 0) return src.slice(from, i)
+    }
+    return ''
+  }
+
+  it('finds none without one', () => {
+    const offenders: string[] = []
+    for (const f of SOURCES) {
+      if (!f.endsWith('.tsx')) continue
+      const src = read(f)
+      for (const m of src.matchAll(/<button\b/g)) {
+        const tag = attrs(src, m.index + 7)
+        const cls = tag.match(/className=(?:"([^"]*)"|\{`([^`]*)`\})/)
+        const text = cls?.[1] ?? cls?.[2]
+        if (!text || !/text-\[/.test(text)) continue   // not a text-only button
+        if (BOX.test(text) || text.includes('tapTarget')) continue
+        offenders.push(`${rel(f)} → <button className="${text.slice(0, 60)}">`)
+      }
+    }
+    expect(offenders).toEqual([])
+  })
+
+  /**
+   * 🔴 The shared one: `PageHeader`'s `back` link is the way out of every detail page in the
+   * app — the whole point of the commit before docs/83 — and it was 19px tall on a phone.
+   */
+  it('and the back link every page is escaped by', () => {
+    const kit = read(join(SRC, 'components', 'ui', 'kit.tsx'))
+    const header = kit.slice(kit.indexOf('export function PageHeader'))
+    const link = header.slice(header.indexOf('<Link href={back.href}'), header.indexOf('</Link>'))
+    expect(link).toMatch(/tapTarget|min-h-\[(4[4-9]|[5-9]\d)px\]/)
+  })
+
+  it('is not vacuous — the scan reaches the className of a real button', () => {
+    const form = read(join(APP, 'invoices', 'new', 'form.tsx'))
+    const i = form.indexOf('<button')
+    expect(i).toBeGreaterThan(0)
+    expect(attrs(form, i + 7)).toMatch(/className=/)
+  })
+
+  it('is not vacuous — tapTarget exists, resets at md, and is actually used', () => {
+    const kit = read(join(SRC, 'components', 'ui', 'kit.tsx'))
+    const decl = kit.match(/export const tapTarget = '([^']*)'/)
+    expect(decl, 'tapTarget not found in the kit').toBeTruthy()
+    expect(decl![1]).toMatch(/min-h-\[(\d+)px\]/)
+    expect(Number(decl![1].match(/min-h-\[(\d+)px\]/)![1])).toBeGreaterThanOrEqual(44)
+    expect(decl![1]).toMatch(/md:min-h-0/)
+    const users = SOURCES.filter((f) => f !== join(SRC, 'components', 'ui', 'kit.tsx')
+      && read(f).includes('tapTarget'))
+    expect(users.length).toBeGreaterThanOrEqual(6)
   })
 })
 

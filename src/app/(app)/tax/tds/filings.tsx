@@ -1,6 +1,6 @@
 'use client'
 import { Fragment, useActionState, useState } from 'react'
-import { Card, CardHeader, Button, Field, Pill, Alert, inputClass, inputStyle } from '@/components/ui/kit'
+import { Card, CardHeader, Button, Field, Pill, Alert, inputClass, inputStyle, tapTarget } from '@/components/ui/kit'
 import { recordTdsFilingAction, recordCorrectionAction } from './actions'
 
 export interface FilingRow {
@@ -115,7 +115,7 @@ export function TdsFilings({ filings, quarter, form }: {
                   <td className="py-2 text-right font-semibold tabular">{inr(f.tdsDeducted)}</td>
                   <td className="py-2 pl-3 text-right">
                     <button type="button" onClick={() => setCorrectingId(correctingId === f.id ? null : f.id)}
-                      className="text-[11.5px] underline" style={{ color: 'var(--text-muted)' }}>
+                      className={`text-[11.5px] underline ${tapTarget}`} style={{ color: 'var(--text-muted)' }}>
                       {correctingId === f.id ? 'back' : 'correct'}
                     </button>
                   </td>

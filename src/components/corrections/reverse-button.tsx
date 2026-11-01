@@ -1,7 +1,7 @@
 'use client'
 import { useActionState, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Button, inputClass, inputStyle } from '@/components/ui/kit'
+import { Button, inputClass, inputStyle, tapTarget } from '@/components/ui/kit'
 
 export type ReverseState = { error?: string; ok?: string } | null
 export type ReverseAction = (prev: ReverseState, form: FormData) => Promise<ReverseState>
@@ -49,7 +49,7 @@ export function ReverseButton({
   if (!open) {
     return (
       <button type="button" onClick={() => setOpen(true)}
-        className="text-[11.5px] underline" style={{ color: 'var(--text-muted)' }}>
+        className={`text-[11.5px] underline ${tapTarget}`} style={{ color: 'var(--text-muted)' }}>
         {label}
       </button>
     )
@@ -66,7 +66,7 @@ export function ReverseButton({
         {pending ? busyLabel : confirmLabel}
       </Button>
       <button type="button" onClick={() => setOpen(false)}
-        className="text-[11.5px] underline" style={{ color: 'var(--text-muted)' }}>back</button>
+        className={`text-[11.5px] underline ${tapTarget}`} style={{ color: 'var(--text-muted)' }}>back</button>
       {state?.error && <span className="text-[11.5px]" style={{ color: 'var(--critical)' }}>{state.error}</span>}
     </form>
   )

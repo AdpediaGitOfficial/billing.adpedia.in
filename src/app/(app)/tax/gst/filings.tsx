@@ -1,6 +1,6 @@
 'use client'
 import { useActionState, useState } from 'react'
-import { Card, Button, Field, Pill, inputClass, inputStyle } from '@/components/ui/kit'
+import { Card, Button, Field, Pill, inputClass, inputStyle, tapTarget } from '@/components/ui/kit'
 import { recordFilingAction, unrecordFilingAction } from './filing-actions'
 
 export interface FilingView {
@@ -92,9 +92,9 @@ export function Filings({ filings, periods }: {
                     <form action={undo} className="inline-flex items-center gap-1.5">
                       <input type="hidden" name="id" value={f.id} />
                       <input name="reason" placeholder="why?" required minLength={5}
-                        className="w-28 rounded border px-1.5 py-0.5 text-[11px]"
+                        className="w-28 rounded border px-1.5 py-0.5 text-[16px] md:text-[11px]"
                         style={{ borderColor: 'var(--rule)', background: 'var(--surface-1)' }} />
-                      <button disabled={undoing} className="text-[11px] underline"
+                      <button disabled={undoing} className={`text-[11px] underline ${tapTarget}`}
                         style={{ color: 'var(--text-muted)' }}>remove</button>
                     </form>
                   )}

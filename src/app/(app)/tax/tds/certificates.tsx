@@ -1,7 +1,7 @@
 'use client'
 import { Fragment, useActionState, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Card, CardHeader, Pill, Button, Field, Alert, inputClass, inputStyle } from '@/components/ui/kit'
+import { Card, CardHeader, Pill, Button, Field, Alert, inputClass, inputStyle, tapTarget } from '@/components/ui/kit'
 import { recordDownloadAction, recordIssuedAction } from './actions'
 
 export interface CertificateView {
@@ -105,7 +105,7 @@ export function Certificates({ rows }: { rows: CertificateView[] }) {
                   </td>
                   <td className="px-5 py-2.5 text-right">
                     <button type="button" onClick={() => setOpenRow(openRow === key ? null : key)}
-                      className="text-[11.5px] underline" style={{ color: 'var(--text-muted)' }}>
+                      className={`text-[11.5px] underline ${tapTarget}`} style={{ color: 'var(--text-muted)' }}>
                       {openRow === key ? 'close' : r.issuedOn ? 'details' : 'record'}
                     </button>
                   </td>
@@ -153,7 +153,7 @@ export function Certificates({ rows }: { rows: CertificateView[] }) {
                               <>
                                 <button type="button" disabled={busy}
                                   onClick={() => { setUploadFor(r.id); fileRef.current?.click() }}
-                                  className="text-[11.5px] underline" style={{ color: 'var(--accent)' }}>
+                                  className={`text-[11.5px] underline ${tapTarget}`} style={{ color: 'var(--accent)' }}>
                                   {busy && uploadFor === r.id ? 'Uploading…' : 'Attach the downloaded PDF'}
                                 </button>
 

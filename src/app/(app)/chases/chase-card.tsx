@@ -1,6 +1,6 @@
 'use client'
 import { useActionState, useState } from 'react'
-import { Card, Button, Pill, Field, inputClass, inputStyle } from '@/components/ui/kit'
+import { Card, Button, Pill, Field, inputClass, inputStyle, tapTarget } from '@/components/ui/kit'
 import { recordChaseAction } from './actions'
 
 export interface ChaseView {
@@ -86,7 +86,7 @@ export function ChaseCard({ chase }: { chase: ChaseView }) {
         )}
         <Button size="sm" variant="ghost" onClick={() => void copy()}>{copied ? 'Copied' : 'Copy text'}</Button>
         <button type="button" onClick={() => setOpen(!open)}
-          className="text-[11.5px] underline" style={{ color: 'var(--text-muted)' }}>
+          className={`text-[11.5px] underline ${tapTarget}`} style={{ color: 'var(--text-muted)' }}>
           {open ? 'hide' : 'read it first'}
         </button>
       </div>

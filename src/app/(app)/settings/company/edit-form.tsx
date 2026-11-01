@@ -1,6 +1,6 @@
 'use client'
 import { useActionState, useState } from 'react'
-import { Button, Field, inputClass, inputStyle } from '@/components/ui/kit'
+import { Button, Field, inputClass, inputStyle, tapTarget } from '@/components/ui/kit'
 import { saveCompanyAction } from './actions'
 
 export interface CompanyEditable {
@@ -79,7 +79,7 @@ export function CompanyEditForm({ initial }: { initial: CompanyEditable }) {
       <div className="flex items-center gap-2">
         <Button disabled={pending}>{pending ? 'Saving…' : 'Save'}</Button>
         <button type="button" onClick={() => setOpen(false)}
-          className="text-[11.5px] underline" style={{ color: 'var(--text-muted)' }}>cancel</button>
+          className={`text-[11.5px] underline ${tapTarget}`} style={{ color: 'var(--text-muted)' }}>cancel</button>
       </div>
     </form>
   )

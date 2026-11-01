@@ -45,8 +45,9 @@ export function PageHeader({ title, sub, action, back }: {
   return (
     <div className="mb-6">
       {back && (
+        /* 🔴 docs/83 §4 — the way back out of every page, and 19px of it on a phone */
         <Link href={back.href}
-          className="mb-2 inline-flex items-center gap-1.5 text-[12.5px] transition-colors hover:underline"
+          className={`mb-2 gap-1.5 text-[12.5px] transition-colors hover:underline ${tapTarget}`}
           style={{ color: 'var(--text-secondary)' }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
             strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -223,8 +224,27 @@ export function Field({ label, hint, error, children }: { label: string; hint?: 
   )
 }
 
+/**
+ * 🔴 docs/83 §4 — 16px on a phone, and the design's 13.5px from `md` up.
+ *
+ * Mobile Safari zooms the page in whenever a focused form control is under 16px, and the
+ * viewport is `initialScale: 1` with no `maximumScale` (deliberately — pinch-zoom is an
+ * accessibility right). So every field in the app threw the layout up a notch on focus and
+ * left the person to pinch back out, on each field, on the device docs/30 was written for.
+ * Nothing reports this: the form works, it just fights.
+ */
 export const inputClass =
-  'w-full rounded-lg border px-3 py-2 text-[13.5px] outline-none transition-colors focus:border-[var(--accent)]'
+  'w-full rounded-lg border px-3 py-2 text-[16px] outline-none transition-colors focus:border-[var(--accent)] md:text-[13.5px]'
+/**
+ * 🔴 docs/83 §4 — the hit box for a button that is only text.
+ *
+ * `+ Add line` on the invoice form was 20px tall: a 13px label with no padding at all, and the
+ * control you press once per line item. `back`, `remove`, `It matches` and `Withdraw` were
+ * 17px, and two of those change a record. Apple's minimum is 44px and Android's is 48; none of
+ * these were half of it. The `md:` reset keeps the dense desktop layout these were drawn for.
+ */
+export const tapTarget = 'inline-flex min-h-[44px] items-center md:min-h-0'
+
 export const inputStyle: React.CSSProperties = { borderColor: 'var(--rule)', background: 'var(--surface-1)', color: 'var(--text-primary)' }
 
 /* ── data ─────────────────────────────────────────────────────────────────── */

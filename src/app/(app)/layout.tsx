@@ -38,7 +38,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         logoUrl={company.logoUrl} multi={memberships > 1} />
       <div className="transition-[padding] md:pl-[232px]">
         <Topbar name={user.name} role={ctx.role} fyLabel={fy?.label} alerts={alerts.length}
-          company={name} logoUrl={company.logoUrl} />
+          company={name} />
         <main className="mx-auto max-w-[1400px] px-4 py-5 pb-24 md:px-6 md:py-7 md:pb-10">{children}</main>
       </div>
       <BottomTabs tabs={mobileTabsFor(ctx.role)} />

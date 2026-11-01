@@ -147,7 +147,15 @@ body {
 }
 
 /* money and anything in a column reads straight down */
-.tabular { font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+/*
+  🔴 docs/83 §4 — `white-space: nowrap` is the whole point, found at 375px.
+
+  `formatINR` returns `-₹9,55,000.00`, and a hyphen is a line-break opportunity. In a narrow
+  table cell the browser took it: the minus sat alone on one line and `₹9,55,000.00` on the
+  next, so the P&L's bottom line read as a profit of nine lakh fifty-five thousand. The sign
+  is the most load-bearing character in the statement and it was the one being orphaned.
+*/
+.tabular { font-variant-numeric: tabular-nums; letter-spacing: -0.01em; white-space: nowrap; }
 
 /* the micro-label used above every value in the references */
 .eyebrow {

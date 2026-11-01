@@ -2,7 +2,7 @@
 import { useActionState, useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { createBillAction } from '../actions'
-import { Card, Field, Button, Alert, Pill, inputClass, inputStyle } from '@/components/ui/kit'
+import { Card, Field, Button, Alert, Pill, inputClass, inputStyle, tapTarget } from '@/components/ui/kit'
 
 type Vendor = { id: string; name: string; country: string; gstin: string | null; pan: string | null; panVerified: boolean; rcmApplicable: boolean; defaultTdsSection: string | null }
 type Line = { description: string; sacCode: string; quantity: string; rate: string; gstRatePct: string; expenseAccountCode: string }
@@ -105,7 +105,7 @@ export function BillForm({ vendors, projects, accounts }: {
           ))}
         </div>
         <button type="button" onClick={() => setLines((ls) => [...ls, blank()])}
-          className="mt-3 text-[13px] font-semibold" style={{ color: 'var(--accent)' }}>+ Add line</button>
+          className={`mt-3 text-[13px] font-semibold ${tapTarget}`} style={{ color: 'var(--accent)' }}>+ Add line</button>
       </Card>
 
       {preview && (

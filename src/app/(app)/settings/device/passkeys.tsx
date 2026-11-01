@@ -1,6 +1,6 @@
 'use client'
 import { useActionState, useState } from 'react'
-import { Card, Pill, Button } from '@/components/ui/kit'
+import { Card, Pill, Button, tapTarget } from '@/components/ui/kit'
 import { removePasskeyAction } from './actions'
 
 export interface PasskeyRow {
@@ -68,11 +68,11 @@ export function Passkeys({ rows }: { rows: PasskeyRow[] }) {
                     {pending ? 'Removing…' : 'Remove it'}
                   </Button>
                   <button type="button" onClick={() => setConfirming(null)}
-                    className="text-[11.5px] underline" style={{ color: 'var(--text-muted)' }}>back</button>
+                    className={`text-[11.5px] underline ${tapTarget}`} style={{ color: 'var(--text-muted)' }}>back</button>
                 </form>
               ) : (
                 <button type="button" onClick={() => setConfirming(p.id)}
-                  className="text-[11.5px] underline" style={{ color: 'var(--text-muted)' }}>remove</button>
+                  className={`text-[11.5px] underline ${tapTarget}`} style={{ color: 'var(--text-muted)' }}>remove</button>
               )}
             </li>
           ))}
