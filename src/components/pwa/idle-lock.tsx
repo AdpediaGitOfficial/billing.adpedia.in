@@ -2,10 +2,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { startAuthentication } from '@simplewebauthn/browser'
 
-const IDLE_MS = 5 * 60_000
-
 /**
- * Re-authenticate after five idle minutes.
+ * Re-authenticate after a stretch of idleness — thirty minutes by default, `IDLE_LOCK_MINUTES`.
+ *
+ * 🔴 It was five, hardcoded, and five minutes is not idleness — it is reading an invoice. The
+ * screen was appearing mid-task and asking for a passkey, which on a device that has none
+ * offers only "sign in with password", so it read as the session having expired. docs/83.
  *
  * 🔴 This is a privacy screen over an already-authenticated session, NOT a security
  * boundary. It is drawn in the browser, so anything it covers has already been sent to
@@ -16,7 +18,8 @@ const IDLE_MS = 5 * 60_000
  * It is stated plainly here so nobody later mistakes it for access control and skips a
  * server-side permission check because "the lock screen covers it".
  */
-export function IdleLock() {
+export function IdleLock({ minutes = 30 }: { minutes?: number }) {
+  const idleMs = Math.max(1, minutes) * 60_000
   const [locked, setLocked] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -25,8 +28,8 @@ export function IdleLock() {
 
   const arm = useCallback(() => {
     if (timer.current) clearTimeout(timer.current)
-    timer.current = setTimeout(() => setLocked(true), IDLE_MS)
-  }, [])
+    timer.current = setTimeout(() => setLocked(true), idleMs)
+  }, [idleMs])
 
   useEffect(() => {
     if (locked) return
@@ -79,7 +82,9 @@ export function IdleLock() {
       style={{ background: 'rgba(16,14,23,0.92)', backdropFilter: 'blur(14px)' }}>
       <div className="w-full max-w-sm rounded-2xl p-6"
         style={{ background: 'var(--surface-1)', border: '1px solid var(--rule)' }}>
-        <p className="text-[15px] font-semibold">Locked after 5 minutes idle</p>
+        <p className="text-[15px] font-semibold">
+          Locked after {minutes} minutes idle
+        </p>
         <p className="mt-1.5 text-[13px]" style={{ color: 'var(--text-muted)' }}>
           {hasPasskey
             ? 'Unlock with your fingerprint, face or device PIN.'

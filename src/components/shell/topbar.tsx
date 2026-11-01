@@ -3,8 +3,19 @@ import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { Icon } from './icon'
 
-export function Topbar({ name, role, fyLabel, alerts = 0 }: {
+export function Topbar({ name, role, fyLabel, alerts = 0, company, logoUrl }: {
   name: string; role: string; fyLabel?: string; alerts?: number
+  /**
+   * 🔴 docs/83 — WHICH BOOKS AM I IN, on a phone.
+   *
+   * The sidebar carries this and the sidebar is `hidden md:flex`, so on a phone the only thing
+   * in the header was Adpedia's logo — hardcoded, on every entity's screens. docs/82 §3 says
+   * the current entity must be impossible to mistake, because an invoice raised in the wrong
+   * one is numbered from that entity's series, posted to its ledger and frozen on send. On the
+   * device most likely to be used in a hurry, there was nothing to mistake it BY.
+   */
+  company: string
+  logoUrl?: string | null
 }) {
   const router = useRouter()
   const [menu, setMenu] = useState(false)
@@ -18,9 +29,17 @@ export function Topbar({ name, role, fyLabel, alerts = 0 }: {
   return (
     <header className="no-print sticky top-0 z-20 flex items-center gap-3 border-b px-4 py-2.5 md:px-6"
             style={{ borderColor: 'var(--rule)', background: 'color-mix(in srgb, var(--app-bg) 88%, transparent)', backdropFilter: 'blur(8px)' }}>
-      <div className="md:hidden">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/brand/adpedia-logo.svg" alt="adpedia" className="h-3.5 w-auto" />
+      <div className="flex min-w-0 items-center gap-2 md:hidden">
+        {logoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={logoUrl} alt="" className="h-5 w-5 shrink-0 rounded object-contain" />
+        ) : (
+          <span className="grid h-5 w-5 shrink-0 place-items-center rounded text-[10px] font-bold"
+            style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}>
+            {company.slice(0, 1).toUpperCase()}
+          </span>
+        )}
+        <span className="truncate text-[13px] font-semibold">{company}</span>
       </div>
 
       <div className="relative hidden max-w-sm flex-1 md:block">

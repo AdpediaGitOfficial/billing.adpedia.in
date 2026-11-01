@@ -10,6 +10,8 @@ import { Topbar } from '@/components/shell/topbar'
 import { complianceAlerts } from '@/server/services/dashboard'
 import { OfflineProvider } from '@/components/pwa/offline-provider'
 import { IdleLock } from '@/components/pwa/idle-lock'
+import { SessionKeepalive } from '@/components/pwa/session-keepalive'
+import { env } from '@/lib/env'
 import { currentFinancialYear } from '@/server/services/accounting/period'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -35,11 +37,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       })} company={name} fyLabel={fy?.label} alerts={alerts.length}
         logoUrl={company.logoUrl} multi={memberships > 1} />
       <div className="transition-[padding] md:pl-[232px]">
-        <Topbar name={user.name} role={ctx.role} fyLabel={fy?.label} alerts={alerts.length} />
+        <Topbar name={user.name} role={ctx.role} fyLabel={fy?.label} alerts={alerts.length}
+          company={name} logoUrl={company.logoUrl} />
         <main className="mx-auto max-w-[1400px] px-4 py-5 pb-24 md:px-6 md:py-7 md:pb-10">{children}</main>
       </div>
       <BottomTabs tabs={mobileTabsFor(ctx.role)} />
-      <IdleLock />
+      {/* docs/83 — the lock is a privacy screen; the keepalive is what makes the session last */}
+      <IdleLock minutes={env().IDLE_LOCK_MINUTES} />
+      <SessionKeepalive ttlSeconds={env().ACCESS_TOKEN_TTL_SECONDS} />
     </div>
     </OfflineProvider>
   )

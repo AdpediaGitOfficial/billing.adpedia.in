@@ -137,6 +137,10 @@ The sidebar is desktop-only; mobile uses the role-shaped bottom tab bar from `do
 
 Every nav entry resolves. Sections that belong to a later phase render a roadmap page
 naming the phase and what lands in it, rather than a 404 — `app/(app)/[...slug]/page.tsx`.
+**Removed in docs/83.** Every route it covered has a real screen now, so the only path it
+still answered was `/more` — the mobile tab bar's fifth slot — which it told the user was
+“arriving in phase 1”. A roadmap stub standing in for a page that exists is worse than the
+404 it replaced: it reads as an answer.
 
 ---
 

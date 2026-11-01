@@ -81,6 +81,9 @@ export async function refresh(meta?: { ip?: string; userAgent?: string }) {
   if (!presented) throw new Unauthorized('No refresh token')
 
   const result = await rotateRefreshToken(presented, meta)
+  // 🔴 a race is not a failure and must not clear anything: the tab that won has already
+  // refreshed this session's cookies, and both tabs share them
+  if (!result.ok && result.reason === 'RACE') return { ok: true, raced: true }
   if (!result.ok) {
     await clearAuthCookies()
     // Reuse of an already-rotated token means the family is compromised; rotateRefreshToken
@@ -115,7 +118,7 @@ export async function refresh(meta?: { ip?: string; userAgent?: string }) {
     sub: user.id, companyId: membership.companyId, role: membership.role, tokenVersion: user.tokenVersion,
   })
   await setAuthCookies(accessToken, result.token)
-  return { ok: true }
+  return { ok: true, raced: false }
 }
 
 export async function logout() {

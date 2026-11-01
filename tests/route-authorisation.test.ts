@@ -84,3 +84,52 @@ describe('🔴 every API route says who may call it', () => {
     expect(src).toMatch(/timingSafeEqual/)
   })
 })
+
+/**
+ * 🔴 docs/83 — a route that moves the session has to have a caller.
+ *
+ * `/api/auth/refresh` was complete: rotating tokens, reuse detection, a thirty-day lifetime.
+ * Nothing in the application ever called it. So the access cookie — `maxAge:
+ * ACCESS_TOKEN_TTL_SECONDS` — expired fifteen minutes after signing in, the middleware saw no
+ * token and redirected to `/login`, mid-task, with nothing recording that anything had
+ * happened. docs/80's defect class, with the session as the thing it cost.
+ *
+ * Scoped to the routes that import `@/server/auth/service` — the module that sets and clears
+ * the auth cookies — which is a rule rather than a list:
+ * `/api/auth/me` reads and is a diagnostic with no in-app caller (docs/20), and the cron route
+ * is called by cron. A route that hands out a session and has no caller is dead in a way that
+ * is felt rather than noticed.
+ */
+describe('🔴 every route that issues a session is actually called', () => {
+  const SRC = join(process.cwd(), 'src')
+
+  function sources(dir: string, out: string[] = []): string[] {
+    for (const e of readdirSync(dir)) {
+      const p = join(dir, e)
+      if (statSync(p).isDirectory()) sources(p, out)
+      else if (/\.(ts|tsx)$/.test(e) && !p.startsWith(API)) out.push(p)
+    }
+    return out
+  }
+
+  const BODY = sources(SRC).map((f) => readFileSync(f, 'utf8')).join('\n')
+
+  it('finds a caller for each of them', () => {
+    const orphans: string[] = []
+    for (const file of routes(API)) {
+      const src = readFileSync(file, 'utf8')
+      // the session lives in cookies the SERVICE sets, so what marks a session route is
+      // importing it — `login`, `logout` and `refresh` are the three that do
+      if (!src.includes("@/server/auth/service")) continue
+      const href = '/api/' + file.slice(API.length + 1).replace(/[/\\]route\.ts$/, '').split(/[/\\]/).join('/')
+      if (!BODY.includes(href)) orphans.push(href)
+    }
+    expect(orphans, 'a route that hands out a session and nothing calls').toEqual([])
+  })
+
+  it('is not vacuous — it found the session routes to check', () => {
+    const checked = routes(API).filter((f) =>
+      readFileSync(f, 'utf8').includes("@/server/auth/service"))
+    expect(checked.length).toBeGreaterThanOrEqual(3)
+  })
+})

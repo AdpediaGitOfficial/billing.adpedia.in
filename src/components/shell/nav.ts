@@ -104,6 +104,15 @@ export function navFor(
     .filter((g) => g.items.length > 0)
 }
 
+/**
+ * 🔴 docs/83 — the tab bar's fifth slot, and the only route a phone has to the rest of the app.
+ *
+ * It was a literal inside `BottomTabs`, pointing at a page that did not exist: `/more` fell
+ * through to the roadmap catch-all, which said the screen was "arriving in phase 1". Named
+ * here so the guard in `tests/mobile-reachable` can check the target the way the bar does.
+ */
+export const MORE_TAB: NavItem = { label: 'More', href: '/more', cap: 'dashboard', icon: 'Menu' }
+
 /** docs/13 §2.3 — mobile tabs are role-shaped; nobody does a trial balance on a phone. */
 export function mobileTabsFor(role: Role): NavItem[] {
   const home: NavItem = { label: 'Home', href: '/dashboard', cap: 'dashboard', icon: 'Home' }

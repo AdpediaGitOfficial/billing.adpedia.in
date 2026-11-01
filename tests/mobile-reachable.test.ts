@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { ICONS } from '@/components/shell/icons'
+import { NAV, MORE_TAB, mobileTabsFor } from '@/components/shell/nav'
+import type { Role } from '@prisma/client'
 
 const SRC = join(process.cwd(), 'src')
 
@@ -90,5 +92,63 @@ describe('🔴 no control is hidden on the mobile card', () => {
       }
     }
     expect(offenders).toEqual([])
+  })
+})
+
+/**
+ * 🔴 docs/83 — a tab that leads nowhere.
+ *
+ * The sidebar is `hidden md:flex`, so on a phone the five-slot tab bar IS the navigation, and
+ * its fifth slot has always pointed at `/more`. There was no `/more` page. It fell through to
+ * the roadmap catch-all, which answered *"Arriving in phase 1 — what is missing is the
+ * screen"* and offered two buttons back to the dashboard.
+ *
+ * Four screens out of sixty-five, on the device the business is actually run from. Nothing
+ * failed: the bar rendered, the link worked, the page it reached returned 200. Which is why
+ * this asks the only question that would have caught it — does the target EXIST.
+ */
+const APP = join(SRC, 'app', '(app)')
+const pageExists = (href: string) =>
+  existsSync(join(APP, href.replace(/^\//, ''), 'page.tsx'))
+
+describe('🔴 every navigation target is a real page', () => {
+  const ROLES: Role[] = ['OWNER', 'ACCOUNTANT', 'PROJECT_MANAGER', 'EMPLOYEE', 'AUDITOR']
+
+  it('🔴 the tab bar\'s fifth slot leads to a page that exists', () => {
+    expect(pageExists(MORE_TAB.href), `${MORE_TAB.href} has no page.tsx`).toBe(true)
+  })
+
+  it('every mobile tab, for every role', () => {
+    const missing: string[] = []
+    for (const role of ROLES) {
+      for (const tab of mobileTabsFor(role).slice(0, 4)) {
+        if (!pageExists(tab.href)) missing.push(`${role} → ${tab.href}`)
+      }
+    }
+    expect(missing).toEqual([])
+  })
+
+  it('every item in the rail, which is also every item on /more', () => {
+    const missing = NAV.flatMap((g) => g.items).map((i) => i.href).filter((h) => !pageExists(h))
+    expect(missing).toEqual([])
+  })
+
+  it('is not vacuous — it is checking real paths, and a made-up one fails', () => {
+    expect(NAV.flatMap((g) => g.items).length).toBeGreaterThan(30)
+    expect(pageExists('/not-a-screen')).toBe(false)
+    expect(pageExists('/dashboard')).toBe(true)
+  })
+
+  /**
+   * 🔴 `/more` must hide what the rail hides. It calls `navFor` with the same arguments the
+   * sidebar is given — `navFor`'s `hasDrawings` DEFAULTS TO FALSE, so a page that called it
+   * bare would quietly drop the drawings register on every phone, and show an unregistered
+   * entity the GST screens that docs/82 §4 refuses.
+   */
+  it('🔴 /more filters the nav on the same two facts the sidebar does', () => {
+    const src = read(join(APP, 'more', 'page.tsx'))
+    expect(src).toMatch(/navFor\(/)
+    expect(src).toMatch(/gstRegistered:/)
+    expect(src).toMatch(/hasDrawings:/)
   })
 })

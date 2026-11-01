@@ -3,12 +3,12 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { Icon } from './icon'
-import type { NavItem } from './nav'
+import { MORE_TAB, type NavItem } from './nav'
 
 /** docs/13 §2.2 — max 5 slots, thumb-reachable, the 5th is always More. */
 export function BottomTabs({ tabs }: { tabs: NavItem[] }) {
   const path = usePathname()
-  const slots: NavItem[] = [...tabs.slice(0, 4), { label: 'More', href: '/more', cap: 'dashboard', icon: 'Menu' }]
+  const slots: NavItem[] = [...tabs.slice(0, 4), MORE_TAB]
   return (
     <nav
       className="md:hidden fixed bottom-0 inset-x-0 z-40 border-t grid"
