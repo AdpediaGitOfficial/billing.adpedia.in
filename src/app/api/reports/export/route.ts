@@ -10,15 +10,16 @@ import { receivablesAgeing, payablesAgeing } from '@/server/services/reports/age
 import { clientPnl } from '@/server/services/reports/client-pnl'
 import {
   trialBalanceCsv, profitAndLossCsv, balanceSheetCsv, cashFlowCsv, ageingCsv, clientPnlCsv,
-  journalCsv, accountLedgerCsv,
+  journalCsv, accountLedgerCsv, partyLedgerCsv,
 } from '@/server/services/reports/export'
 import { journalExport } from '@/server/services/reports/journal-export'
 import { accountLedger } from '@/server/services/reports/ledger'
+import { clientLedger, vendorLedger } from '@/server/services/reports/party-ledger'
 import { statementStanding } from '@/server/services/reports/status'
 
 const REPORTS = [
   'trial-balance', 'pnl', 'balance-sheet', 'cash-flow', 'ageing-ar', 'ageing-ap', 'client-pnl',
-  'journal', 'ledger',
+  'journal', 'ledger', 'client-ledger', 'vendor-ledger',
 ] as const
 type ReportKey = (typeof REPORTS)[number]
 
@@ -45,6 +46,15 @@ export async function GET(req: Request) {
     const meta = { company: company.legalName, gstin: company.gstin, period: period.label, standing }
 
     let csv: string
+    /**
+     * 🔴 docs/84 — the party in the filename, SLUGIFIED, not interpolated.
+     *
+     * A folder of `adpedia-client-ledger-2026-27.csv` for eleven different clients is the
+     * problem the comment below already names, one level in. And the name is user-entered and
+     * goes into a `Content-Disposition` header, so it is reduced to letters, digits and dashes
+     * first — a quote or a newline in a customer name would otherwise break the header.
+     */
+    let suffix = ''
     switch (which) {
       case 'trial-balance': csv = trialBalanceCsv(meta, await trialBalance(ctx, period)); break
       case 'pnl':           csv = profitAndLossCsv(meta, await profitAndLoss(ctx, period)); break
@@ -62,11 +72,33 @@ export async function GET(req: Request) {
         csv = accountLedgerCsv(meta, led.account, led.lines)
         break
       }
+      // 🔴 docs/84 — `party` is looked UP, inside the company, before anything is read. It
+      // arrives from a query string, and `clientLedger` returning null for an id belonging to
+      // another company is the isolation boundary, not a convenience.
+      case 'client-ledger': {
+        const id = url.searchParams.get('party')
+        if (!id) throw new AppError('Which customer? Pass ?party=<id>')
+        const led = await clientLedger(ctx, id, period)
+        if (!led) throw new AppError('No such customer')
+        csv = partyLedgerCsv(meta, led)
+        suffix = slug(led.party.name)
+        break
+      }
+      case 'vendor-ledger': {
+        const id = url.searchParams.get('party')
+        if (!id) throw new AppError('Which vendor? Pass ?party=<id>')
+        const led = await vendorLedger(ctx, id, period)
+        if (!led) throw new AppError('No such vendor')
+        csv = partyLedgerCsv(meta, led)
+        suffix = slug(led.party.name)
+        break
+      }
     }
 
     // the filename carries the period, because a download folder full of "pnl.csv" is useless
     const account = url.searchParams.get('account')
-    const name = `adpedia-${which}${which === 'ledger' && account ? `-${account}` : ''}-${period.fyLabel.replace('/', '-')}.csv`
+    if (which === 'ledger' && account) suffix = slug(account)
+    const name = `adpedia-${which}${suffix ? `-${suffix}` : ''}-${period.fyLabel.replace('/', '-')}.csv`
     return new Response(csv, {
       headers: {
         'content-type': 'text/csv; charset=utf-8',
@@ -82,3 +114,8 @@ export async function GET(req: Request) {
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+
+/** Letters, digits and dashes only — safe in a filename and in a header. */
+function slug(s: string): string {
+  return s.replace(/[^A-Za-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60).toLowerCase()
+}

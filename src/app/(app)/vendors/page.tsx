@@ -2,11 +2,27 @@ import Link from 'next/link'
 import { requireContext } from '@/server/context'
 import { listVendors } from '@/server/services/purchases/vendor'
 import { stateName } from '@/server/services/tax/tax-mode'
-import { Card, PageHeader, Pill, Empty, Button, DataTable, Alert, type Column } from '@/components/ui/kit'
+import { partyBalances } from '@/server/services/reports/party-ledger'
+import { resolvePeriod } from '@/server/services/reports/period'
+import { formatINR } from '@/lib/money'
+import { Icon } from '@/components/shell/icon'
+import { Card, PageHeader, Pill, Empty, Button, DataTable, Alert, type Column, tapTarget } from '@/components/ui/kit'
 
 export default async function VendorsPage() {
   const ctx = await requireContext()
-  const vendors = await listVendors(ctx)
+  /**
+   * 🔴 docs/84 — the SAME boundary the ledger page uses, which is the financial year's end.
+   *
+   * This passed `new Date()` first, and the two disagreed on screen: the list said
+   * ₹3,54,000 and the ledger it links to said ₹4,22,000, because an invoice dated later in
+   * the open year counts in one and not the other. Both figures were defensible and that is
+   * exactly the problem — docs/56 §2's "two balances with the same name". The ledger is a
+   * financial-year statement and says so in its own tabs, so the column beside the link is
+   * the same year.
+   */
+  const period = await resolvePeriod(ctx.companyId)
+  // one grouped query for the whole list, not one ledger per row
+  const [vendors, balances] = await Promise.all([listVendors(ctx), partyBalances(ctx, 'VENDOR', period.to)])
   const noPan = vendors.filter((v) => v.defaultTdsSection && !v.panVerified)
 
   type Row = (typeof vendors)[number]
@@ -34,11 +50,46 @@ export default async function VendorsPage() {
       cell: (r) => r.rcmApplicable
         ? <Pill tone="warn" dot>Reverse charge</Pill>
         : r.gstin ? <Pill tone="neutral">Registered</Pill> : <Pill tone="neutral">Unregistered</Pill> },
-    { key: 'bills', header: 'Bills', width: '8%', align: 'right', mobile: 'value',
+    { key: 'bills', header: 'Bills', width: '8%', align: 'right', mobile: false,
       cell: (r) => <span className="tabular">{r._count.bills}</span> },
-    { key: 'edit', header: '', width: '8%', align: 'right', mobile: false,
+    /**
+     * 🔴 docs/84 — 2000 AP for this vendor, net of the TDS already withheld.
+     *
+     * `postTdsDeduction` debits AP and credits 2210/2220/2230 as its own entry, so a
+     * ₹1,00,000 bill with ₹10,000 deducted shows ₹90,000 here — which is what will actually
+     * be paid. A figure taken from the bill table would say ₹1,00,000 and the payment would
+     * never match it.
+     */
+    { key: 'balance', header: `Payable ${period.label}`, width: '15%', align: 'right', mobile: 'value',
+      cell: (r) => {
+        const b = balances.get(r.id)
+        if (!b || b.isZero()) return <span style={{ color: 'var(--text-muted)' }}>—</span>
+        return (
+          <span className="font-semibold" style={{ color: b.lt(0) ? 'var(--good)' : undefined }}>
+            {formatINR(b, { decimals: false })}
+            {/* a negative payable is an advance paid to them — ours to recover, not owed */}
+            {b.lt(0) && <span className="ml-1 text-[11px] font-normal">advanced</span>}
+          </span>
+        )
+      } },
+    { key: 'ledger', header: '', width: '9%', align: 'right', mobile: 'action',
       cell: (r) => (
-        <Link href={`/vendors/${r.id}/edit`} className="text-[12px] underline underline-offset-2"
+        <Link href={`/vendors/${r.id}/ledger`}
+          className={`gap-1 text-[12px] font-semibold transition-colors hover:underline ${tapTarget}`}
+          style={{ color: 'var(--accent)' }} title={`Ledger for ${r.name}`}>
+          <Icon name="BookOpen" size={13} strokeWidth={2} /> Ledger
+        </Link>
+      ) },
+    /**
+     * 🔴 docs/84 — `'action'`, not `false`. This table has no `onRowHref` either, so with the
+     * column hidden there was no way to reach the edit page from a phone at all — docs/68 §5's
+     * defect exactly, which the guard could not see because its pattern knew about buttons and
+     * not about links.
+     */
+    { key: 'edit', header: '', width: '8%', align: 'right', mobile: 'action',
+      cell: (r) => (
+        <Link href={`/vendors/${r.id}/edit`}
+          className={`text-[12px] underline underline-offset-2 ${tapTarget}`}
           style={{ color: 'var(--accent)' }}>edit</Link>
       ) },
   ]

@@ -3,7 +3,7 @@ import { requireContext } from '@/server/context'
 import { projectPnl } from '@/server/services/reports/project-pnl'
 import { prisma } from '@/server/db'
 import { formatINR, Decimal } from '@/lib/money'
-import { Card, PageHeader, Button, Empty, Pill, DataTable, ProgressBar, type Column, type Tone } from '@/components/ui/kit'
+import { Card, PageHeader, Button, Empty, Pill, DataTable, ProgressBar, type Column, type Tone, tapTarget } from '@/components/ui/kit'
 import type { ProjectStatus } from '@prisma/client'
 
 const TONE: Record<ProjectStatus, Tone> = {
@@ -58,9 +58,16 @@ export default async function ProjectsPage() {
       } },
     { key: 'status', header: 'Status', align: 'center', width: '12%', mobile: false,
       cell: (r) => <Pill tone={TONE[r.status]}>{r.status.replace('_', ' ').toLowerCase()}</Pill> },
-    { key: 'edit', header: '', width: '8%', align: 'right', mobile: false,
+    /**
+     * 🔴 docs/84 — `'action'`, not `false`. This table has no `onRowHref` either, so with the
+     * column hidden there was no way to reach the edit page from a phone at all — docs/68 §5's
+     * defect exactly, which the guard could not see because its pattern knew about buttons and
+     * not about links.
+     */
+    { key: 'edit', header: '', width: '8%', align: 'right', mobile: 'action',
       cell: (r) => (
-        <Link href={`/projects/${r.id}/edit`} className="text-[12px] underline underline-offset-2"
+        <Link href={`/projects/${r.id}/edit`}
+          className={`text-[12px] underline underline-offset-2 ${tapTarget}`}
           style={{ color: 'var(--accent)' }}>edit</Link>
       ) },
   ]

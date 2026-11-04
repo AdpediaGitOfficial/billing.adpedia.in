@@ -6,6 +6,7 @@ import { BUCKETS } from './ageing'
 import type { ClientPnlRow } from './client-pnl'
 import type { JournalExport } from './journal-export'
 import type { AccountBalance, LedgerLine } from './ledger'
+import type { PartyLedger } from './party-ledger'
 import type { StatementStanding } from './status'
 
 /**
@@ -90,6 +91,38 @@ export function accountLedgerCsv(m: Meta, account: AccountBalance, lines: Ledger
   out.push(csvRow(['', '', 'Closing balance', '', '',
     csvMoney(account.debit), csvMoney(account.credit), csvMoney(account.closing)]))
   out.push('', csvRow(['# Balance direction', account.type === 'ASSET' || account.type === 'EXPENSE' ? 'debit' : 'credit']))
+  return toCsv(out)
+}
+
+/**
+ * A client's or a vendor's running account — docs/84.
+ *
+ * 🔴 The party's own cells go through `csvCell` like every other cell, not into the title.
+ * A customer name is user-entered, and a value interpolated into a header string has already
+ * escaped the one place that escapes it — the same reasoning as `accountLedgerCsv` above.
+ *
+ * 🔴 `Debit` and `Credit` stay in the BOOKS' direction, and `Movement` carries the party's.
+ * A statement that silently flipped the signs would not tie to the ledger the CA is holding
+ * beside it, and the question they are checking is whether it does.
+ */
+export function partyLedgerCsv(m: Meta, led: PartyLedger): string {
+  const out = header(m, led.party.kind === 'CUSTOMER' ? 'Client Ledger' : 'Vendor Ledger')
+  out.splice(1, 0,
+    csvRow(['# Party', led.party.name]),
+    csvRow(['# Accounts', led.accounts.map((a) => `${a.code} ${a.name}`).join(' + ')]),
+    csvRow(['# Balance means', led.party.kind === 'CUSTOMER' ? 'owed to us' : 'owed by us']),
+  )
+  out.push(csvRow(['Date', 'Entry no', 'Account', 'Narration', 'Line narration', 'Source',
+    'Debit', 'Credit', 'Movement', 'Balance', 'Contra']))
+  out.push(csvRow(['', '', '', 'Opening balance', '', '', '', '', '', csvMoney(led.opening), '']))
+  for (const l of led.lines) {
+    out.push(csvRow([l.date, l.entryNo, `${l.accountCode} ${l.accountName}`, l.narration,
+      l.lineNarration ?? '', l.sourceType,
+      csvMoney(l.debit), csvMoney(l.credit), csvMoney(l.movement), csvMoney(l.balance),
+      l.contra.map((c) => `${c.code} ${c.name} ${c.amount.toFixed(2)}`).join('; ')]))
+  }
+  out.push(csvRow(['', '', '', 'Closing balance', '', '',
+    csvMoney(led.debit), csvMoney(led.credit), '', csvMoney(led.closing), '']))
   return toCsv(out)
 }
 

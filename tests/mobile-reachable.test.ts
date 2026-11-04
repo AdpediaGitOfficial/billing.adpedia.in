@@ -89,7 +89,16 @@ describe('🔴 no control is hidden on the mobile card', () => {
       if (!src.includes('Column<')) continue
       for (const m of src.matchAll(COLUMN)) {
         const [, key, body] = m
-        const control = /<ReverseButton|<Button|<form|onClick=|<AdjustAdvance|<ApproveButton/.test(body)
+        /**
+         * 🔴 docs/84 — `<Link` and `<a` belong in this list.
+         *
+         * They were missing, and the vendors table's `edit` column is what that cost: a
+         * desktop-only `<Link>` to the edit page, in a table with no `onRowHref`, so on a
+         * phone a vendor could not be edited at all. The guard was written for exactly that
+         * (docs/68 §5) and could not see it, because a control that navigates is still a
+         * control. A guard that misses the class it was written for passes forever.
+         */
+        const control = /<ReverseButton|<Button|<form|onClick=|<AdjustAdvance|<ApproveButton|<Link |<a /.test(body)
         if (control && /mobile: false/.test(body)) offenders.push(`${rel(f)} → column '${key}'`)
       }
     }
