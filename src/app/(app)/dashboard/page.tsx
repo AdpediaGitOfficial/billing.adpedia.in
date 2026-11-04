@@ -3,7 +3,7 @@ import { requireContext } from '@/server/context'
 import { prisma } from '@/server/db'
 import { dashboardSummary } from '@/server/services/dashboard'
 import { formatINR } from '@/lib/money'
-import { Card, CardHeader, StatCard, HeroStat, Pill, Button, Empty, Alert, ProgressBar, DataTable, type Column } from '@/components/ui/kit'
+import { Card, CardHeader, StatCard, HeroStat, Pill, Button, Empty, Alert, ProgressBar, DataTable, type Column, statGrid } from '@/components/ui/kit'
 import { AreaChart } from '@/components/charts/area-chart'
 import { CategoryBars } from '@/components/charts/category-bars'
 import { Icon } from '@/components/shell/icon'
@@ -56,7 +56,7 @@ export default async function DashboardPage() {
             Billing, GST, TDS and cash — FY {s.fy.label} to date.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Link href="/invoices/new"><Button icon="Plus">New invoice</Button></Link>
         </div>
       </div>
@@ -91,7 +91,7 @@ export default async function DashboardPage() {
           </div>
         </Card>
 
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className={`${statGrid} sm:grid-cols-2`}>
           <StatCard label="Receivable" value={formatINR(s.receivable, { decimals: false })} icon="ArrowDownLeft"
             foot={`${s.openInvoices} open · collectible in cash`} />
           <StatCard label="Overdue" value={String(s.overdueCount)} icon="Clock"

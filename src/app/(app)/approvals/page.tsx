@@ -3,7 +3,7 @@ import { requireContext } from '@/server/context'
 import { prisma } from '@/server/db'
 import { Decimal, formatINR, ZERO } from '@/lib/money'
 import { can } from '@/server/auth/permissions'
-import { Card, PageHeader, StatCard, Empty, Pill, Alert } from '@/components/ui/kit'
+import { Card, PageHeader, StatCard, Empty, Pill, Alert, statGrid } from '@/components/ui/kit'
 import { ApproveButton } from './approve-button'
 import { SwipeRow, type SwipeSpec } from '@/components/ui/swipe'
 import { approveBillAction } from '../bills/actions'
@@ -27,7 +27,7 @@ export default async function ApprovalsPage() {
       <PageHeader title="Approvals"
         sub="Bills waiting on a decision. Nothing is posted, paid or claimable until approved." />
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className={`${statGrid} sm:grid-cols-3`}>
         <StatCard label="Waiting" value={String(bills.length)} foot="draft bills" />
         <StatCard label="Value" value={formatINR(total, { decimals: false })} />
         <StatCard label="Already past due" value={String(overdue.length)}

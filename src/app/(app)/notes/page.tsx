@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { requireContext } from '@/server/context'
 import { listCreditNotes } from '@/server/services/invoicing/credit-note'
 import { Decimal, formatINR, ZERO } from '@/lib/money'
-import { Card, PageHeader, StatCard, Pill, Empty, Alert, DataTable, Button, type Column } from '@/components/ui/kit'
+import { Card, PageHeader, StatCard, Pill, Empty, Alert, DataTable, Button, type Column, statGrid } from '@/components/ui/kit'
 import type { SwipeSpec } from '@/components/ui/swipe'
 
 /**
@@ -115,7 +115,7 @@ export default async function NotesPage() {
         action={<Link href="/invoices"><Button variant="ghost" icon="FileText">Go to an invoice</Button></Link>} />
 
       {notes.length > 0 && (
-        <div className="mb-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className={`${statGrid} mb-5 sm:grid-cols-2 lg:grid-cols-4`}>
           <StatCard label="Credited away" value={formatINR(sum(credits), { decimals: false })} icon="ArrowDownLeft"
             foot={`${credits.length} credit note${credits.length === 1 ? '' : 's'} · s.34(1)`} />
           <StatCard label="Charged back" value={formatINR(sum(debits), { decimals: false })} icon="ArrowUpRight"

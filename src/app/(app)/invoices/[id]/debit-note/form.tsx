@@ -43,7 +43,7 @@ export function DebitNoteForm({ invoiceId, invoiceNumber, today, taxMode }: {
           something <strong>further</strong> — the invoice was right for what it covered, and this is extra.
         </Alert>
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button disabled={pending}>{pending ? 'Issuing…' : 'Issue debit note'}</Button>
           <Link href={`/invoices/${invoiceId}`}><Button variant="ghost" type="button">Cancel</Button></Link>
         </div>

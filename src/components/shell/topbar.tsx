@@ -58,7 +58,12 @@ export function Topbar({ name, role, fyLabel, alerts = 0, company }: {
           </span>
         )}
 
-        <button className="relative grid h-8 w-8 place-items-center rounded-lg" style={{ color: 'var(--text-secondary)' }} aria-label="Notifications">
+        {/* 🔴 docs/83 §5 — 32px and 36px, in the header, on a phone. These are not `Button`,
+            so §4's sweep and the component fix both went past them; the account menu is how
+            you sign out and the bell is how you reach the alerts. The header grows by a few
+            pixels on a phone and is untouched from `md` up. */}
+        <button className="relative grid h-8 w-8 min-h-[44px] min-w-[44px] place-items-center rounded-lg md:h-8 md:min-h-0 md:w-8 md:min-w-0"
+          style={{ color: 'var(--text-secondary)' }} aria-label="Notifications">
           <Icon name="Bell" size={16} strokeWidth={1.8} />
           {alerts > 0 && (
             <span className="absolute right-1 top-1 grid h-3.5 min-w-3.5 place-items-center rounded-full px-1 text-[9px] font-bold text-white"
@@ -67,7 +72,8 @@ export function Topbar({ name, role, fyLabel, alerts = 0, company }: {
         </button>
 
         <div className="relative">
-          <button onClick={() => setMenu((v) => !v)} className="flex items-center gap-2 rounded-lg py-1 pl-1 pr-2">
+          <button onClick={() => setMenu((v) => !v)}
+            className="flex min-h-[44px] items-center gap-2 rounded-lg py-1 pl-1 pr-2 md:min-h-0">
             <span className="grid h-7 w-7 place-items-center rounded-full text-[11px] font-bold text-white" style={{ background: 'var(--accent)' }}>
               {initials}
             </span>
@@ -83,7 +89,7 @@ export function Topbar({ name, role, fyLabel, alerts = 0, company }: {
               <div className="fixed inset-0 z-10" onClick={() => setMenu(false)} />
               <div className="absolute right-0 z-20 mt-1.5 w-48 rounded-xl border p-1 shadow-md"
                    style={{ borderColor: 'var(--rule)', background: 'var(--surface-1)', boxShadow: 'var(--shadow-md)' }}>
-                <button onClick={signOut} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-[13px]"
+                <button onClick={signOut} className="flex min-h-[44px] w-full items-center gap-2 rounded-lg px-2.5 py-2 text-[13px] md:min-h-0"
                         style={{ color: 'var(--text-secondary)' }}>
                   <Icon name="LogOut" size={14} strokeWidth={1.8} /> Sign out
                 </button>

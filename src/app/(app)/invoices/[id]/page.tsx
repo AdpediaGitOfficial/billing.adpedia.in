@@ -61,9 +61,17 @@ export default async function InvoiceDetail({ params }: { params: Promise<{ id: 
         title={isDraft ? 'Draft invoice' : inv.number}
         sub={`${inv.customer.name} · ${taxModeLabel(inv.taxMode)}`}
         action={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <a href={`/api/invoices/${inv.id}/document`} target="_blank" rel="noreferrer">
               <Button variant="ghost">{archived ? 'The invoice as issued' : 'View document'}</Button>
+            </a>
+            {/* 🔴 docs/83 §6 — looking at it and having the file are two different asks.
+                `download` on the anchor names the file; `?download=1` makes the response say
+                `attachment` too, because a cross-origin or redirected response ignores the
+                attribute and this route must work the same either way. */}
+            <a href={`/api/invoices/${inv.id}/document?download=1`}
+              download={`${inv.number.replace(/\//g, '-')}.pdf`}>
+              <Button variant="ghost" icon="Download">PDF</Button>
             </a>
             {/* docs/70 — a draft can be corrected now rather than cancelled and re-raised */}
             {isDraft && (

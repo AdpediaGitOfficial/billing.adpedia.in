@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { requireContext } from '@/server/context'
 import { gstOverview } from '@/server/services/tax/gst-dashboard'
 import { formatINR } from '@/lib/money'
-import { Card, CardHeader, PageHeader, StatCard, Pill, Button, Alert, Empty, DataTable, type Column } from '@/components/ui/kit'
+import { Card, CardHeader, PageHeader, StatCard, Pill, Button, Alert, Empty, DataTable, type Column, statGrid } from '@/components/ui/kit'
 import { PeriodPicker } from './period-picker'
 import { listGstFilings } from '@/server/services/tax/gst-filing'
 import { Filings } from './filings'
@@ -147,7 +147,7 @@ export default async function GstPage({ searchParams }: { searchParams: Promise<
       {r1.warnings.map((w) => <Alert key={w} tone="warn" title="Check before filing">{w}</Alert>)}
 
       {/* ── position ─────────────────────────────────────────────────────── */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className={`${statGrid} sm:grid-cols-2 lg:grid-cols-4`}>
         <StatCard label="Output GST" value={formatINR(g.position.output.total, { decimals: false })} icon="ArrowUpRight"
           foot={`CGST ${formatINR(g.position.output.cgst, { decimals: false })} · SGST ${formatINR(g.position.output.sgst, { decimals: false })} · IGST ${formatINR(g.position.output.igst, { decimals: false })}`} />
         <StatCard label="Input tax credit" value={formatINR(g.position.input.total, { decimals: false })} icon="ArrowDownLeft"

@@ -90,6 +90,35 @@ describe('🔴 the document as it was issued', () => {
     expect(r.reason).toMatch(/Chromium is not installed/)
   })
 
+  /**
+   * 🔴 docs/83 §5 — and it says so somewhere a person can read.
+   *
+   * The `reason` above was built and handed back, and the three callers that matter —
+   * `sendInvoice`, `issueCreditNote`, `issueDebitNote` — all `await` this and discard the
+   * result. That is right for the send: a render must never fail an issue. It also meant a
+   * failed archive produced an invoice with no copy on file, a reason string thrown away,
+   * and NOTHING in any log. The screen could say a copy was missing and never why, and the
+   * next click — "View document" — hit the same failure behind the same generic sentence.
+   */
+  it('🔴 and writes down why, because the caller is entitled to ignore it', async () => {
+    const said: unknown[][] = []
+    const real = console.error
+    console.error = (...a: unknown[]) => { said.push(a) }
+    try {
+      await archiveIssuedDocument(ctx, {
+        kind: 'TAX_INVOICE', entityType: 'Invoice', entityId: 'inv-with-no-renderer', filename: 'x.pdf',
+        render: async () => { throw new Error('Chromium is not installed') },
+      })
+    } finally {
+      console.error = real
+    }
+
+    const line = said.map((a) => a.map(String).join(' ')).join('\n')
+    expect(line, 'a failed archive logged nothing at all').toMatch(/archive/)
+    expect(line).toMatch(/inv-with-no-renderer/)       // WHICH document has no copy
+    expect(line).toMatch(/Chromium is not installed/)  // and WHY
+  })
+
   it('archives a credit note when it is raised', async () => {
     const note = await createCreditNote(ctx, {
       invoiceId, date: '2026-05-20', full: true, reason: 'Work descoped by the client',

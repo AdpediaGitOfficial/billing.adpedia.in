@@ -3,7 +3,7 @@ import { requireContext } from '@/server/context'
 import { prisma } from '@/server/db'
 import { Decimal, formatINR, ZERO } from '@/lib/money'
 import { arSummary } from '@/server/services/sales/receivables'
-import { Card, PageHeader, StatCard, Pill, Empty, Button, DataTable, type Column } from '@/components/ui/kit'
+import { Card, PageHeader, StatCard, Pill, Empty, Button, DataTable, type Column, statGrid } from '@/components/ui/kit'
 import { CancelReceiptButton } from './cancel-button'
 import { AdjustAdvance } from './adjust-advance'
 import { RefundAdvance } from './refund-advance'
@@ -152,7 +152,7 @@ export default async function ReceiptsPage({ searchParams }: {
           </>
         } />
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className={`${statGrid} sm:grid-cols-3`}>
         <StatCard label="Collected" value={formatINR(collected, { decimals: false })}
           foot={`${liveCount} receipt${liveCount === 1 ? '' : 's'}${cancelledCount > 0 ? ` · ${cancelledCount} cancelled` : ''}`} />
         <StatCard label="TDS withheld by clients" value={formatINR(tdsOnReceipts, { decimals: false })}

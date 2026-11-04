@@ -70,7 +70,7 @@ export function CreditNoteForm({ invoiceId, invoiceNumber, today, creditable, cr
             style={{ background: 'var(--surface)', color: 'var(--critical)' }}>{state.error}</p>
         )}
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button disabled={pending || taxable <= 0}>{pending ? 'Issuing…' : 'Issue credit note'}</Button>
           <Link href={`/invoices/${invoiceId}`}><Button variant="ghost" type="button">Cancel</Button></Link>
         </div>

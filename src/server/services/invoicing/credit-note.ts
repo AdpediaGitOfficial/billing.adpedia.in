@@ -1,5 +1,6 @@
 import { prisma } from '@/server/db'
 import { archiveIssuedDocument } from '@/server/services/storage/document-archive'
+import { pdfFilename } from './pdf'
 import { renderCreditNoteHtml } from './render-credit-note'
 import { Decimal, ZERO, round2 } from '@/lib/money'
 import type { RequestContext } from '@/server/context'
@@ -255,7 +256,17 @@ export async function createCreditNote(ctx: RequestContext, input: CreditNoteInp
   // after the transaction and without power to fail it.
   await archiveIssuedDocument(ctx, {
     kind: 'CREDIT_NOTE', entityType: 'CreditNote', entityId: note.id,
-    filename: `${note.number}.pdf`,
+    /**
+     * 🔴 docs/83 §6 — the number goes through `pdfFilename`, it is not interpolated.
+     *
+     * `safeLabel` in the attachment store strips anything that could matter if the name were
+     * ever read as a path, and that includes everything before the last `/`. A number of
+     * `ADP/26-27/0029` was stored as `0029.pdf` — lossy but survivable — and the moment the
+     * series pattern became `{SEQ}/ADP/{FY}` the SAME invoice stored as `26-27.pdf`, which
+     * is the label every invoice in the year would carry. `pdfFilename` turns the slashes
+     * into dashes first, so what is kept is the whole number.
+     */
+    filename: pdfFilename(note.number),
     render: () => renderCreditNoteHtml(ctx.companyId, note.id),
   })
 

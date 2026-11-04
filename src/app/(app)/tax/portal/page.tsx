@@ -1,7 +1,7 @@
 import { requireContext } from '@/server/context'
 import { prisma } from '@/server/db'
 import { isGstRegistered } from '@/server/services/invoicing/document-type'
-import { Card, CardHeader, PageHeader, StatCard, Alert, Pill } from '@/components/ui/kit'
+import { Card, CardHeader, PageHeader, StatCard, Alert, Pill, statGrid } from '@/components/ui/kit'
 import {
   reconcileLedger, reconcileChallans, portalConfidence, listPortalStatements,
 } from '@/server/services/tax/portal-reconciliation'
@@ -73,7 +73,7 @@ export default async function PortalPage() {
         </Alert>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className={`${statGrid} sm:grid-cols-2 lg:grid-cols-4`}>
         <StatCard label="Challans never checked" value={String(unconfirmed)} icon="ShieldQuestion"
           tone={unconfirmed > 0 ? 'accent' : 'default'}
           foot={total === 0 ? 'No challans recorded yet'

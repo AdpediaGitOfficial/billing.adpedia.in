@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { requireContext } from '@/server/context'
 import { complianceCalendar, type CalendarItem } from '@/server/services/compliance/calendar'
 import { formatINR } from '@/lib/money'
-import { PageHeader, Card, Pill, StatCard, Empty, Alert } from '@/components/ui/kit'
+import { PageHeader, Card, Pill, StatCard, Empty, Alert, statGrid } from '@/components/ui/kit'
 
 const TONE = {
   OVERDUE: 'critical', SOON: 'warn', DUE: 'neutral', DONE: 'good', NOT_APPLICABLE: 'neutral',
@@ -26,7 +26,7 @@ export default async function CalendarPage() {
       <PageHeader title="Compliance calendar"
         sub="What is actually due, derived from the books — not a list of dates." />
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className={`${statGrid} sm:grid-cols-3`}>
         <StatCard label="Overdue" value={String(overdue.length)} tone={overdue.length > 0 ? 'accent' : 'default'} />
         <StatCard label="Due within 14 days" value={String(soon.length)} />
         <StatCard label="Settled" value={String(settled.length)} foot="done or not applicable" />

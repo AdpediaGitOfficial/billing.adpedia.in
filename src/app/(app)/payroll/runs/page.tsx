@@ -2,7 +2,7 @@ import { requireContext } from '@/server/context'
 import { prisma } from '@/server/db'
 import { previewPayroll } from '@/server/services/payroll/run'
 import { formatINR } from '@/lib/money'
-import { Card, CardHeader, PageHeader, StatCard, Pill, Alert, Empty, FigureCard, FigureList } from '@/components/ui/kit'
+import { Card, CardHeader, PageHeader, StatCard, Pill, Alert, Empty, FigureCard, FigureList, statGrid } from '@/components/ui/kit'
 import { RunActions } from './actions-client'
 import { ReverseButton } from '@/components/corrections/reverse-button'
 import { cancelRunAction } from '../actions'
@@ -56,7 +56,7 @@ export default async function PayrollRunsPage({ searchParams }: { searchParams: 
         </Alert>
       ))}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className={`${statGrid} sm:grid-cols-2 lg:grid-cols-4`}>
         <StatCard label="Gross" value={formatINR(preview.grossTotal, { decimals: false })} icon="Wallet" foot={`${preview.payslips.length} payslips`} />
         <StatCard label="TDS u/s 192" value={formatINR(preview.tdsTotal, { decimals: false })} icon="Landmark" foot="Deposit by the 7th" />
         <StatCard label="Profession tax" value={formatINR(preview.ptTotal, { decimals: false })} icon="Receipt"

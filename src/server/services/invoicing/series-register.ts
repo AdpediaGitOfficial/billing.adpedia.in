@@ -1,8 +1,10 @@
 import { prisma } from '@/server/db'
 import type { RequestContext } from '@/server/context'
 import { assertCan } from '@/server/auth/permissions'
+import { audit } from '@/server/audit'
+import { AppError, NotFound } from '@/server/errors'
 import { shortFy } from '@/lib/fy'
-import { renderPattern, validateInvoiceNumber } from './numbering'
+import { renderPattern, validateInvoiceNumber, validatePattern } from './numbering'
 import { currentFinancialYear } from '@/server/services/accounting/period'
 import type { DocType } from '@prisma/client'
 
@@ -41,6 +43,8 @@ export interface SeriesRow {
   docType: DocType
   pattern: string
   nextNumber: string
+  /** the sequence the next number will take — the pattern form previews against it */
+  nextSeq: number
   issued: number
   firstSeq: number | null
   lastSeq: number | null
@@ -54,18 +58,30 @@ export interface SeriesRow {
 
 export interface SeriesRegister {
   fyLabel: string
+  /** `26-27` — what {FY} renders to, so the pattern form previews the real string */
+  fyShort: string
   rows: SeriesRow[]
   unexplained: number
 }
 
-const LABEL: Partial<Record<DocType, string>> = {
+/**
+ * 🔴 docs/83 §6 — `?? d` is a fallback, not a label.
+ *
+ * `REFUND_VOUCHER` was missing, so that series was headed `REFUND_VOUCHER` on the settings
+ * page — visible from the moment docs/65 added it, and never looked at. The map is
+ * `Partial`, which is what let it be silently incomplete; it is total now, so the next
+ * DocType added will not compile until it has a name a person can read.
+ */
+const LABEL: Record<DocType, string> = {
   TAX_INVOICE: 'Tax invoices', EXPORT_INVOICE: 'Export invoices',
+  BILL_OF_SUPPLY: 'Bills of supply',
   CREDIT_NOTE: 'Credit notes', DEBIT_NOTE: 'Debit notes',
-  RECEIPT: 'Receipt vouchers', SELF_INVOICE: 'Self-invoices (reverse charge)',
+  RECEIPT: 'Receipt vouchers', REFUND_VOUCHER: 'Refund vouchers',
+  SELF_INVOICE: 'Self-invoices (reverse charge)',
   PROFORMA: 'Proformas', QUOTATION: 'Quotations', PAYMENT_ADVICE: 'Payment advices',
 }
 
-export const seriesLabel = (d: DocType) => LABEL[d] ?? d
+export const seriesLabel = (d: DocType) => LABEL[d]
 
 /**
  * 🔴 The sequence read back out of the number.
@@ -95,7 +111,7 @@ export async function documentSeriesRegister(ctx: RequestContext, fyId?: string)
   const fy = fyId
     ? await prisma.financialYear.findFirstOrThrow({ where: { id: fyId, companyId: ctx.companyId } })
     : await currentFinancialYear(ctx.companyId)
-  if (!fy) return { fyLabel: '—', rows: [], unexplained: 0 }
+  if (!fy) return { fyLabel: '—', fyShort: '—', rows: [], unexplained: 0 }
 
   const [series, invoices, notes, bills, receipts] = await Promise.all([
     prisma.documentSeries.findMany({
@@ -197,6 +213,7 @@ export async function documentSeriesRegister(ctx: RequestContext, fyId?: string)
       docType: s.docType,
       pattern: s.pattern,
       nextNumber: renderPattern(s.pattern, { FY: shortFy(fy.label), SEQ: s.nextSeq }),
+      nextSeq: s.nextSeq,
       issued: docs.length,
       firstSeq, lastSeq, openedAt,
       cancelled: docs.filter((d) => d.cancelled).map((d) => ({ number: d.number, reason: d.reason })),
@@ -207,7 +224,69 @@ export async function documentSeriesRegister(ctx: RequestContext, fyId?: string)
 
   return {
     fyLabel: fy.label,
+    fyShort: shortFy(fy.label),
     rows,
     unexplained: rows.reduce((a, r) => a + r.gaps.filter((g) => g.reason === 'UNEXPLAINED').length, 0),
+  }
+}
+
+/**
+ * Change the shape of the numbers a series issues — docs/83 §6.
+ *
+ * 🔴 The sequence is NOT touched. Rule 46(b) wants the run consecutive, and the run is the
+ * sequence, not the string it is printed into: 26, 27, 28 stays 26, 27, 28 whether it reads
+ * `ADP/26-27/0028` or `28/ADP/26-27`. Moving `nextSeq` is a different act with different
+ * consequences — it either repeats a number already issued or leaves a hole the register will
+ * report as unexplained — and it is not what changing a format means.
+ *
+ * 🔴 The new pattern is checked at its WIDEST, not at the next number, exactly as docs/64's
+ * register does: a pattern that is fine at 28 and breaches sixteen characters at 9999 would
+ * otherwise be accepted now and block issuing later in the year, which is the worse moment.
+ *
+ * Changing it mid-year is allowed, and audited. Documents already issued keep the number they
+ * were issued with — they are what the client holds, and rewriting them is the one thing the
+ * whole of docs/59 exists to prevent.
+ */
+export async function setSeriesPattern(
+  ctx: RequestContext,
+  args: { docType: DocType; pattern: string },
+): Promise<{ docType: DocType; pattern: string; nextNumber: string; issued: number }> {
+  assertCan(ctx.role, 'settings.company', 'write')
+
+  const pattern = args.pattern.trim()
+  const shape = validatePattern(pattern)
+  if (!shape.ok) throw new AppError(shape.reason)
+
+  const fy = await currentFinancialYear(ctx.companyId)
+  if (!fy) throw new NotFound('There is no open financial year to set a series for')
+
+  const series = await prisma.documentSeries.findFirst({
+    where: { companyId: ctx.companyId, financialYearId: fy.id, docType: args.docType },
+  })
+  if (!series) throw new NotFound(`No ${args.docType} series for FY ${fy.label}`)
+
+  const widest = renderPattern(pattern, { FY: shortFy(fy.label), SEQ: 9999 })
+  const verdict = validateInvoiceNumber(widest)
+  if (!verdict.ok) {
+    throw new AppError(
+      `That pattern reaches "${widest}" later this year. ${verdict.reason}. ` +
+      'Rule 46(b) limits the number to sixteen characters, and allows only letters, digits, / and -.',
+    )
+  }
+
+  await prisma.documentSeries.update({ where: { id: series.id }, data: { pattern } })
+  await audit(ctx, {
+    entity: 'DocumentSeries', entityId: series.id, action: 'UPDATE',
+    before: { pattern: series.pattern }, after: { pattern },
+  })
+
+  const issued = await prisma.invoice.count({
+    where: { companyId: ctx.companyId, financialYearId: fy.id, number: { not: '' } },
+  })
+  return {
+    docType: args.docType,
+    pattern,
+    nextNumber: renderPattern(pattern, { FY: shortFy(fy.label), SEQ: series.nextSeq }),
+    issued,
   }
 }

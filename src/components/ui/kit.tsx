@@ -61,7 +61,11 @@ export function PageHeader({ title, sub, action, back }: {
           <h1 className="text-[22px] font-semibold leading-tight tracking-[-0.01em]">{title}</h1>
           {sub && <p className="mt-1 text-[13px]" style={{ color: 'var(--text-secondary)' }}>{sub}</p>}
         </div>
-        {action && <div className="flex gap-2">{action}</div>}
+        {/* 🔴 docs/83 §5 — `flex` with no wrap, which on a phone put the page's own actions
+            off the right-hand edge. The invoice has six of them; at 375px the last two sat
+            outside the viewport behind a horizontal scroll nothing suggested was there, and
+            `Amend` — the only way to correct a sent invoice — was the one furthest out. */}
+        {action && <div className="flex flex-wrap gap-2">{action}</div>}
       </div>
     </div>
   )
@@ -85,6 +89,20 @@ export function DeltaChip({ value, suffix = 'vs last month', invert }: {
   )
 }
 
+/**
+ * How much room one stat value needs, as a multiple of its own font size — docs/83 §5.3.
+ *
+ * `.stat-value` in globals.css divides the card's width by this to pick a size below `sm`,
+ * where two cards to a row leaves 134px at 375px and 106px at 320px. 0.58em is the widest
+ * average advance this face gives a money figure or a rule 46 number, measured in the page.
+ *
+ * Fixed tiers were tried first and cannot work — the room is a function of the viewport, so
+ * a tier that fits at 375px spills at 320px.
+ */
+export function statChars(value: string): number {
+  return Math.max(4, Number((value.length * 0.58).toFixed(2)))
+}
+
 export function StatCard({ label, value, delta, deltaSuffix, invertDelta, icon, foot, tone = 'default', children }: {
   label: string; value: string
   delta?: number | null; deltaSuffix?: string; invertDelta?: boolean
@@ -104,7 +122,8 @@ export function StatCard({ label, value, delta, deltaSuffix, invertDelta, icon, 
           </span>
         )}
       </div>
-      <p className="mt-2 text-[24px] font-semibold leading-none tracking-[-0.02em] tabular">{value}</p>
+      <p className="stat-value mt-2 font-semibold leading-none tracking-[-0.02em] tabular"
+        style={{ '--stat-chars': statChars(value) } as React.CSSProperties}>{value}</p>
       <div className="mt-2.5 flex items-end justify-between gap-2">
         <div>
           {delta !== undefined && <DeltaChip value={delta ?? null} suffix={deltaSuffix} invert={invertDelta} />}
@@ -183,7 +202,7 @@ export function Segmented({ options, value, onChange, name }: {
         const active = o.value === value
         return (
           <button key={o.value} type="button" name={name} onClick={() => onChange?.(o.value)}
-            className="rounded-full px-3 py-1 text-[12px] font-semibold transition-colors"
+            className={`rounded-full px-3 py-1 text-[12px] font-semibold transition-colors ${tapMin}`}
             style={{ background: active ? 'var(--surface-1)' : 'transparent',
                      color: active ? 'var(--text-primary)' : 'var(--text-muted)',
                      boxShadow: active ? 'var(--shadow-sm)' : undefined }}>
@@ -197,7 +216,7 @@ export function Segmented({ options, value, onChange, name }: {
 
 export function Button({ children, variant = 'primary', size = 'md', icon, className, ...rest }:
   React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'ghost' | 'soft' | 'danger'; size?: 'sm' | 'md'; icon?: IconName }) {
-  const base = 'inline-flex items-center justify-center gap-1.5 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
+  const base = `inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${tapMin}`
   const sizes = { sm: 'px-2.5 py-1.5 text-[12.5px]', md: 'px-3.5 py-2 text-[13px]' }[size]
   const styles: Record<string, React.CSSProperties> = {
     primary: { background: 'var(--accent)', color: '#fff' },
@@ -225,6 +244,30 @@ export function Field({ label, hint, error, children }: { label: string; hint?: 
 }
 
 /**
+ * 🔴 docs/83 §4 — the hit box, on a phone, for anything you press.
+ *
+ * `+ Add line` on the invoice form was 20px tall: a 13px label with no padding at all, and the
+ * control you press once per line item. `back`, `remove`, `It matches` and `Withdraw` were
+ * 17px, and two of those change a record. Apple's minimum is 44px and Android's is 48; none of
+ * these were half of it. The `md:` reset keeps the dense desktop layout these were drawn for.
+ *
+ * 🔴 §5 — and `Button` itself was 38px, `size="sm"` about 31px.
+ *
+ * §4 fixed the controls that were plainly broken and left `Button` alone, on the grounds that
+ * 38px is close and changing it moves every button in the app. That was the wrong line to
+ * draw: `Cancel invoice`, `Reverse`, `Remove` and `Save` are all this component, 38px is still
+ * under the minimum, and "close enough" is not a thing a thumb does. It moves every button on
+ * a phone and no button from `md` up, which is the whole point of having one component.
+ *
+ * The height lives here ONCE and `tapTarget`, `Button`, `Segmented` and `inputClass` all read
+ * it, so there is no second copy of the number to drift. A text field was 42px — two short of
+ * the rule declared immediately below it, which is not a defect anybody would report and is
+ * also not a reason to leave it.
+ */
+export const tapMin = 'min-h-[44px] md:min-h-0'
+export const tapTarget = `inline-flex ${tapMin} items-center`
+
+/**
  * 🔴 docs/83 §4 — 16px on a phone, and the design's 13.5px from `md` up.
  *
  * Mobile Safari zooms the page in whenever a focused form control is under 16px, and the
@@ -234,16 +277,24 @@ export function Field({ label, hint, error, children }: { label: string; hint?: 
  * Nothing reports this: the form works, it just fights.
  */
 export const inputClass =
-  'w-full rounded-lg border px-3 py-2 text-[16px] outline-none transition-colors focus:border-[var(--accent)] md:text-[13.5px]'
+  `w-full rounded-lg border px-3 py-2 text-[16px] outline-none transition-colors focus:border-[var(--accent)] md:text-[13.5px] ${tapMin}`
+
 /**
- * 🔴 docs/83 §4 — the hit box for a button that is only text.
+ * 🔴 docs/83 §5 — stat cards two to a row on a phone, not one.
  *
- * `+ Add line` on the invoice form was 20px tall: a 13px label with no padding at all, and the
- * control you press once per line item. `back`, `remove`, `It matches` and `Withdraw` were
- * 17px, and two of those change a record. Apple's minimum is 44px and Android's is 48; none of
- * these were half of it. The `md:` reset keeps the dense desktop layout these were drawn for.
+ * Every stat row in the app was `sm:grid-cols-N`, and `sm` is 640px — so at 375px all of them
+ * collapsed to a single column. On `/invoices` that is four full-width cards, a whole screen
+ * of summary, before the first invoice; `/bills`, `/notes`, `/chases`, both TDS screens and
+ * the GST screen were the same. The numbers are worth having and they are not worth a screen,
+ * and a stat card at half a phone's width still reads — it is a label and one figure.
+ *
+ * The odd card out goes full width rather than sitting half-empty beside nothing, and only
+ * below `sm`, where the 2-up rule is what created the orphan.
+ *
+ * Call sites keep their own `sm:`/`lg:` columns: this sets the phone, not the desktop.
  */
-export const tapTarget = 'inline-flex min-h-[44px] items-center md:min-h-0'
+export const statGrid =
+  'grid grid-cols-2 gap-3 max-sm:[&>*:last-child:nth-child(odd)]:col-span-2 sm:gap-4'
 
 export const inputStyle: React.CSSProperties = { borderColor: 'var(--rule)', background: 'var(--surface-1)', color: 'var(--text-primary)' }
 
@@ -313,7 +364,19 @@ export function DataTable<T>({ columns, rows, keyOf, empty, onRowHref, swipe, no
                 <tr key={keyOf(row)} className="border-t transition-colors hover:bg-[var(--surface-2)]" style={{ borderColor: 'var(--rule)' }}>
                   {columns.map((c) => (
                     <td key={c.key} className={cn('px-4 py-3 text-[13px]', c.align === 'right' ? 'text-right tabular' : c.align === 'center' ? 'text-center' : '')}>
-                      {onRowHref ? <a href={onRowHref(row)} className="block">{c.cell(row)}</a> : c.cell(row)}
+                      {/* 🔴 docs/83 §6 — an action column is NOT wrapped in the row link.
+                          The mobile card has kept its controls outside the row anchor since
+                          docs/68 §5; the desktop table wrapped every cell, so a control in
+                          one was inside a link to the row. For a button that means pressing
+                          Cancel navigates to the record instead of cancelling it — the exact
+                          trap the comment below the card describes, still live up here. For
+                          a LINK it is also invalid HTML: an `<a>` inside an `<a>` is a parse
+                          error the browser repairs by unnesting, so React's hydration finds
+                          a different tree than it rendered and throws. The invoice list's
+                          Download link is what surfaced it. */}
+                      {onRowHref && c.mobile !== 'action'
+                        ? <a href={onRowHref(row)} className="block">{c.cell(row)}</a>
+                        : c.cell(row)}
                     </td>
                   ))}
                 </tr>

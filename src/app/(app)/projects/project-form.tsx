@@ -76,7 +76,7 @@ export function ProjectForm({ customers, action: submit, initial, submitLabel = 
             style={{ background: 'var(--surface)', color: 'var(--critical)' }}>{state.error}</p>
         )}
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button disabled={pending}>{pending ? busyLabel : submitLabel}</Button>
           <Link href="/projects"><Button variant="ghost">Cancel</Button></Link>
         </div>

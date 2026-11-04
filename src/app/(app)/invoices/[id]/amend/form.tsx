@@ -60,7 +60,7 @@ export function AmendForm({ invoiceId, invoiceNumber, today, current }: {
           <strong> reported</strong> about {invoiceNumber}, not what was agreed.
         </Alert>
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button disabled={pending}>{pending ? 'Recording…' : 'Record amendment'}</Button>
           <Link href={`/invoices/${invoiceId}`}><Button variant="ghost" type="button">Cancel</Button></Link>
         </div>

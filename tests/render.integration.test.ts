@@ -162,6 +162,29 @@ describe('PDF output', () => {
     expect(Date.now() - t0).toBeLessThan(15_000)
   }, 90_000)
 
+  /**
+   * 🔴 docs/83 §5 — the same invoice rendered two different documents.
+   *
+   * Twelve concurrent renders of one invoice came back as two distinct files, 78 KB and
+   * 435 KB, breaking their lines differently because one was laid out before the webfont
+   * arrived and the other after. docs/59 archives the bytes issued so that "what did you
+   * send" has ONE answer; a renderer whose output depends on a race answers it twice.
+   */
+  it('🔴 renders the same document every time, under concurrency', async () => {
+    const inv = await sendInvoice(ctx, (await createInvoice(ctx, {
+      customerId: kerala, date: '2026-09-30', tdsSection: '194J', lines: LINES,
+    })).id)
+    const html = await renderInvoiceHtml(ctx.companyId, inv.id)
+
+    await htmlToPdf(html)   // warm the browser, so the race is between renders and not launches
+    const sizes = (await Promise.all(
+      Array.from({ length: 6 }, () => htmlToPdf(html)),
+    )).map((b) => b.length)
+
+    // the PDFs carry a creation timestamp, so the bytes differ; the LAYOUT must not
+    expect(new Set(sizes).size, `six renders gave ${new Set(sizes).size} different documents: ${sizes.join(', ')}`).toBe(1)
+  }, 120_000)
+
   it('🔴 embeds the logo and signature rather than linking them', async () => {
     // A root-relative "/brand/…" resolves over HTTP and silently fails under setContent(),
     // where there is no base URL. Nothing errors — the invoice is just issued unbranded and

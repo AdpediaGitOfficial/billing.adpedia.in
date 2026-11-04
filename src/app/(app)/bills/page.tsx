@@ -3,7 +3,7 @@ import { requireContext } from '@/server/context'
 import { prisma } from '@/server/db'
 import { apSummary, tdsPayableSummary } from '@/server/services/purchases/payables'
 import { formatINR } from '@/lib/money'
-import { Card, PageHeader, StatCard, Pill, Empty, Button, DataTable, type Column, type Tone } from '@/components/ui/kit'
+import { Card, PageHeader, StatCard, Pill, Empty, Button, DataTable, type Column, type Tone, statGrid } from '@/components/ui/kit'
 import type { BillStatus } from '@prisma/client'
 import { can } from '@/server/auth/permissions'
 import type { SwipeSpec } from '@/components/ui/swipe'
@@ -99,7 +99,7 @@ export default async function BillsPage({ searchParams }: {
         action={<Link href="/bills/new"><Button icon="Plus">New bill</Button></Link>} />
 
       {page.total > 0 && (
-        <div className="mb-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className={`${statGrid} mb-5 sm:grid-cols-2 lg:grid-cols-4`}>
           <StatCard label="Payable" value={formatINR(ap.total, { decimals: false })} icon="ArrowUpRight" foot={`${ap.billCount} open · net of TDS`} />
           <StatCard label="Due this week" value={formatINR(ap.dueThisWeek, { decimals: false })} icon="CalendarClock" foot={ap.overdueCount ? `${ap.overdueCount} already overdue` : 'Nothing overdue'} />
           <StatCard label="TDS to deposit" value={formatINR(tds.total, { decimals: false })} icon="Landmark"

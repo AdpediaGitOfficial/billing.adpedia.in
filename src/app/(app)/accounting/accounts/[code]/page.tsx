@@ -4,7 +4,7 @@ import { requireContext } from '@/server/context'
 import { accountLedger } from '@/server/services/reports/ledger'
 import { resolvePeriod } from '@/server/services/reports/period'
 import { formatINR } from '@/lib/money'
-import { Card, PageHeader, Empty, Button, StatCard } from '@/components/ui/kit'
+import { Card, PageHeader, Empty, Button, StatCard, statGrid } from '@/components/ui/kit'
 import { ExportButton } from '@/components/reports/export-button'
 import { PeriodPicker } from '../../../reports/period-picker'
 
@@ -36,14 +36,14 @@ export default async function AccountLedgerPage({ params, searchParams }: {
       <PageHeader back={{ href: '/accounting/accounts', label: 'Chart of accounts' }} title={`${account.code} · ${account.name}`}
         sub={`${account.type.toLowerCase()} · ${period.label}`}
         action={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <ExportButton report="ledger" fy={period.fyId} account={account.code} label="Export ledger" />
             <PeriodPicker options={period.options} value={period.fyId} />
             <Link href="/accounting/trial-balance"><Button variant="ghost">Trial balance</Button></Link>
           </div>
         } />
 
-      <div className="grid gap-4 sm:grid-cols-4">
+      <div className={`${statGrid} sm:grid-cols-4`}>
         <StatCard label="Opening" value={formatINR(account.opening, { decimals: false })} />
         <StatCard label="Debits" value={formatINR(account.debit, { decimals: false })} />
         <StatCard label="Credits" value={formatINR(account.credit, { decimals: false })} />

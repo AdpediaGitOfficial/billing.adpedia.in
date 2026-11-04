@@ -75,6 +75,24 @@ export async function archiveIssuedDocument(
     })
     return { archived: true, attachmentId: row.id }
   } catch (e) {
+    /**
+     * 🔴 docs/83 §5 — and the reason is WRITTEN DOWN, not just returned.
+     *
+     * Three of the four callers — `sendInvoice`, `issueCreditNote`, `issueDebitNote` — call
+     * this with `await` and discard the result, which is correct for the send (a render must
+     * not fail an issue) and was the whole of the reporting. So a failed archive produced:
+     * an invoice issued with no copy on file, a `reason` string built and thrown away, and
+     * **nothing in any log**. The screen says a copy is missing (docs/59) and could not say
+     * why; the next click, "View document", hit the same failure and showed the same generic
+     * sentence. Diagnosing it meant guessing.
+     *
+     * docs/80's rule, reached from the other side: the message a person sees stays plain, and
+     * the cause goes somewhere it can be read. This is the only place that still knows it.
+     */
+    console.error(
+      `archive · ${args.entityType} ${args.entityId} (${args.kind}) has no copy on file —`,
+      e,
+    )
     return { archived: false, reason: e instanceof Error ? e.message : 'The document could not be rendered' }
   }
 }

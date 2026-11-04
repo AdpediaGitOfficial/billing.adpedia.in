@@ -157,6 +157,31 @@ body {
 */
 .tabular { font-variant-numeric: tabular-nums; letter-spacing: -0.01em; white-space: nowrap; }
 
+/*
+  🔴 docs/83 §5.3 — a stat value sized to the card it is standing in.
+
+  Two cards to a row on a phone leaves 134px inside a card at 375px and 106px at 320px, and
+  `.tabular` above is `white-space: nowrap` — which is the whole of §4.1 and stays. A long
+  value can therefore neither wrap nor shrink, and `/invoices` printed the next invoice number
+  running out through the right edge of its card and off the display. Measured against Poppins
+  in the page: that value is 163px at 24px, and `₹12,34,56,789.00` is 222px, so it was never
+  about numbering — at 320px even `₹8,21,000` does not fit.
+
+  Fixed size tiers were tried first and cannot work: the room is a function of the viewport,
+  so a tier that fits at 375px spills at 320px. This divides the room by the value's own
+  width instead. `--stat-chars` is the value's length times 0.58em, the widest average advance
+  this face gives a money figure or a rule 46 number, set per card by `StatCard`.
+
+  🔴 It is a CSS variable rather than an interpolated Tailwind class because Tailwind only
+  emits classes it can see in the source — a computed `text-[…]` would simply not be
+  generated. And it is a media query rather than an inline style because it must apply ONLY
+  below `sm`, where 24px was never drawn to fit.
+*/
+.stat-value { font-size: 24px; }
+@media (max-width: 639.98px) {
+  .stat-value { font-size: min(24px, calc((50vw - 54px) / var(--stat-chars, 4))); }
+}
+
 /* the micro-label used above every value in the references */
 .eyebrow {
   font-size: 10.5px; font-weight: 600; letter-spacing: .085em;

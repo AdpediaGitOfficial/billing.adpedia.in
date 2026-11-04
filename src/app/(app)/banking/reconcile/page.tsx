@@ -3,7 +3,7 @@ import { requireContext } from '@/server/context'
 import { prisma } from '@/server/db'
 import { reconciliationQueue, bankReconciliationStatement } from '@/server/services/banking/reconcile'
 import { formatINR, ZERO } from '@/lib/money'
-import { Card, CardHeader, PageHeader, StatCard, Button, Empty, Alert } from '@/components/ui/kit'
+import { Card, CardHeader, PageHeader, StatCard, Button, Empty, Alert, statGrid } from '@/components/ui/kit'
 import { ReconcileQueue } from './queue'
 import { MatchedLines } from './matched'
 
@@ -40,7 +40,7 @@ export default async function ReconcilePage() {
       <PageHeader title="Reconcile" sub={`${bank.label} ····${bank.accountNo.slice(-4)}`}
         action={<Link href="/banking/import"><Button variant="ghost" icon="Upload">Import statement</Button></Link>} />
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className={`${statGrid} sm:grid-cols-2 lg:grid-cols-4`}>
         <StatCard label="To match" value={String(queue.length)} icon="ListChecks"
           foot={total > 0 ? `${matchedCount} of ${total} done` : 'Import a statement to start'} tone={queue.length ? 'accent' : 'default'} />
         <StatCard label="Confident suggestions" value={String(confident)} icon="Sparkles"

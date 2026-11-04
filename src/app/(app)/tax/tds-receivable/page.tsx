@@ -3,7 +3,7 @@ import { prisma } from '@/server/db'
 import { receivableSummary, form16aChaseList } from '@/server/services/tax/tds-receivable'
 import { reconcile26as } from '@/server/services/tax/form26as'
 import { formatINR, ZERO } from '@/lib/money'
-import { Card, CardHeader, PageHeader, StatCard, Pill, Alert, Empty, DataTable, type Column, type Tone } from '@/components/ui/kit'
+import { Card, CardHeader, PageHeader, StatCard, Pill, Alert, Empty, DataTable, type Column, type Tone, statGrid } from '@/components/ui/kit'
 import { Import26asForm } from './import-form'
 import { currentFinancialYear } from '@/server/services/accounting/period'
 
@@ -65,7 +65,7 @@ export default async function TdsReceivablePage() {
         </Alert>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className={`${statGrid} sm:grid-cols-2 lg:grid-cols-4`}>
         <StatCard label="Deducted by clients" value={formatINR(summary.booked, { decimals: false })} icon="ArrowDownLeft"
           foot={`${summary.rows.length} deduction${summary.rows.length === 1 ? '' : 's'} booked`} />
         <StatCard label="Confirmed in 26AS" value={formatINR(summary.matched, { decimals: false })} icon="CheckCircle2"

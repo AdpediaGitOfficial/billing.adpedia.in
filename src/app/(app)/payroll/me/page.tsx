@@ -1,7 +1,7 @@
 import { requireContext } from '@/server/context'
 import { prisma } from '@/server/db'
 import { Decimal, formatINR, ZERO } from '@/lib/money'
-import { Card, PageHeader, StatCard, Empty, Pill, Alert } from '@/components/ui/kit'
+import { Card, PageHeader, StatCard, Empty, Pill, Alert, statGrid } from '@/components/ui/kit'
 import { employeeForUser } from '@/server/services/payroll/access'
 
 const MONTHS = ['', 'January', 'February', 'March', 'April', 'May', 'June',
@@ -63,7 +63,7 @@ export default async function MyPayslipsPage() {
           hint="A payslip appears once the monthly payroll run is approved. Drafts are not shown — they can still change." /></Card>
       ) : (
         <>
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className={`${statGrid} sm:grid-cols-3`}>
             <StatCard label="Gross to date" value={formatINR(ytdGross, { decimals: false })} foot={`${counted.length} month${counted.length === 1 ? '' : 's'}`} />
             <StatCard label="Tax deducted" value={formatINR(ytdTds, { decimals: false })} foot="u/s 192" />
             <StatCard label="Net received" value={formatINR(ytdNet, { decimals: false })} tone="accent" />

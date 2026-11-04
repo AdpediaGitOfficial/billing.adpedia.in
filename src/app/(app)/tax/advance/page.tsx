@@ -4,9 +4,7 @@ import { formatINR } from '@/lib/money'
 import { currentFinancialYear } from '@/server/services/accounting/period'
 import { advanceTaxPosition, listAdvanceTax } from '@/server/services/tax/advance-tax'
 import { can } from '@/server/auth/permissions'
-import {
-  Card, CardHeader, PageHeader, StatCard, Pill, Alert, Empty, FigureCard, FigureList,
-} from '@/components/ui/kit'
+import { Card, CardHeader, PageHeader, StatCard, Pill, Alert, Empty, FigureCard, FigureList, statGrid } from '@/components/ui/kit'
 import { EstimateForm, PaymentForm } from './forms'
 import { ReverseButton } from '@/components/corrections/reverse-button'
 import { cancelAdvanceTaxAction } from './actions'
@@ -59,7 +57,7 @@ export default async function AdvanceTaxPage() {
           )}
         </Alert>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className={`${statGrid} sm:grid-cols-2 lg:grid-cols-4`}>
           <StatCard label="Estimated tax for the year" value={formatINR(position.estimate.amount, { decimals: false })}
             icon="Scale" foot={position.estimate.source ?? undefined} />
           <StatCard label="Paid so far" value={formatINR(position.paid, { decimals: false })}

@@ -198,7 +198,7 @@ export function ReceiptForm({ invoices, banks, preselect }: {
             </>
           )}
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Link href="/receipts"><Button variant="ghost" type="button">Cancel</Button></Link>
           <Button disabled={pending || totalCash + totalTds <= 0 || overAllocated.length > 0}>
             {pending ? 'Recording…' : 'Record receipt'}

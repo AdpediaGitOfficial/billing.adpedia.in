@@ -158,7 +158,7 @@ export function BillForm({ vendors, projects, accounts }: {
         {state?.error && (
           <p className="mb-4 rounded-lg px-3 py-2 text-[12.5px]" style={{ background: 'var(--critical-soft)', color: 'var(--critical)' }}>{state.error}</p>
         )}
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button type="submit" disabled={pending || !preview}>{pending ? 'Saving…' : 'Save as draft'}</Button>
           <Link href="/bills"><Button variant="ghost" type="button">Cancel</Button></Link>
         </div>

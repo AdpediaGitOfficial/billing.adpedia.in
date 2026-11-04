@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { requireContext } from '@/server/context'
 import { assertCan } from '@/server/auth/permissions'
-import { Card, CardHeader, PageHeader, StatCard, Pill, Alert, Button, Empty } from '@/components/ui/kit'
+import { Card, CardHeader, PageHeader, StatCard, Pill, Alert, Button, Empty, statGrid } from '@/components/ui/kit'
 import { plannedNotifications, recentNotifications, deliveryStanding } from '@/server/services/notify/schedule'
 
 const KIND_LABEL: Record<string, string> = {
@@ -50,7 +50,7 @@ export default async function RemindersPage() {
         </Alert>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className={`${statGrid} sm:grid-cols-3`}>
         <StatCard label="Would send today" value={String(planned.length)} icon="BellRing"
           tone={planned.length > 0 ? 'accent' : 'default'}
           foot={planned.length === 0 ? 'Nothing is due or overdue' : 'Worked out live, every time'} />

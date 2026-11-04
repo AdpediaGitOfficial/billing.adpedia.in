@@ -13,7 +13,19 @@ import { readAttachment } from '@/server/services/storage/attachment'
  * PDF by default, because that is what gets emailed, filed and sent over WhatsApp.
  * `?format=html` returns the same document as HTML — it is what the render tests assert
  * against, and it is far easier to debug a layout problem in a browser than in a PDF.
+ *
+ * 🔴 docs/83 §6 — `?download=1` asks for the FILE, not a preview.
+ *
+ * This route has always said `inline`, deliberately: tapping an invoice on a phone should
+ * open a preview rather than drop something into Downloads that the person then has to go and
+ * find. What was missing is the other half. On a desktop `inline` means the PDF opens in a
+ * browser tab and getting the file out of it is the browser's own save button — which on this
+ * route serves a `no-store` response that some viewers will not save without re-fetching.
+ * Asking for the file is a different intention from asking to look at it, and now it can be
+ * said. The default is unchanged.
  */
+const disposition = (download: boolean, name: string) =>
+  `${download ? 'attachment' : 'inline'}; filename="${name}"`
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const ctx = await requireContext()
@@ -24,6 +36,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const { id } = await params
     const url = new URL(req.url)
     const format = url.searchParams.get('format')
+    const download = url.searchParams.get('download') === '1'
 
     const invoice = await prisma.invoice.findFirst({
       where: { id, companyId: ctx.companyId }, select: { number: true, status: true },
@@ -47,7 +60,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         return new Response(new Uint8Array(bytes), {
           headers: {
             'content-type': 'application/pdf',
-            'content-disposition': `inline; filename="${name}"`,
+            'content-disposition': disposition(download, name),
             'x-document-source': 'archived-at-issue',
             'cache-control': 'private, no-store',
           },
@@ -72,8 +85,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       headers: {
         'content-type': 'application/pdf',
         // inline, so tapping it on a phone opens a preview rather than dumping a file in
-        // Downloads that the person then has to go and find
-        'content-disposition': `inline; filename="${name}"`,
+        // Downloads that the person then has to go and find — unless the file is what was asked for
+        'content-disposition': disposition(download, name),
         // 🔴 this is a RECONSTRUCTION, not the document that was issued
         'x-document-source': 'rebuilt-now',
         'cache-control': 'private, no-store',

@@ -1,6 +1,6 @@
 import { requireContext } from '@/server/context'
 import { formatINR } from '@/lib/money'
-import { Card, CardHeader, PageHeader, StatCard, Pill, Alert, Empty } from '@/components/ui/kit'
+import { Card, CardHeader, PageHeader, StatCard, Pill, Alert, Empty, statGrid } from '@/components/ui/kit'
 import { outstandingChases, chaseHistory, chaseTotals } from '@/server/services/compliance/chases'
 import { ChaseCard } from './chase-card'
 
@@ -41,7 +41,7 @@ export default async function ChasesPage() {
         you asked.
       </Alert>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className={`${statGrid} sm:grid-cols-2 lg:grid-cols-4`}>
         <StatCard label="To ask" value={String(totals.count)} icon="MessageSquare"
           tone={totals.count > 0 ? 'accent' : 'default'}
           foot={totals.neverAsked > 0 ? `${totals.neverAsked} never asked at all` : 'All of them have been asked once'} />

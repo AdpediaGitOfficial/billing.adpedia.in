@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { Decimal, formatINR } from '@/lib/money'
 import { ICONS } from '@/components/shell/icons'
 import { NAV, MORE_TAB, mobileTabsFor } from '@/components/shell/nav'
+import { statChars } from '@/components/ui/kit'
 import type { Role } from '@prisma/client'
 
 const SRC = join(process.cwd(), 'src')
@@ -148,7 +149,7 @@ describe('🔴 no form control is small enough to zoom the page', () => {
 
   it('the shared input class is 16px before the md breakpoint', () => {
     const kit = read(join(SRC, 'components', 'ui', 'kit.tsx'))
-    const decl = kit.match(/export const inputClass =\s*'([^']*)'/)
+    const decl = kit.match(/export const inputClass =\s*`([^`]*)`/)
     expect(decl, 'inputClass not found').toBeTruthy()
     const size = decl![1].match(BASE_SIZE)
     expect(size, `inputClass sets no base font size: ${decl![1]}`).toBeTruthy()
@@ -238,15 +239,112 @@ describe('🔴 a text-only button still has a thumb-sized hit box', () => {
   })
 
   it('is not vacuous — tapTarget exists, resets at md, and is actually used', () => {
+    expect(tapMinClasses()).toMatch(/md:min-h-0/)
     const kit = read(join(SRC, 'components', 'ui', 'kit.tsx'))
-    const decl = kit.match(/export const tapTarget = '([^']*)'/)
-    expect(decl, 'tapTarget not found in the kit').toBeTruthy()
-    expect(decl![1]).toMatch(/min-h-\[(\d+)px\]/)
-    expect(Number(decl![1].match(/min-h-\[(\d+)px\]/)![1])).toBeGreaterThanOrEqual(44)
-    expect(decl![1]).toMatch(/md:min-h-0/)
+    expect(kit).toMatch(/export const tapTarget = `inline-flex \$\{tapMin\}/)
     const users = SOURCES.filter((f) => f !== join(SRC, 'components', 'ui', 'kit.tsx')
       && read(f).includes('tapTarget'))
     expect(users.length).toBeGreaterThanOrEqual(6)
+  })
+})
+
+/** The one declaration of the phone minimum, which everything that is pressed reads. */
+function tapMinClasses(): string {
+  const kit = read(join(SRC, 'components', 'ui', 'kit.tsx'))
+  const decl = kit.match(/export const tapMin = '([^']*)'/)
+  expect(decl, 'tapMin not found in the kit').toBeTruthy()
+  return decl![1]
+}
+
+/**
+ * 🔴 docs/83 §5 — and `Button` itself, which §4 looked at and left.
+ *
+ * 38px for `size="md"`, about 31px for `sm`. §4's reasoning was that 38 is close to 44 and
+ * moving it moves every button in the app — which is true, and is also the argument for
+ * moving it: `Cancel invoice`, `Reverse`, `Remove` and `Save` are all this one component, so
+ * one line reaches all of them. The `Segmented` filter pills were ~25px on the same grounds.
+ */
+describe('🔴 every pressed control clears 44px on a phone', () => {
+  const kitPath = join(SRC, 'components', 'ui', 'kit.tsx')
+
+  it('the minimum is declared once, at 44px or more, and lifts at md', () => {
+    const classes = tapMinClasses()
+    const px = classes.match(/min-h-\[(\d+)px\]/)
+    expect(px, `no min-h in tapMin: ${classes}`).toBeTruthy()
+    expect(Number(px![1])).toBeGreaterThanOrEqual(44)
+    expect(classes).toMatch(/md:min-h-0/)
+  })
+
+  it('Button reads it, for both sizes', () => {
+    const kit = read(kitPath)
+    const fn = kit.slice(kit.indexOf('export function Button'))
+    const base = fn.slice(0, fn.indexOf('return ('))
+    // one `base`, applied whatever the size — so `sm` cannot drift away from it
+    expect(base, 'Button base does not read tapMin').toContain('${tapMin}')
+    expect(base).toMatch(/const sizes = \{[^}]*sm:/)
+  })
+
+  it('and so does the segmented filter control', () => {
+    const kit = read(kitPath)
+    const fn = kit.slice(kit.indexOf('export function Segmented'), kit.indexOf('export function Button'))
+    expect(fn).toContain('${tapMin}')
+  })
+
+  it('and the form controls, which were 42px', () => {
+    const kit = read(kitPath)
+    const decl = kit.match(/export const inputClass =\s*`([^`]*)`/)
+    expect(decl, 'inputClass is no longer a template reading tapMin').toBeTruthy()
+    expect(decl![1]).toContain('${tapMin}')
+  })
+
+  it('is not vacuous — nothing in the kit hard-codes a second copy of the number', () => {
+    const kit = read(kitPath)
+    const hard = new Set([...kit.matchAll(/min-h-\[(\d+)px\]/g)].map((m) => Number(m[1])))
+    // only the one in tapMin; the tab bar's own 56px slot lives in bottom-tabs.tsx
+    expect([...hard]).toEqual([44])
+  })
+})
+
+/**
+ * 🔴 docs/83 §5 — a row of stat cards became a screen of stat cards.
+ *
+ * Every one of them was `sm:grid-cols-N`, and `sm` is 640px, so at 375px all twenty-one rows
+ * stacked one card per row. `/invoices` opened on four full-width cards — a whole screen of
+ * summary — before the first invoice. Nothing was broken and nothing reported it; the page
+ * simply answered a different question than the one you opened it to ask.
+ */
+describe('🔴 stat cards are two to a row on a phone', () => {
+  const kitPath = join(SRC, 'components', 'ui', 'kit.tsx')
+
+  it('the phone layout is declared once, and it is two columns', () => {
+    const kit = read(kitPath)
+    const decl = kit.match(/export const statGrid =\s*'([^']*)'/)
+    expect(decl, 'statGrid not found in the kit').toBeTruthy()
+    expect(decl![1]).toMatch(/\bgrid-cols-2\b/)
+    // and no `sm:`/`lg:` columns here — those belong to the page, not to the shared base
+    expect(decl![1]).not.toMatch(/\b(sm|md|lg):grid-cols-/)
+  })
+
+  it('and every row of them uses it', () => {
+    const offenders: string[] = []
+    for (const f of SOURCES) {
+      if (!f.endsWith('.tsx') || f === kitPath) continue
+      const lines = read(f).split('\n')
+      lines.forEach((ln, i) => {
+        if (!/\bgrid-cols-/.test(ln)) return
+        const wrapsStats = lines.slice(i + 1, i + 7).some((l) => l.includes('<StatCard'))
+        if (wrapsStats && !ln.includes('statGrid')) offenders.push(`${rel(f)}:${i + 1}  ${ln.trim()}`)
+      })
+    }
+    expect(offenders).toEqual([])
+  })
+
+  it('is not vacuous — it finds the rows it is guarding', () => {
+    const users = SOURCES.filter((f) => f.endsWith('.tsx') && f !== kitPath
+      && read(f).includes('statGrid'))
+    // 21 pages carry a stat row; if this scan ever stops seeing them it has stopped guarding
+    expect(users.length).toBeGreaterThanOrEqual(20)
+    for (const f of users) expect(read(f), rel(f)).toContain("from '@/components/ui/kit'")
   })
 })
 
@@ -305,5 +403,96 @@ describe('🔴 every navigation target is a real page', () => {
     expect(src).toMatch(/navFor\(/)
     expect(src).toMatch(/gstRegistered:/)
     expect(src).toMatch(/hasDrawings:/)
+  })
+})
+
+/**
+ * 🔴 docs/83 §5 — what two-up did to a long figure.
+ *
+ * Making the stat row 2-up gave each card 134px of room, and `.tabular` is `white-space:
+ * nowrap` (§4, so a minus sign cannot be orphaned). A value that can neither wrap nor shrink
+ * simply leaves: `/invoices` printed the next invoice number running out through the right
+ * edge of its card and off the screen. The sizes below were measured against Poppins in the
+ * page, not estimated.
+ */
+describe('🔴 a stat value fits the card it is in', () => {
+  /** inner width of a card below `sm`, measured in the page: (vw - 32 gutter - 12 gap)/2 - 32 */
+  const room = (vw: number) => vw / 2 - 54
+
+  it('the value never asks for more room than the card has, at 320px or 375px', () => {
+    const values = ['4', '₹8,21,000', '31/ADP/26-27', '₹12,34,56,789.00', 'A'.repeat(16)]
+    for (const vw of [320, 375]) {
+      for (const v of values) {
+        // what `.stat-value` computes: min(24px, room / chars) — then the drawn width
+        const px = Math.min(24, room(vw) / statChars(v))
+        const width = px * statChars(v)
+        expect(width, `"${v}" wants ${Math.round(width)}px in ${Math.round(room(vw))}px at ${vw}`)
+          .toBeLessThanOrEqual(room(vw) + 0.5)
+      }
+    }
+  })
+
+  it('and a short one still gets the full 24px', () => {
+    for (const v of ['4', '₹5,000', '₹8,21,000']) {
+      expect(Math.min(24, room(375) / statChars(v)), v).toBe(24)
+    }
+  })
+
+  it('is not vacuous — the rule exists, applies only below sm, and StatCard sets the variable', () => {
+    const css = readFileSync(join(SRC, 'app', 'globals.css'), 'utf8')
+    expect(css).toMatch(/\.stat-value\s*\{[^}]*font-size:\s*24px/)
+    const mq = css.slice(css.indexOf('@media (max-width: 639.98px)'))
+    expect(mq).toMatch(/\.stat-value\s*\{[^}]*var\(--stat-chars/)
+
+    const kit = read(join(SRC, 'components', 'ui', 'kit.tsx'))
+    const card = kit.slice(kit.indexOf('export function StatCard'), kit.indexOf('export function HeroStat'))
+    expect(card).toContain('stat-value')
+    expect(card).toContain("'--stat-chars': statChars(value)")
+    // 🔴 and nothing hard-codes the size beside it, which is what made the spill possible
+    expect(card).not.toMatch(/className="[^"]*text-\[24px\]/)
+  })
+})
+
+/**
+ * 🔴 docs/83 §5 — a page's own actions, off the right-hand edge of the phone.
+ *
+ * Every action row was `flex gap-2` with no wrap. A flex item whose content cannot wrap has a
+ * min-content width of the whole row, so it cannot shrink either: on the invoice at 375px the
+ * six buttons ran to 634px in a 343px column, and `Amend` — the only way to correct a sent
+ * invoice — sat furthest outside the viewport, behind a horizontal scroll nothing announced.
+ */
+describe('🔴 a row of actions wraps rather than leaving the screen', () => {
+  it('no row of buttons is a non-wrapping flex row', () => {
+    const offenders: string[] = []
+    for (const f of SOURCES) {
+      if (!f.endsWith('.tsx')) continue
+      const lines = read(f).split('\n')
+      lines.forEach((ln, i) => {
+        if (!/className="flex gap-\d/.test(ln)) return
+        const holdsButtons = lines.slice(i + 1, i + 5).some((l) => /<Button|<button/.test(l))
+        if (holdsButtons) offenders.push(`${rel(f)}:${i + 1}  ${ln.trim()}`)
+      })
+    }
+    expect(offenders).toEqual([])
+  })
+
+  it('and PageHeader\u2019s own action slot wraps', () => {
+    const kit = read(join(SRC, 'components', 'ui', 'kit.tsx'))
+    const header = kit.slice(kit.indexOf('export function PageHeader'))
+    const slot = header.match(/\{action && <div className="([^"]*)"/)
+    expect(slot, 'the action slot is no longer a div with a className').toBeTruthy()
+    expect(slot![1]).toContain('flex-wrap')
+  })
+
+  it('is not vacuous — the sweep finds the rows it is guarding', () => {
+    const wrapped = SOURCES.filter((f) => f.endsWith('.tsx') && read(f).includes('flex flex-wrap gap-2'))
+    expect(wrapped.length).toBeGreaterThanOrEqual(10)
+  })
+
+  /** 🔴 and a label that wraps turns one 44px control into a four-line tower. */
+  it('a button label does not wrap', () => {
+    const kit = read(join(SRC, 'components', 'ui', 'kit.tsx'))
+    const fn = kit.slice(kit.indexOf('export function Button'))
+    expect(fn.slice(0, fn.indexOf('return ('))).toContain('whitespace-nowrap')
   })
 })

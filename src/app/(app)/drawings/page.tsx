@@ -1,7 +1,7 @@
 import { requireContext } from '@/server/context'
 import { prisma } from '@/server/db'
 import { formatINR } from '@/lib/money'
-import { Card, CardHeader, PageHeader, StatCard, Alert, Empty, Pill } from '@/components/ui/kit'
+import { Card, CardHeader, PageHeader, StatCard, Alert, Empty, Pill, statGrid } from '@/components/ui/kit'
 import { requireDrawings } from '@/components/shell/not-registered'
 import { currentFinancialYear } from '@/server/services/accounting/period'
 import { drawingsSummary, DRAWING_PURPOSES, purposeLabel } from '@/server/services/equity/drawings'
@@ -52,7 +52,7 @@ export default async function DrawingsPage() {
         s.10(13A), insurance under s.80D, 80C investments. That is what the purpose is kept for.
       </Alert>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className={`${statGrid} sm:grid-cols-2 lg:grid-cols-4`}>
         <StatCard label="Taken out" value={formatINR(s.drawn, { decimals: false })} icon="ArrowUpRight"
           foot={`FY ${fy.label} to date`} />
         <StatCard label="Put in" value={formatINR(s.introduced, { decimals: false })} icon="ArrowDownLeft"

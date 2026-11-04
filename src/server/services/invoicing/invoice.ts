@@ -16,6 +16,7 @@ import { docTypeFor, carriesTax, assertMayChargeGst } from './document-type'
 import { resolveLutForInvoice } from './lut'
 import { validateSac, sacLooksWrongForDescription } from './sac'
 import { archiveIssuedDocument } from '@/server/services/storage/document-archive'
+import { pdfFilename } from './pdf'
 import { renderInvoiceHtml } from './render'
 
 /**
@@ -463,7 +464,17 @@ export async function sendInvoice(ctx: RequestContext, invoiceId: string) {
     // would be indistinguishable later from a document this entity may not legally issue.
     kind: sent.docType === 'BILL_OF_SUPPLY' ? 'BILL_OF_SUPPLY' : 'TAX_INVOICE',
     entityType: 'Invoice', entityId: sent.id,
-    filename: `${sent.number ?? 'invoice'}.pdf`,
+    /**
+     * 🔴 docs/83 §6 — the number goes through `pdfFilename`, it is not interpolated.
+     *
+     * `safeLabel` in the attachment store strips anything that could matter if the name were
+     * ever read as a path, and that includes everything before the last `/`. A number of
+     * `ADP/26-27/0029` was stored as `0029.pdf` — lossy but survivable — and the moment the
+     * series pattern became `{SEQ}/ADP/{FY}` the SAME invoice stored as `26-27.pdf`, which
+     * is the label every invoice in the year would carry. `pdfFilename` turns the slashes
+     * into dashes first, so what is kept is the whole number.
+     */
+    filename: pdfFilename(sent.number ?? 'invoice'),
     render: () => renderInvoiceHtml(ctx.companyId, sent.id),
   })
 

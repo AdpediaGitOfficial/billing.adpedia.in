@@ -4,7 +4,7 @@ import { requireContext } from '@/server/context'
 import { cashFlow } from '@/server/services/reports/cash-flow'
 import { resolvePeriod } from '@/server/services/reports/period'
 import { formatINR } from '@/lib/money'
-import { Card, PageHeader, Empty, Alert, StatCard } from '@/components/ui/kit'
+import { Card, PageHeader, Empty, Alert, StatCard, statGrid } from '@/components/ui/kit'
 import { ExportButton } from '@/components/reports/export-button'
 import { PeriodPicker } from '../period-picker'
 
@@ -31,7 +31,7 @@ export default async function CashFlowPage({ searchParams }: { searchParams: Pro
           hint="This is built from journal entries that touch a bank or cash account. Import and reconcile a statement and it fills in. Nothing here is sample data." /></Card>
       ) : (
         <>
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className={`${statGrid} sm:grid-cols-3`}>
             <StatCard label="Opening balance" value={formatINR(cf.opening, { decimals: false })} />
             <StatCard label="Net movement" value={formatINR(cf.netChange, { decimals: false })}
               tone={cf.netChange.lt(0) ? 'default' : 'accent'} />

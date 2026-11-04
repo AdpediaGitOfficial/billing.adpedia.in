@@ -91,7 +91,7 @@ export function AdvanceForm({ customers, today }: {
             style={{ background: 'var(--surface)', color: 'var(--critical)' }}>{state.error}</p>
         )}
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button disabled={pending}>{pending ? 'Recording…' : 'Record advance'}</Button>
           <Link href="/receipts"><Button variant="ghost" type="button">Cancel</Button></Link>
         </div>

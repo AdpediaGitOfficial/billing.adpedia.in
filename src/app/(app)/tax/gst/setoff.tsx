@@ -130,7 +130,7 @@ export function SetOff({ view }: { view: SetOffView }) {
                       className={inputClass} style={inputStyle} />
                   </Field>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <Button disabled={pending}>{pending ? 'Posting…' : 'Record set-off'}</Button>
                   <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
                 </div>

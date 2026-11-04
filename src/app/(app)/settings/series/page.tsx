@@ -1,10 +1,13 @@
 import { requireContext } from '@/server/context'
-import { Card, CardHeader, PageHeader, StatCard, Pill, Alert, Empty } from '@/components/ui/kit'
+import { Card, CardHeader, PageHeader, StatCard, Pill, Alert, Empty, statGrid } from '@/components/ui/kit'
 import { documentSeriesRegister, seriesLabel } from '@/server/services/invoicing/series-register'
+import { can } from '@/server/auth/permissions'
+import { PatternForm } from './pattern-form'
 
 export default async function SeriesPage() {
   const ctx = await requireContext()
   const reg = await documentSeriesRegister(ctx)
+  const mayEdit = can(ctx.role, 'settings.company', 'write')
 
   const patternProblems = reg.rows.filter((r) => r.patternProblem)
   const issued = reg.rows.reduce((a, r) => a + r.issued, 0)
@@ -21,7 +24,7 @@ export default async function SeriesPage() {
         happened to the one that is missing.
       </Alert>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className={`${statGrid} sm:grid-cols-3`}>
         <StatCard label="Numbers issued" value={String(issued)} icon="Hash" foot={`Across ${reg.rows.length} series`} />
         <StatCard label="Unexplained gaps" value={String(reg.unexplained)} icon="AlertOctagon"
           tone={reg.unexplained > 0 ? 'accent' : 'default'}
@@ -90,6 +93,15 @@ export default async function SeriesPage() {
               </ul>
             )}
           </div>
+
+          {/* 🔴 docs/83 §6 — the pattern was shown here and could not be changed from here.
+              The format of a company's own invoice numbers is the company's to choose; what
+              is NOT negotiable is rule 46(b), which is why the field previews the string it
+              will print and the server refuses one that breaches it at 9999. */}
+          {mayEdit && (
+            <PatternForm docType={r.docType} pattern={r.pattern}
+              nextSeq={r.nextSeq} fyShort={reg.fyShort} />
+          )}
         </Card>
       ))}
     </div>

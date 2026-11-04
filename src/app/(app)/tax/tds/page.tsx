@@ -4,7 +4,7 @@ import { prisma } from '@/server/db'
 import { outstandingDeductions } from '@/server/services/tax/tds-challan'
 import { buildTdsReturn, type ReturnForm } from '@/server/services/tax/tds-return'
 import { formatINR, Decimal, ZERO } from '@/lib/money'
-import { Card, CardHeader, PageHeader, StatCard, Pill, Alert, Empty, Button, DataTable, type Column } from '@/components/ui/kit'
+import { Card, CardHeader, PageHeader, StatCard, Pill, Alert, Empty, Button, DataTable, type Column, statGrid } from '@/components/ui/kit'
 import { ChallanForm } from './challan-form'
 import { TdsFilings } from './filings'
 import { ReverseButton } from '@/components/corrections/reverse-button'
@@ -90,7 +90,7 @@ export default async function TdsPage({ searchParams }: { searchParams: Promise<
         </Alert>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className={`${statGrid} sm:grid-cols-2 lg:grid-cols-4`}>
         <StatCard label="To deposit" value={formatINR(totalOwed, { decimals: false })} icon="Landmark"
           foot={`${outstanding.length} deduction${outstanding.length === 1 ? '' : 's'}`} tone={totalOwed.gt(0) ? 'accent' : 'default'} />
         <StatCard label="Next deadline" value={nextDue ? nextDue.toISOString().slice(0, 10) : '—'} icon="CalendarClock"
