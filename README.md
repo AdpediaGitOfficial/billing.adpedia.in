@@ -90,9 +90,10 @@ payroll, projects and bank reconciliation on a double-entry ledger.
 | [83 · Mobile navigation & the session](docs/83-mobile-and-session.md) | A tab bar whose fifth slot led nowhere, a net loss that read as a profit, actions off the right-hand edge, one invoice rendering two documents, the number format nothing could set, a month-by-month view — and the dev database a test wiped because nothing checked its name |
 | [84 · Party ledgers](docs/84-party-ledgers.md) | A running account with every client, vendor and sub-contractor — the reconciliation that is the point of it, and the dollars this found sitting in a rupee account |
 | [85 · The document that would not download](docs/85-the-document-that-would-not-download.md) | A 500 on a deployed invoice: an archived copy that was fatal to read rather than rebuilt, a renderer that could not say it was missing, a screen that threw the server's explanation away — and the health route docs/90 listed as a known gap |
+| [86 · What an invoice still asks for](docs/86-what-an-invoice-still-asks-for.md) | Eleven places computed what a client owes without reading the credit notes against it — including the guard that let a receipt be banked for money already given back, and the chase that emailed the client for it |
 | [90 · Deployment](docs/90-deployment.md) | Step by step on a plain Ubuntu box — npm, pm2, Postgres, nginx, Chromium, the daily run, backups. No Docker |
 
-**1,271 tests passing** · typecheck and lint clean · production build passes.
+**1,298 tests passing** · typecheck and lint clean · production build passes.
 
 ```bash
 cp .env.example .env     # set DATABASE_URL and JWT_SECRET

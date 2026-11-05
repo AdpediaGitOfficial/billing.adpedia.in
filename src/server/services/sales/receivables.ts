@@ -2,6 +2,8 @@ import { prisma } from '@/server/db'
 import { Decimal, ZERO } from '@/lib/money'
 import type { RequestContext } from '@/server/context'
 import { assertCan } from '@/server/auth/permissions'
+import { invoiceOpen, NO_NOTES } from '@/lib/invoice-open'
+import { noteTotals } from '@/server/services/invoicing/notes'
 
 export interface AgeingRow {
   invoiceId: string
@@ -12,9 +14,18 @@ export interface AgeingRow {
   date: Date
   dueDate: Date
   currency: string
+  /** the invoice as issued */
   grandTotal: Decimal
+  /** live credit notes against it, gross */
+  credited: Decimal
+  /** live debit notes against it, gross */
+  debited: Decimal
+  /** the invoice as it now stands — docs/86. This is the figure 1100 carries. */
+  gross: Decimal
   received: Decimal
   tdsCredited: Decimal
+  /** gross less what has been settled — what this invoice contributes to 1100 */
+  outstanding: Decimal
   /** TDS the customer is expected to deduct but has not yet paid over */
   tdsExpected: Decimal
   /** cash we can still actually collect */
@@ -32,7 +43,11 @@ const DAY = 86_400_000
  * payment of ₹91,800. If ageing treats the ₹8,500 as collectible, every paid invoice
  * looks permanently overdue and the follow-up list cries wolf until nobody reads it.
  *
- * So: collectible = grandTotal − received − tdsCredited − tdsStillExpected.
+ * So: collectible = gross − received − tdsCredited − tdsStillExpected.
+ *
+ * 🔴 `gross` is the invoice NET OF ITS CREDIT NOTES, and plus its debit notes — docs/86. It
+ * was `grandTotal`, which is the invoice as issued, so every credit note this company raised
+ * stayed in the ageing for ever and the total disagreed with 1100 Accounts Receivable.
  */
 export async function arAgeing(ctx: RequestContext, asOf = new Date()): Promise<AgeingRow[]> {
   assertCan(ctx.role, 'invoices', 'read')
@@ -45,16 +60,12 @@ export async function arAgeing(ctx: RequestContext, asOf = new Date()): Promise<
     include: { customer: { select: { id: true, name: true } }, project: { select: { name: true } } },
     orderBy: { dueDate: 'asc' },
   })
+  const notes = await noteTotals(ctx.companyId, invoices.map((i) => i.id))
 
   return invoices.map((inv) => {
-    const grandTotal = new Decimal(inv.grandTotal.toString())
-    const received = new Decimal(inv.amountReceived.toString())
-    const tdsCredited = new Decimal(inv.tdsCredited.toString())
-    const tdsOnInvoice = new Decimal(inv.tdsAmount.toString())
-
-    // whatever portion of the expected TDS has not yet been credited
-    const tdsExpected = Decimal.max(tdsOnInvoice.minus(tdsCredited), ZERO)
-    const collectible = Decimal.max(grandTotal.minus(received).minus(tdsCredited).minus(tdsExpected), ZERO)
+    const open = invoiceOpen(inv, notes.get(inv.id) ?? NO_NOTES)
+    const { issued: grandTotal, credited, debited, gross } = open
+    const { received, tdsCredited, outstanding, tdsExpected, collectible } = open
 
     const daysOverdue = collectible.gt(0) ? Math.max(0, Math.floor((asOf.getTime() - inv.dueDate.getTime()) / DAY)) : 0
 
@@ -67,7 +78,7 @@ export async function arAgeing(ctx: RequestContext, asOf = new Date()): Promise<
       date: inv.date,
       dueDate: inv.dueDate,
       currency: inv.currency,
-      grandTotal, received, tdsCredited, tdsExpected, collectible,
+      grandTotal, credited, debited, gross, received, tdsCredited, outstanding, tdsExpected, collectible,
       daysOverdue,
       bucket: daysOverdue === 0 ? 'current' : daysOverdue <= 30 ? '1-30' : daysOverdue <= 60 ? '31-60' : daysOverdue <= 90 ? '61-90' : '90+',
     }

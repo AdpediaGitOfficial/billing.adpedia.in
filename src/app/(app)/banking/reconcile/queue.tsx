@@ -91,9 +91,11 @@ export function ReconcileQueue({ rows }: { rows: Row[] }) {
                 </span>
               </div>
               <p className="mt-2 text-[13px] leading-relaxed">{s.reason}</p>
+              {/* 🔴 `s.reason` is the suggestion as the person just read it, and the action
+                  refuses if the queue has reordered underneath the click — docs/86. */}
               <div className="mt-3">
                 <Button size="sm" variant={i === 0 ? 'primary' : 'ghost'} disabled={pending}
-                  onClick={() => run(() => applyMatchAction(row.id, i, learn))}>
+                  onClick={() => run(() => applyMatchAction(row.id, i, learn, s.reason))}>
                   {pending ? 'Posting…' : 'Accept and post'}
                 </Button>
               </div>

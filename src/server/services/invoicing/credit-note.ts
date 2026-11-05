@@ -10,6 +10,8 @@ import { AppError, NotFound } from '@/server/errors'
 import { postJournal } from '@/server/services/accounting/journal'
 import { assertPostable } from '@/server/services/accounting/period'
 import { allocateNumber } from './numbering'
+import { notesFor } from './notes'
+import { invoiceOpen } from '@/lib/invoice-open'
 import { halveTax } from '@/lib/money'
 
 /**
@@ -233,13 +235,18 @@ export async function createCreditNote(ctx: RequestContext, input: CreditNoteInp
       ],
     }, tx)
 
-    // the invoice is now settled to the extent it has been credited
-    const settled = new Decimal(inv.amountReceived.toString())
-      .plus(inv.tdsCredited.toString())
-      .plus(preview.grandTotal)
-    const status = settled.gte(new Decimal(inv.grandTotal.toString()).minus('0.5')) ? 'PAID' : inv.status
+    /**
+     * The invoice is now settled to the extent it has been credited.
+     *
+     * 🔴 Against the invoice net of EVERY live note, not just this one — docs/86. Adding only
+     * `preview.grandTotal` to what had been received ignored any earlier credit note, so a
+     * second partial credit that finished off an invoice left it PARTIALLY_PAID for ever.
+     *
+     * Read through `tx`, after the note above was created, so the total already includes it.
+     */
+    const open = invoiceOpen(inv, await notesFor(ctx.companyId, inv.id, tx))
 
-    await tx.invoice.update({ where: { id: inv.id }, data: { status } })
+    await tx.invoice.update({ where: { id: inv.id }, data: { status: open.settled ? 'PAID' : inv.status } })
 
     await audit(ctx, {
       entity: 'CreditNote', entityId: note.id, action: 'CREATE',

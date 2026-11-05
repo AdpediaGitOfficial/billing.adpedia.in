@@ -7,6 +7,8 @@ import { AppError } from '@/server/errors'
 import { panRegister } from '@/server/services/tax/pan-register'
 import { certificateRegister } from '@/server/services/tax/tds-certificate'
 import { compare2b } from '@/server/services/tax/gstr2b'
+import { noteTotals } from '@/server/services/invoicing/notes'
+import { invoiceOpen, NO_NOTES } from '@/lib/invoice-open'
 
 /**
  * Asking somebody outside this company for something — docs/61.
@@ -264,9 +266,18 @@ export async function outstandingChases(ctx: RequestContext): Promise<Chase[]> {
     include: { customer: { select: { name: true, email: true, phone: true } } },
     orderBy: { dueDate: 'asc' },
   })
+  const invoiceNotes = await noteTotals(ctx.companyId, overdue.map((i) => i.id))
 
   for (const inv of overdue) {
-    const outstanding = new Decimal(inv.grandTotal.toString()).minus(inv.amountReceived.toString())
+    /**
+     * 🔴 docs/86 — this is the one chase that goes TO A CLIENT, and it asked for the wrong
+     * number twice over. It subtracted `amountReceived` from `grandTotal` and nothing else:
+     * not the credit notes this company had raised, and not even the TDS the client had
+     * already withheld. So the email asked for money that had been given back and for tax the
+     * client is legally required to pay to the government instead — the exact letter
+     * `receivables.ts` says must never be sent.
+     */
+    const outstanding = invoiceOpen(inv, invoiceNotes.get(inv.id) ?? NO_NOTES).collectible
     if (outstanding.lte('1')) continue
     const days = Math.floor((Date.now() - inv.dueDate.getTime()) / DAY)
     out.push({

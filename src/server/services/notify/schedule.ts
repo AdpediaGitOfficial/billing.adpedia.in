@@ -1,7 +1,8 @@
 import { prisma } from '@/server/db'
-import { Decimal } from '@/lib/money'
 import { complianceCalendar } from '@/server/services/compliance/calendar'
 import { pushToCompany, messages, type PushMessage } from './push'
+import { noteTotals } from '@/server/services/invoicing/notes'
+import { invoiceOpen, NO_NOTES } from '@/lib/invoice-open'
 import type { RequestContext } from '@/server/context'
 
 /**
@@ -67,9 +68,12 @@ export async function plannedNotifications(ctx: RequestContext, on = new Date())
     include: { customer: { select: { name: true } } },
     orderBy: { dueDate: 'asc' },
   })
+  const notes = await noteTotals(ctx.companyId, invoices.map((i) => i.id))
 
   for (const inv of invoices) {
-    const outstanding = new Decimal(inv.grandTotal.toString()).minus(inv.amountReceived.toString())
+    // 🔴 docs/86 — net of credit notes and of the TDS the client withholds, so an invoice
+    // that has been credited or settled net of tax stops generating a reminder.
+    const outstanding = invoiceOpen(inv, notes.get(inv.id) ?? NO_NOTES).collectible
     // 🔴 settled but not yet marked PAID — a rounding remainder or a status that has not
     // caught up. Chasing a client for ₹0.00 is the message that gets the sender ignored.
     if (outstanding.lte('1')) continue

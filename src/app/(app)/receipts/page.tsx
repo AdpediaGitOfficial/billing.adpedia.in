@@ -3,6 +3,8 @@ import { requireContext } from '@/server/context'
 import { prisma } from '@/server/db'
 import { Decimal, formatINR, ZERO } from '@/lib/money'
 import { arSummary } from '@/server/services/sales/receivables'
+import { invoiceOpen, NO_NOTES } from '@/lib/invoice-open'
+import { noteTotals } from '@/server/services/invoicing/notes'
 import { Card, PageHeader, StatCard, Pill, Empty, Button, DataTable, type Column, statGrid } from '@/components/ui/kit'
 import { CancelReceiptButton } from './cancel-button'
 import { AdjustAdvance } from './adjust-advance'
@@ -53,9 +55,14 @@ export default async function ReceiptsPage({ searchParams }: {
        */
       customerId: { in: [...new Set(advances.map((a) => a.customerId))] },
     },
-    select: { id: true, number: true, customerId: true, grandTotal: true, amountReceived: true, tdsCredited: true },
+    select: {
+      id: true, number: true, customerId: true,
+      grandTotal: true, amountReceived: true, tdsCredited: true, tdsAmount: true,
+    },
     orderBy: { date: 'asc' },
   })
+  // 🔴 docs/86 — what an invoice can still absorb is net of its credit notes
+  const invoiceNotes = await noteTotals(ctx.companyId, openInvoices.map((i) => i.id))
 
   /**
    * 🔴 Cancelled receipts stay in the LIST — the number was allocated and the reversal is part
@@ -121,8 +128,7 @@ export default async function ReceiptsPage({ searchParams }: {
                 .filter((i) => i.customerId === r.customerId)
                 .map((i) => ({
                   id: i.id, number: i.number,
-                  outstanding: new Decimal(i.grandTotal.toString())
-                    .minus(i.amountReceived.toString()).minus(i.tdsCredited.toString()),
+                  outstanding: invoiceOpen(i, invoiceNotes.get(i.id) ?? NO_NOTES).outstanding,
                 }))
                 // 🔴 An invoice with nothing open cannot absorb anything — the service refuses
                 // it, so offering it is offering a button that can only fail. Status alone is

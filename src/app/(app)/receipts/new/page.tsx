@@ -1,7 +1,8 @@
 import { requireContext } from '@/server/context'
 import { prisma } from '@/server/db'
-import { Decimal, ZERO } from '@/lib/money'
 import { PageHeader, Card, Empty } from '@/components/ui/kit'
+import { invoiceOpen, NO_NOTES } from '@/lib/invoice-open'
+import { noteTotals } from '@/server/services/invoicing/notes'
 import { ReceiptForm } from './form'
 
 /**
@@ -31,13 +32,14 @@ export default async function NewReceiptPage({ searchParams }: {
     }),
   ])
 
+  // 🔴 docs/86 — net of the credit notes against each invoice, which is the same figure the
+  // service's over-allocation guard now uses. Offering the issued total here was offering an
+  // amount `createReceipt` should have refused, and did not.
+  const notes = await noteTotals(ctx.companyId, invoices.map((i) => i.id))
+
   const open = invoices.flatMap((i) => {
-    const settled = new Decimal(i.amountReceived.toString()).plus(i.tdsCredited.toString())
-    const outstanding = new Decimal(i.grandTotal.toString()).minus(settled)
+    const { outstanding, tdsExpected } = invoiceOpen(i, notes.get(i.id) ?? NO_NOTES)
     if (outstanding.lte(0)) return []
-    // what the client is still expected to withhold on this invoice
-    const tdsExpected = Decimal.max(
-      new Decimal(i.tdsAmount.toString()).minus(i.tdsCredited.toString()), ZERO)
     return [{
       id: i.id, number: i.number,
       customerId: i.customer.id, customerName: i.customer.name,

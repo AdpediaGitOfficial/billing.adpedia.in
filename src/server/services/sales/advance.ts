@@ -7,6 +7,8 @@ import { AppError, NotFound } from '@/server/errors'
 import { assertPostable } from '@/server/services/accounting/period'
 import { postJournal } from '@/server/services/accounting/journal'
 import { allocateNumber } from '@/server/services/invoicing/numbering'
+import { notesFor } from '@/server/services/invoicing/notes'
+import { invoiceOpen } from '@/lib/invoice-open'
 import { fyQuarter } from '@/lib/fy'
 import type { TaxMode } from '@prisma/client'
 
@@ -274,9 +276,10 @@ export async function adjustAdvance(ctx: RequestContext, input: AdjustAdvanceInp
     throw new AppError(`Only ${available.toFixed(2)} of this advance is left to adjust`)
   }
 
-  const outstanding = new Decimal(invoice.grandTotal.toString())
-    .minus(invoice.amountReceived.toString())
-    .minus(invoice.tdsCredited.toString())
+  // 🔴 docs/86 — net of the credit notes against it, or an advance can be absorbed into a
+  // debt the company has already given back, pushing 1100 negative for that client
+  const open = invoiceOpen(invoice, await notesFor(ctx.companyId, invoice.id))
+  const outstanding = open.outstanding
   if (amount.gt(outstanding.plus('0.5'))) {
     throw new AppError(
       `Adjusting ${amount.toFixed(2)} against ${invoice.number} exceeds its outstanding ${outstanding.toFixed(2)}`,
@@ -319,12 +322,11 @@ export async function adjustAdvance(ctx: RequestContext, input: AdjustAdvanceInp
     })
 
     const received = new Decimal(invoice.amountReceived.toString()).plus(amount)
-    const settled = received.plus(invoice.tdsCredited.toString())
     await tx.invoice.update({
       where: { id: invoice.id },
       data: {
         amountReceived: received.toFixed(2),
-        status: settled.gte(new Decimal(invoice.grandTotal.toString()).minus('0.5'))
+        status: received.plus(invoice.tdsCredited.toString()).gte(open.gross.minus('0.5'))
           ? 'PAID'
           : 'PARTIALLY_PAID',
       },

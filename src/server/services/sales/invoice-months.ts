@@ -3,6 +3,8 @@ import { Decimal, ZERO } from '@/lib/money'
 import type { RequestContext } from '@/server/context'
 import { assertCan } from '@/server/auth/permissions'
 import { fyBounds } from '@/lib/fy'
+import { invoiceOpen, NO_NOTES } from '@/lib/invoice-open'
+import { noteTotals } from '@/server/services/invoicing/notes'
 
 /**
  * What was billed, month by month — docs/83 §7.
@@ -36,7 +38,8 @@ export interface InvoiceMonth {
    * What is still collectible out of this month — docs/02 §B1, the same definition
    * `arAgeing` uses.
    *
-   * 🔴 grandTotal − received − TDS credited − TDS still expected. The last term is the one
+   * 🔴 gross − received − TDS credited − TDS still expected, where `gross` is the invoice net
+   * of its credit notes and plus its debit notes (docs/86). The TDS term is the one
    * that is easy to drop: a ₹59,000 invoice on which the customer will deduct ₹5,000 of TDS
    * is fully settled by ₹54,000, so counting the ₹5,000 as outstanding makes a paid month
    * look permanently short. The first version of this omitted it and the month total came out
@@ -84,11 +87,13 @@ export async function invoicesByMonth(
   const invoices = await prisma.invoice.findMany({
     where: { companyId: ctx.companyId, date: { gte: startsOn, lte: endsOn } },
     select: {
-      date: true, status: true, cancelledAt: true, currency: true,
+      id: true, date: true, status: true, cancelledAt: true, currency: true,
       taxableValue: true, cgst: true, sgst: true, igst: true, grandTotal: true,
       amountReceived: true, tdsCredited: true, tdsAmount: true,
     },
   })
+  // 🔴 docs/86 — the same `invoiceOpen` the ageing uses, so the two totals agree
+  const notes = await noteTotals(ctx.companyId, invoices.map((i) => i.id))
 
   /**
    * 🔴 EVERY month of the financial year, including the empty ones.
@@ -126,19 +131,13 @@ export async function invoicesByMonth(
       continue
     }
 
-    const grandTotal = new Decimal(inv.grandTotal.toString())
-    const received = new Decimal(inv.amountReceived.toString())
-    const tdsCredited = new Decimal(inv.tdsCredited.toString())
+    const open = invoiceOpen(inv, notes.get(inv.id) ?? NO_NOTES)
 
     row.taxableValue = row.taxableValue.plus(inv.taxableValue.toString())
     row.gst = row.gst.plus(inv.cgst.toString()).plus(inv.sgst.toString()).plus(inv.igst.toString())
-    row.grandTotal = row.grandTotal.plus(grandTotal)
-    row.received = row.received.plus(received)
-    // the portion of the expected TDS not yet credited — it never arrives as cash
-    const tdsExpected = Decimal.max(new Decimal(inv.tdsAmount.toString()).minus(tdsCredited), ZERO)
-    row.outstanding = row.outstanding.plus(
-      Decimal.max(grandTotal.minus(received).minus(tdsCredited).minus(tdsExpected), ZERO),
-    )
+    row.grandTotal = row.grandTotal.plus(open.issued)
+    row.received = row.received.plus(open.received)
+    row.outstanding = row.outstanding.plus(open.collectible)
   }
 
   for (const [key, byCur] of foreign) {

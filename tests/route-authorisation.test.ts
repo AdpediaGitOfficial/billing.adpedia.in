@@ -133,3 +133,80 @@ describe('🔴 every route that issues a session is actually called', () => {
     expect(checked.length).toBeGreaterThanOrEqual(3)
   })
 })
+
+/**
+ * 🔴 docs/86 — the same rule, for SERVER ACTIONS, where nothing was checking at all.
+ *
+ * The sweep above covers `src/app/api`. Every mutation a screen performs goes through a
+ * server action instead, and an action is a POST endpoint with a generated name: anyone with
+ * a session can call it. Almost all of them delegate to a service that begins with
+ * `assertCan`, which is why this was never felt — but `skipTxnAction` reached `prisma`
+ * directly, so a signed-in session was the whole of the check. An AUDITOR, who holds
+ * `banking` at `read` precisely so the books cannot be touched, could mark a bank line
+ * IGNORED; so could an EMPLOYEE, who has no banking capability at all. An ignored line leaves
+ * the reconciliation queue for good, so money that arrived is never matched and the client is
+ * chased for it.
+ *
+ * The rule is narrow on purpose: an action that writes through `prisma` ITSELF must assert,
+ * because there is no service underneath it to do so. An action that calls a service is left
+ * alone — the service's own `assertCan` is the check, and the API sweep's reasoning applies.
+ */
+describe('🔴 every server action that writes says who may call it', () => {
+  const APP = join(process.cwd(), 'src', 'app')
+
+  function actionFiles(dir: string, out: string[] = []): string[] {
+    for (const e of readdirSync(dir)) {
+      const p = join(dir, e)
+      if (statSync(p).isDirectory()) actionFiles(p, out)
+      else if (/^actions\.tsx?$/.test(e)) out.push(p)
+    }
+    return out
+  }
+
+  /** the exported function bodies of one module, by brace balance */
+  function exported(src: string): { name: string; body: string }[] {
+    const out: { name: string; body: string }[] = []
+    for (const m of src.matchAll(/export async function (\w+)\s*\(/g)) {
+      const open = src.indexOf('{', m.index! + m[0].length - 1)
+      let depth = 0, end = src.length
+      for (let i = open; i < src.length; i++) {
+        if (src[i] === '{') depth++
+        else if (src[i] === '}' && --depth === 0) { end = i; break }
+      }
+      out.push({ name: m[1], body: src.slice(open, end) })
+    }
+    return out
+  }
+
+  const WRITES = /prisma\.\w+\.(create|createMany|update|updateMany|upsert|delete|deleteMany)\(/
+
+  const files = actionFiles(APP).filter((f) => /['"]use server['"]/.test(readFileSync(f, 'utf8')))
+
+  it('is not vacuous — it found the action modules', () => {
+    expect(files.length).toBeGreaterThan(15)
+    const total = files.reduce((a, f) => a + exported(readFileSync(f, 'utf8')).length, 0)
+    expect(total).toBeGreaterThan(50)
+  })
+
+  it('finds the actions that write through prisma themselves', () => {
+    const writers = files.flatMap((f) =>
+      exported(readFileSync(f, 'utf8')).filter((a) => WRITES.test(a.body)).map((a) => `${rel(f)} ${a.name}`))
+    // 🔴 if this ever drops to zero the next test proves nothing
+    expect(writers.length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('each of them asserts a capability', () => {
+    const offenders: string[] = []
+    for (const f of files) {
+      for (const a of exported(readFileSync(f, 'utf8'))) {
+        if (!WRITES.test(a.body)) continue
+        if (!/assertCan\(/.test(a.body)) offenders.push(`${rel(f)} ${a.name}`)
+      }
+    }
+    expect(
+      offenders,
+      'a server action writing straight to the database with no capability check — '
+      + 'add assertCan, or route the write through a service that has one',
+    ).toEqual([])
+  })
+})

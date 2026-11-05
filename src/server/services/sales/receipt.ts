@@ -8,6 +8,8 @@ import { assertPostable } from '@/server/services/accounting/period'
 import { postJournal } from '@/server/services/accounting/journal'
 import { postReceipt } from '@/server/services/accounting/rules/invoice'
 import { allocateNumber } from '@/server/services/invoicing/numbering'
+import { noteTotals } from '@/server/services/invoicing/notes'
+import { invoiceOpen, NO_NOTES } from '@/lib/invoice-open'
 import { fyQuarter } from '@/lib/fy'
 
 export interface ReceiptAllocationInput {
@@ -48,17 +50,39 @@ export async function createReceipt(ctx: RequestContext, input: CreateReceiptInp
     let tdsSection: string | null = null
     const touched: { invoiceId: string; amount: Decimal; tds: Decimal }[] = []
 
+    // 🔴 docs/86 — what an invoice still asks for is net of its credit notes. This guard read
+    // `grandTotal` and so accepted ₹1,18,000 against an invoice the company had already
+    // credited down to ₹94,400: money banked that had been given back, and an invoice marked
+    // PAID with a receipt larger than the debt.
+    const notes = await noteTotals(ctx.companyId, input.allocations.map((a) => a.invoiceId), tx)
+
     for (const a of input.allocations) {
       const inv = await tx.invoice.findFirst({ where: { id: a.invoiceId, companyId: ctx.companyId }, include: { customer: true } })
       if (!inv) throw new NotFound(`Invoice ${a.invoiceId} not found`)
       if (inv.status === 'CANCELLED') throw new AppError(`Invoice ${inv.number} is cancelled`)
       if (inv.status === 'DRAFT') throw new AppError(`Invoice ${inv.number} has not been sent yet`)
 
+      /**
+       * 🔴 The receipt's client must own the invoice it settles — docs/86.
+       *
+       * Nothing checked. The form only ever sends the chosen client's own invoices and the
+       * bank matcher builds both sides off one invoice, so the happy paths agree; the service
+       * accepted any pairing. A receipt recorded against the wrong client credits THEIR
+       * receivable while the invoice of another is marked paid, and both running accounts are
+       * then wrong — in opposite directions, so the trial balance still balances and nothing
+       * says a word.
+       */
+      if (inv.customerId !== input.customerId) {
+        throw new AppError(
+          `${inv.number} was raised to ${inv.customer.name}, who is not the client this receipt is from. ` +
+          'A receipt settles one client\'s invoices — record a separate one for each.',
+        )
+      }
+
       const amount = round2(new Decimal(a.amount))
       const tds = round2(new Decimal(a.tdsAmount ?? '0'))
 
-      const already = new Decimal(inv.amountReceived.toString()).plus(new Decimal(inv.tdsCredited.toString()))
-      const outstanding = new Decimal(inv.grandTotal.toString()).minus(already)
+      const outstanding = invoiceOpen(inv, notes.get(inv.id) ?? NO_NOTES).outstanding
       if (amount.plus(tds).gt(outstanding.plus('0.5'))) {
         throw new AppError(`Allocating ₹${amount.plus(tds).toFixed(2)} to ${inv.number} exceeds its outstanding ₹${outstanding.toFixed(2)}`)
       }
@@ -98,7 +122,12 @@ export async function createReceipt(ctx: RequestContext, input: CreateReceiptInp
       const inv = await tx.invoice.findUniqueOrThrow({ where: { id: t.invoiceId } })
       const received = new Decimal(inv.amountReceived.toString()).plus(t.amount)
       const credited = new Decimal(inv.tdsCredited.toString()).plus(t.tds)
-      const settled = received.plus(credited).gte(new Decimal(inv.grandTotal.toString()).minus('0.5'))
+      // 🔴 against the invoice NET of its notes — otherwise a credited invoice paid in full
+      // stays PARTIALLY_PAID for ever and keeps chasing the amount that was credited away
+      const { settled } = invoiceOpen(
+        { ...inv, amountReceived: received, tdsCredited: credited },
+        notes.get(t.invoiceId) ?? NO_NOTES,
+      )
 
       await tx.invoice.update({
         where: { id: t.invoiceId },

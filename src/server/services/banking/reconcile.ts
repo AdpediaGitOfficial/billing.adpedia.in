@@ -9,6 +9,8 @@ import { payBill } from '@/server/services/purchases/bill'
 import { postJournal } from '@/server/services/accounting/journal'
 import { assertPostable } from '@/server/services/accounting/period'
 import { suggestMatches, type BankTxnFacts, type OpenInvoice, type OpenBill, type LearnedRule, type Suggestion } from './match'
+import { invoiceOpen, NO_NOTES } from '@/lib/invoice-open'
+import { noteTotals } from '@/server/services/invoicing/notes'
 
 export interface TxnWithSuggestions {
   txn: {
@@ -32,16 +34,18 @@ async function loadCandidates(companyId: string) {
     prisma.bankRule.findMany({ where: { companyId } }),
   ])
 
+  // 🔴 docs/86 — net of credit notes. An invoice credited down to ₹94,400 was still offered
+  // at ₹1,18,000, so the payment that actually arrived read as a part payment and the invoice
+  // could never be closed from the bank screen.
+  const notes = await noteTotals(companyId, invoices.map((i) => i.id))
+
   const openInvoices: OpenInvoice[] = invoices.map((i) => {
-    const total = new Decimal(i.grandTotal.toString())
-    const received = new Decimal(i.amountReceived.toString())
-    const tdsCredited = new Decimal(i.tdsCredited.toString())
-    const tdsOnInvoice = new Decimal(i.tdsAmount.toString())
+    const open = invoiceOpen(i, notes.get(i.id) ?? NO_NOTES)
     return {
       id: i.id, number: i.number, customerId: i.customerId,
       customerName: i.customer.name, customerAliases: i.customer.aliases,
-      outstanding: total.minus(received).minus(tdsCredited),
-      tdsExpected: Decimal.max(tdsOnInvoice.minus(tdsCredited), ZERO),
+      outstanding: open.outstanding,
+      tdsExpected: open.tdsExpected,
       tdsSection: i.tdsSection, date: i.date,
       knownUtr: null,
       isExport: i.taxMode === 'EXPORT',

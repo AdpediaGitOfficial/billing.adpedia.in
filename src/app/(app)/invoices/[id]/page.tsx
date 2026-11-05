@@ -4,6 +4,7 @@ import { requireContext } from '@/server/context'
 import { archivedDocument } from '@/server/services/storage/document-archive'
 import { prisma } from '@/server/db'
 import { formatINR, amountInWords, Decimal } from '@/lib/money'
+import { invoiceOpen } from '@/lib/invoice-open'
 import { placeOfSupplyLabel, taxModeLabel } from '@/server/services/tax/tax-mode'
 import { lutStatus } from '@/server/services/invoicing/lut'
 import { carriesTax } from '@/server/services/invoicing/document-type'
@@ -47,6 +48,7 @@ export default async function InvoiceDetail({ params }: { params: Promise<{ id: 
   const debited = live
     .filter((c) => c.noteType === 'DEBIT')
     .reduce((a, c) => a.plus(c.grandTotal.toString()), new Decimal(0))
+  const open = invoiceOpen(inv, { credited, debited })
 
   const money = (v: unknown) => inv.currency === 'INR'
     ? formatINR(v as string)
@@ -184,8 +186,10 @@ export default async function InvoiceDetail({ params }: { params: Promise<{ id: 
               <Row k="Less: credit notes" v={`(${money(credited.toString())})`} />
             )}
             {(credited.gt(0) || debited.gt(0)) && (
-              <Row k="Net after notes"
-                v={money(new Decimal(inv.grandTotal.toString()).minus(credited).plus(debited).toString())} strong />
+              /* 🔴 docs/86 — through `invoiceOpen`, which is now the only place this
+                 subtraction is written. This page was the one screen that already netted the
+                 notes correctly, and it was the ninth hand-written copy of the arithmetic. */
+              <Row k="Net after notes" v={money(open.gross.toString())} strong />
             )}
             {new Decimal(inv.amountReceived.toString()).gt(0) && (
               <Row k="Received" v={money(inv.amountReceived.toString())} />

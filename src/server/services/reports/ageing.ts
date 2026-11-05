@@ -2,6 +2,8 @@ import { prisma } from '@/server/db'
 import { Decimal, ZERO, sumBy } from '@/lib/money'
 import type { RequestContext } from '@/server/context'
 import { assertCan } from '@/server/auth/permissions'
+import { invoiceOpen, NO_NOTES } from '@/lib/invoice-open'
+import { noteTotals } from '@/server/services/invoicing/notes'
 
 export const BUCKETS = ['Not due', '1–30', '31–60', '61–90', '90+'] as const
 export type Bucket = typeof BUCKETS[number]
@@ -91,18 +93,17 @@ export async function receivablesAgeing(ctx: RequestContext, asOf: Date = new Da
     orderBy: { dueDate: 'asc' },
   })
 
+  // 🔴 net of the credit notes raised against them, and plus the debit notes — docs/86
+  const notes = await noteTotals(ctx.companyId, invoices.map((i) => i.id))
+
   const docs: AgeingDoc[] = invoices.flatMap((i) => {
-    const expectedTds = new Decimal(i.tdsAmount.toString()).minus(i.tdsCredited.toString())
-    const outstanding = new Decimal(i.grandTotal.toString())
-      .minus(i.amountReceived.toString())
-      .minus(i.tdsCredited.toString())
-      .minus(Decimal.max(expectedTds, ZERO))
-    if (outstanding.lte(0)) return []
+    const open = invoiceOpen(i, notes.get(i.id) ?? NO_NOTES)
+    if (open.collectible.lte(0)) return []
     const daysOverdue = Math.floor((asOf.getTime() - i.dueDate.getTime()) / DAY)
     return [{
       id: i.id, number: i.number, partyId: i.customer.id, partyName: i.customer.name,
       date: i.date, dueDate: i.dueDate, daysOverdue, bucket: bucketFor(daysOverdue),
-      outstanding, tdsWithheld: Decimal.max(expectedTds, ZERO),
+      outstanding: open.collectible, tdsWithheld: open.tdsExpected,
     }]
   })
 

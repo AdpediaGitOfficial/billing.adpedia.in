@@ -6,6 +6,7 @@ import { importStatement } from '@/server/services/banking/import'
 import { applyMatch, reconciliationQueue } from '@/server/services/banking/reconcile'
 import { unmatchBankTransaction } from '@/server/services/accounting/corrections'
 import { prisma } from '@/server/db'
+import { assertCan } from '@/server/auth/permissions'
 import { AppError } from '@/server/errors'
 
 const ImportSchema = z.object({
@@ -35,7 +36,24 @@ export async function importStatementAction(_prev: { error?: string; ok?: string
   }
 }
 
-export async function applyMatchAction(txnId: string, suggestionIndex: number, learn: boolean) {
+/**
+ * 🔴 docs/86 — `shownReason` is what makes the index safe.
+ *
+ * The suggestion is deliberately re-derived on the server rather than accepted from the
+ * client, which is right: nothing the browser sends can invent an allocation. But it was
+ * identified by its POSITION in a list rebuilt at the moment of the click, and that list
+ * depends on which invoices are still open. Match one line in a statement and the next line's
+ * suggestions can reorder underneath it — so "accept the second one" posted a receipt against
+ * a different invoice from the one the person had just read, silently and with no way to tell
+ * afterwards which it had been.
+ *
+ * The reason string is the suggestion in words — the amounts, the invoice numbers, the party
+ * — and it is exactly what was on screen. If it no longer matches, the queue moved and the
+ * person is asked to look again rather than having their click applied to something else.
+ */
+export async function applyMatchAction(
+  txnId: string, suggestionIndex: number, learn: boolean, shownReason: string,
+) {
   const ctx = await requireContext()
   try {
     const queue = await reconciliationQueue(ctx)
@@ -43,6 +61,13 @@ export async function applyMatchAction(txnId: string, suggestionIndex: number, l
     if (!row) return { ok: false as const, error: 'That line is no longer in the queue' }
     const suggestion = row.suggestions[suggestionIndex]
     if (!suggestion) return { ok: false as const, error: 'That suggestion is no longer available' }
+    if (suggestion.reason !== shownReason) {
+      return {
+        ok: false as const,
+        error: 'The suggestions for this line have changed since the screen was drawn — '
+          + 'it now reads "' + suggestion.reason + '". Nothing has been posted; look again.',
+      }
+    }
     await applyMatch(ctx, txnId, suggestion, { learn })
     revalidatePath('/banking/reconcile'); revalidatePath('/dashboard'); revalidatePath('/invoices')
     return { ok: true as const }
@@ -51,8 +76,22 @@ export async function applyMatchAction(txnId: string, suggestionIndex: number, l
   }
 }
 
+/**
+ * 🔴 docs/86 — the one server action in the system that wrote without asking who was asking.
+ *
+ * Every other action either calls a service that begins with `assertCan` or asserts itself.
+ * This one reached `prisma` directly, so a signed-in session was the whole of the check: an
+ * AUDITOR, who holds `banking` at `read` precisely so the books cannot be touched, could mark
+ * a bank line IGNORED — and so could an EMPLOYEE, who has no banking capability at all. An
+ * ignored line leaves the reconciliation queue and does not come back, so money that arrived
+ * is never matched to an invoice and the client is chased for it.
+ *
+ * `banking.post` at `approve`, the same capability `applyMatch` requires: deciding a line is
+ * not worth posting is the same decision as deciding what to post it as.
+ */
 export async function skipTxnAction(txnId: string) {
   const ctx = await requireContext()
+  assertCan(ctx.role, 'banking.post', 'approve')
   await prisma.bankTransaction.updateMany({
     where: { id: txnId, companyId: ctx.companyId },
     data: { status: 'IGNORED', matchReason: 'Skipped during reconciliation' },
