@@ -4,8 +4,8 @@ import { assertCan } from '@/server/auth/permissions'
 import { renderInvoiceHtml } from '@/server/services/invoicing/render'
 import { htmlToPdf, pdfFilename } from '@/server/services/invoicing/pdf'
 import { fileError } from '@/app/api/_lib/handler'
-import { archivedDocument } from '@/server/services/storage/document-archive'
-import { readAttachment } from '@/server/services/storage/attachment'
+import { documentHtmlHeaders, pdfHeaders, wantsDownload } from '@/app/api/_lib/document'
+import { archivedDocumentBytes } from '@/server/services/storage/document-archive'
 
 /**
  * The invoice document.
@@ -24,8 +24,6 @@ import { readAttachment } from '@/server/services/storage/attachment'
  * Asking for the file is a different intention from asking to look at it, and now it can be
  * said. The default is unchanged.
  */
-const disposition = (download: boolean, name: string) =>
-  `${download ? 'attachment' : 'inline'}; filename="${name}"`
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const ctx = await requireContext()
@@ -36,7 +34,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const { id } = await params
     const url = new URL(req.url)
     const format = url.searchParams.get('format')
-    const download = url.searchParams.get('download') === '1'
+    const download = wantsDownload(url)
 
     const invoice = await prisma.invoice.findFirst({
       where: { id, companyId: ctx.companyId }, select: { number: true, status: true },
@@ -52,18 +50,17 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
      *
      * `?rebuild=1` re-renders deliberately, for comparing the two. `?format=html` always
      * re-renders, because the archive is a PDF — and both say so in a header.
+     *
+     * 🔴 docs/85 §1 — and a copy whose BYTES are gone is not a reason to withhold the invoice.
+     * `archivedDocumentBytes` logs the missing storage key and answers with nothing, so this
+     * falls through to a render rather than returning a 500 on a document the database can
+     * rebuild. `x-document-source` is how the two are told apart, which is why it exists.
      */
     if (format !== 'html' && url.searchParams.get('rebuild') !== '1') {
-      const archived = await archivedDocument(ctx.companyId, 'Invoice', id)
-      if (archived) {
-        const { bytes } = await readAttachment(ctx, archived.id)
+      const bytes = await archivedDocumentBytes(ctx, 'Invoice', id)
+      if (bytes) {
         return new Response(new Uint8Array(bytes), {
-          headers: {
-            'content-type': 'application/pdf',
-            'content-disposition': disposition(download, name),
-            'x-document-source': 'archived-at-issue',
-            'cache-control': 'private, no-store',
-          },
+          headers: pdfHeaders(name, { download, source: 'archived-at-issue' }),
         })
       }
     }
@@ -72,25 +69,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
     if (format === 'html') {
       return new Response(html, {
-        headers: {
-          'content-type': 'text/html; charset=utf-8',
-          'x-document-source': 'rebuilt-now',
-          'cache-control': 'private, no-store',
-        },
+        headers: documentHtmlHeaders(),
       })
     }
 
     const pdf = await htmlToPdf(html)
     return new Response(new Uint8Array(pdf), {
-      headers: {
-        'content-type': 'application/pdf',
-        // inline, so tapping it on a phone opens a preview rather than dumping a file in
-        // Downloads that the person then has to go and find — unless the file is what was asked for
-        'content-disposition': disposition(download, name),
-        // 🔴 this is a RECONSTRUCTION, not the document that was issued
-        'x-document-source': 'rebuilt-now',
-        'cache-control': 'private, no-store',
-      },
+      headers: pdfHeaders(name, { download, source: 'rebuilt-now' }),
     })
   } catch (e) {
     // 🔴 docs/80 — the cause is logged, the message stays generic. See `_lib/handler.ts`.

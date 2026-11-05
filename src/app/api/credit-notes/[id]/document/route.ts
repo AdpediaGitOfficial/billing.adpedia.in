@@ -4,8 +4,8 @@ import { assertCan } from '@/server/auth/permissions'
 import { renderCreditNoteHtml } from '@/server/services/invoicing/render-credit-note'
 import { htmlToPdf, pdfFilename } from '@/server/services/invoicing/pdf'
 import { fileError } from '@/app/api/_lib/handler'
-import { archivedDocument } from '@/server/services/storage/document-archive'
-import { readAttachment } from '@/server/services/storage/attachment'
+import { documentHtmlHeaders, pdfHeaders, wantsDownload } from '@/app/api/_lib/document'
+import { archivedDocumentBytes } from '@/server/services/storage/document-archive'
 
 /**
  * The credit note document — docs/48.
@@ -21,6 +21,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const { id } = await params
     const url = new URL(req.url)
     const format = url.searchParams.get('format')
+    const download = wantsDownload(url)
 
     const note = await prisma.creditNote.findFirst({
       where: { id, companyId: ctx.companyId }, select: { number: true },
@@ -29,16 +30,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
     // 🔴 docs/59 — the copy archived when the note was raised is the one that was issued
     if (format !== 'html' && url.searchParams.get('rebuild') !== '1') {
-      const archived = await archivedDocument(ctx.companyId, 'CreditNote', id)
-      if (archived) {
-        const { bytes } = await readAttachment(ctx, archived.id)
+      const bytes = await archivedDocumentBytes(ctx, 'CreditNote', id)
+      if (bytes) {
         return new Response(new Uint8Array(bytes), {
-          headers: {
-            'content-type': 'application/pdf',
-            'content-disposition': `inline; filename="${name}"`,
-            'x-document-source': 'archived-at-issue',
-            'cache-control': 'private, no-store',
-          },
+          headers: pdfHeaders(name, { download, source: 'archived-at-issue' }),
         })
       }
     }
@@ -47,22 +42,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
     if (format === 'html') {
       return new Response(html, {
-        headers: {
-          'content-type': 'text/html; charset=utf-8',
-          'x-document-source': 'rebuilt-now',
-          'cache-control': 'private, no-store',
-        },
+        headers: documentHtmlHeaders(),
       })
     }
 
     const pdf = await htmlToPdf(html)
     return new Response(new Uint8Array(pdf), {
-      headers: {
-        'content-type': 'application/pdf',
-        'content-disposition': `inline; filename="${name}"`,
-        'x-document-source': 'rebuilt-now',
-        'cache-control': 'private, no-store',
-      },
+      headers: pdfHeaders(name, { download, source: 'rebuilt-now' }),
     })
   } catch (e) {
     // 🔴 docs/80 — the cause is logged, the message stays generic. See `_lib/handler.ts`.

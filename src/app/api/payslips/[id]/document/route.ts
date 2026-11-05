@@ -4,8 +4,8 @@ import { assertMayReadPayslip } from '@/server/services/payroll/access'
 import { htmlToPdf, pdfFilename } from '@/server/services/invoicing/pdf'
 import { prisma } from '@/server/db'
 import { fileError } from '@/app/api/_lib/handler'
-import { archiveIssuedDocument, archivedDocument } from '@/server/services/storage/document-archive'
-import { readAttachment } from '@/server/services/storage/attachment'
+import { documentHtmlHeaders, pdfHeaders, wantsDownload } from '@/app/api/_lib/document'
+import { archiveIssuedDocument, archivedDocumentBytes } from '@/server/services/storage/document-archive'
 
 /**
  * The payslip document — docs/57.
@@ -20,6 +20,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const { id } = await params
     const url = new URL(req.url)
     const format = url.searchParams.get('format')
+    const download = wantsDownload(url)
 
     await assertMayReadPayslip(ctx, id)
 
@@ -41,16 +42,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
      * that a reprint otherwise reflects the employee record as it is today.
      */
     if (format !== 'html' && url.searchParams.get('rebuild') !== '1') {
-      const archived = await archivedDocument(ctx.companyId, 'Payslip', id)
-      if (archived) {
-        const { bytes } = await readAttachment(ctx, archived.id)
+      const bytes = await archivedDocumentBytes(ctx, 'Payslip', id)
+      if (bytes) {
         return new Response(new Uint8Array(bytes), {
-          headers: {
-            'content-type': 'application/pdf',
-            'content-disposition': `inline; filename="${name}"`,
-            'x-document-source': 'archived-at-issue',
-            'cache-control': 'private, no-store',
-          },
+          headers: pdfHeaders(name, { download, source: 'archived-at-issue' }),
         })
       }
     }
@@ -59,11 +54,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
     if (format === 'html') {
       return new Response(html, {
-        headers: {
-          'content-type': 'text/html; charset=utf-8',
-          'x-document-source': 'rebuilt-now',
-          'cache-control': 'private, no-store',
-        },
+        headers: documentHtmlHeaders(),
       })
     }
 
@@ -74,13 +65,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     })
 
     return new Response(new Uint8Array(pdf), {
-      headers: {
-        'content-type': 'application/pdf',
-        'content-disposition': `inline; filename="${name}"`,
-        'x-document-source': kept.archived ? 'archived-at-issue' : 'rebuilt-now',
-        // 🔴 private, not merely no-store: a payslip must never sit in a shared proxy cache
-        'cache-control': 'private, no-store',
-      },
+      headers: pdfHeaders(name, { download, source: kept.archived ? 'archived-at-issue' : 'rebuilt-now' }),
     })
   } catch (e) {
     // 🔴 docs/80 — the cause is logged, the message stays generic. See `_lib/handler.ts`.

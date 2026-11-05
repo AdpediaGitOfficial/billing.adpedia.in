@@ -2,10 +2,10 @@ import { requireContext } from '@/server/context'
 import { assertCan } from '@/server/auth/permissions'
 import { renderVoucherHtml, type VoucherKind } from '@/server/services/sales/render-voucher'
 import { htmlToPdf, pdfFilename } from '@/server/services/invoicing/pdf'
-import { archiveIssuedDocument, archivedDocument } from '@/server/services/storage/document-archive'
-import { readAttachment } from '@/server/services/storage/attachment'
+import { archiveIssuedDocument, archivedDocumentBytes } from '@/server/services/storage/document-archive'
 import { AppError } from '@/server/errors'
 import { fileError } from '@/app/api/_lib/handler'
+import { documentHtmlHeaders, pdfHeaders, wantsDownload } from '@/app/api/_lib/document'
 
 const KINDS: VoucherKind[] = ['receipt', 'refund']
 
@@ -27,19 +27,15 @@ export async function GET(req: Request, { params }: { params: Promise<{ kind: st
     }
     const url = new URL(req.url)
     const format = url.searchParams.get('format')
+    const download = wantsDownload(url)
     const entityType = kind === 'refund' ? 'RefundVoucher' : 'Receipt'
+    const name = pdfFilename(`${kind}-voucher-${id}`)
 
     if (format !== 'html' && url.searchParams.get('rebuild') !== '1') {
-      const archived = await archivedDocument(ctx.companyId, entityType, id)
-      if (archived) {
-        const { bytes } = await readAttachment(ctx, archived.id)
+      const bytes = await archivedDocumentBytes(ctx, entityType, id)
+      if (bytes) {
         return new Response(new Uint8Array(bytes), {
-          headers: {
-            'content-type': 'application/pdf',
-            'content-disposition': `inline; filename="${pdfFilename(`${kind}-voucher-${id}`)}"`,
-            'x-document-source': 'archived-at-issue',
-            'cache-control': 'private, no-store',
-          },
+          headers: pdfHeaders(name, { download, source: 'archived-at-issue' }),
         })
       }
     }
@@ -47,11 +43,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ kind: st
     const html = await renderVoucherHtml(ctx.companyId, kind as VoucherKind, id)
     if (format === 'html') {
       return new Response(html, {
-        headers: {
-          'content-type': 'text/html; charset=utf-8',
-          'x-document-source': 'rebuilt-now',
-          'cache-control': 'private, no-store',
-        },
+        headers: documentHtmlHeaders(),
       })
     }
 
@@ -63,12 +55,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ kind: st
     })
 
     return new Response(new Uint8Array(pdf), {
-      headers: {
-        'content-type': 'application/pdf',
-        'content-disposition': `inline; filename="${pdfFilename(`${kind}-voucher-${id}`)}"`,
-        'x-document-source': kept.archived ? 'archived-at-issue' : 'rebuilt-now',
-        'cache-control': 'private, no-store',
-      },
+      headers: pdfHeaders(name, { download, source: kept.archived ? 'archived-at-issue' : 'rebuilt-now' }),
     })
   } catch (e) {
     // 🔴 docs/80 — the cause is logged, the message stays generic. See `_lib/handler.ts`.

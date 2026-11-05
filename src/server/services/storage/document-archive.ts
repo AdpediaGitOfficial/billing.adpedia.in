@@ -1,7 +1,7 @@
 import { prisma } from '@/server/db'
 import type { RequestContext } from '@/server/context'
 import type { AttachmentKind } from '@prisma/client'
-import { uploadAttachment } from './attachment'
+import { readAttachment, uploadAttachment } from './attachment'
 import { htmlToPdf } from '@/server/services/invoicing/pdf'
 
 /**
@@ -108,6 +108,42 @@ export async function archivedDocument(companyId: string, entityType: string, en
     },
     orderBy: { createdAt: 'asc' },
   })
+}
+
+/**
+ * The archived bytes — or nothing, so the caller renders instead. docs/85 §1.
+ *
+ * 🔴 The archive is BEST EFFORT on the way in and was FATAL on the way out.
+ *
+ * `archiveIssuedDocument` above never throws, on the explicit reasoning that a company must
+ * be able to bill even when the PDF renderer is unwell. Serving took the opposite line
+ * without anyone deciding it: all four document routes read the attachment directly, so a row
+ * pointing at bytes that cannot be read — a storage directory not carried across in a move, a
+ * `STORAGE_DIR` pointing somewhere new, a file restored without its blobs, a permission — came
+ * out as a flat 500 on a document the app could have rebuilt from the database in a second.
+ *
+ * The missing copy is still a real loss and still reported: what went out is no longer on
+ * record (docs/59), and `x-document-source` says plainly that this is a reconstruction. But
+ * the person asking for their invoice gets their invoice.
+ */
+export async function archivedDocumentBytes(
+  ctx: RequestContext, entityType: string, entityId: string,
+): Promise<Buffer | null> {
+  const archived = await archivedDocument(ctx.companyId, entityType, entityId)
+  if (!archived) return null
+  try {
+    const { bytes } = await readAttachment(ctx, archived.id)
+    return bytes
+  } catch (e) {
+    // 🔴 the storage KEY is in the log line. Without it this says a file is missing and not
+    // which file, and the whole point is to be able to go and look.
+    console.error(
+      `archive · ${entityType} ${entityId} has a copy on record (attachment ${archived.id}, `
+      + `key ${archived.storageKey}) whose bytes could not be read — serving a fresh render instead.`,
+      e,
+    )
+    return null
+  }
 }
 
 /**

@@ -5,7 +5,16 @@ import { ZodError } from 'zod'
 /** Wraps a route handler so domain errors become clean JSON instead of stack traces. */
 export function handler<T>(fn: () => Promise<T>) {
   return fn()
-    .then((data) => NextResponse.json(data ?? { ok: true }))
+    /**
+     * 🔴 A handler that has already built its own Response gets out of the way — docs/85 §2.
+     *
+     * Everything here answers 200 on success, which is right for a route whose success is
+     * "it worked". A health check's success is a VERDICT: `{ ok: false }` behind a 200 is a
+     * failing box that every monitor in the world reads as healthy. Passing a Response
+     * through lets the one route that needs a status say so, without any other route
+     * losing the error handling below.
+     */
+    .then((data) => (data instanceof Response ? data : NextResponse.json(data ?? { ok: true })))
     .catch((e: unknown) => {
       if (e instanceof ZodError) {
         return NextResponse.json(

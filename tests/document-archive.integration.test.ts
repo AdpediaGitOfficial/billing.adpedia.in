@@ -4,9 +4,11 @@ import { resetDb } from './helpers/db'
 import { createInvoice, sendInvoice } from '@/server/services/invoicing/invoice'
 import { createCreditNote } from '@/server/services/invoicing/credit-note'
 import { createExpense, expensesWithoutEvidence } from '@/server/services/purchases/expense'
-import { archivedDocument, archiveIssuedDocument, unarchivedInvoices } from '@/server/services/storage/document-archive'
+import { archivedDocument, archivedDocumentBytes, archiveIssuedDocument, unarchivedInvoices } from '@/server/services/storage/document-archive'
 import { uploadAttachment, readAttachment, detachAttachment } from '@/server/services/storage/attachment'
-import { closePdfBrowser } from '@/server/services/invoicing/pdf'
+import { htmlToPdf, closePdfBrowser } from '@/server/services/invoicing/pdf'
+import { renderInvoiceHtml } from '@/server/services/invoicing/render'
+import { storage } from '@/server/services/storage/driver'
 import type { RequestContext } from '@/server/context'
 
 const prisma = new PrismaClient()
@@ -142,6 +144,71 @@ describe('🔴 the document as it was issued', () => {
   it('🔴 a detached copy does not count as archived', async () => {
     const orphan = (await unarchivedInvoices(ctx))[0]
     expect(await archivedDocument(companyId, 'Invoice', orphan.id)).toBeNull()
+  })
+})
+
+/**
+ * 🔴 docs/85 §1 — the archive was best effort going in and fatal coming out.
+ *
+ * `archiveIssuedDocument` above never throws, on the stated reasoning that a company must be
+ * able to bill even when the renderer is unwell. Serving took the opposite line without anyone
+ * choosing it: all four document routes read the attachment directly, so an Attachment row
+ * pointing at bytes that are not there — a storage directory left behind in a move, a
+ * STORAGE_DIR repointed, a restore of the database without the blobs — came out of
+ * `/api/invoices/[id]/document` as a flat 500 on a document the database could rebuild in a
+ * second.
+ */
+describe('🔴 an archived copy that cannot be read', () => {
+  let orphanedId = '', attachmentId = '', storageKey = ''
+
+  beforeAll(async () => {
+    const sent = await sendInvoice(ctx, (await raise('2026-07-03', '75000')).id)
+    orphanedId = sent.id
+    const a = (await archivedDocument(companyId, 'Invoice', sent.id))!
+    attachmentId = a.id
+    storageKey = a.storageKey
+    // what a move that left the storage directory behind looks like from in here
+    await storage().remove(storageKey)
+  })
+
+  it('still has the row — the loss is invisible to the database', async () => {
+    const a = await archivedDocument(companyId, 'Invoice', orphanedId)
+    expect(a).not.toBeNull()
+    expect(a!.id).toBe(attachmentId)
+    await expect(readAttachment(ctx, attachmentId)).rejects.toThrow()
+  })
+
+  it('🔴 reports no bytes rather than throwing, so the caller can render', async () => {
+    const said: unknown[][] = []
+    const real = console.error
+    console.error = (...a: unknown[]) => { said.push(a) }
+    let bytes: Buffer | null = null
+    try {
+      bytes = await archivedDocumentBytes(ctx, 'Invoice', orphanedId)
+    } finally {
+      console.error = real
+    }
+
+    expect(bytes).toBeNull()
+
+    const line = said.map((a) => a.map(String).join(' ')).join('\n')
+    expect(line, 'an unreadable archive logged nothing').toMatch(/archive/)
+    expect(line).toMatch(new RegExp(orphanedId))
+    // 🔴 the storage KEY, or this says a file is missing and not which file
+    expect(line).toMatch(new RegExp(storageKey.replace(/[/.]/g, '\\$&')))
+  })
+
+  it('🔴 and the document is still obtainable, which is the whole point', async () => {
+    const bytes = await archivedDocumentBytes(ctx, 'Invoice', orphanedId)
+      ?? await htmlToPdf(await renderInvoiceHtml(companyId, orphanedId))
+    expect(bytes.subarray(0, 5).toString()).toBe('%PDF-')
+  })
+
+  it('an archive that IS readable is still preferred over a render', async () => {
+    const bytes = await archivedDocumentBytes(ctx, 'Invoice', invoiceId)
+    expect(bytes).not.toBeNull()
+    const { bytes: direct } = await readAttachment(ctx, (await archivedDocument(companyId, 'Invoice', invoiceId))!.id)
+    expect(bytes!.equals(direct)).toBe(true)
   })
 })
 

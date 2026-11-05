@@ -396,6 +396,10 @@ npm run build
 pm2 start adpedia && pm2 save
 ```
 
+- 🔴 **`npm ci` can take the browser away.** It reinstalls the Playwright package, and if the
+  version moved, the browser revision it now wants was never downloaded — every document in the
+  system fails at once. Run `npx playwright install chromium` after any `npm ci`, as the app user,
+  and check `/api/health?deep=1` before letting an invoice go out.
 - **Migrations before the build, the build before the restart.**
 - 🔴 **Do not build while the old process is serving.** Both read the same `.next`; the dev
   version of this clash is `Cannot find module './897.js'` (handover §5), and in production
@@ -427,7 +431,9 @@ pm2 start adpedia && pm2 save
 | Login form reloads, no session | `NODE_ENV` not `production` over HTTPS, or being tried over HTTP — the cookie is `secure` |
 | `Invalid environment: JWT_SECRET …` on boot | secret under 32 characters |
 | `EADDRINUSE` after a restart | pm2 was pointed at `npm start`, orphaning the real server. Use `ecosystem.config.js` as written |
+| PDF download fails | `/api/health?deep=1` as the owner names the cause. Since docs/85 the download itself says so too: a missing browser, missing system libraries and an out-of-memory kill each get their own message |
 | PDF download 500s, `Executable doesn't exist` | Chromium installed as the wrong user — reinstall as `adpedia` |
+| A document 500s but others are fine | since docs/85 it does not: an archived copy whose bytes are missing is logged with its storage key and the document is re-rendered. `x-document-source: rebuilt-now` is the sign |
 | PDFs render in the wrong typeface | the templates fetch Poppins from Google at render time and the renderer deliberately does not wait for it. No egress → fallback face, silently. Vendor the font into `templates/` |
 | Receipt upload fails with nginx's 413 | `client_max_body_size` — the app's own limit is 12 MB |
 | Passkey enrols but will not sign in | `WEBAUTHN_RP_ID` ≠ the domain, or the domain changed after enrolment |
@@ -437,9 +443,11 @@ pm2 start adpedia && pm2 save
 
 ## Known gaps on the box
 
-- **No health route.** `/api/health` does not exist. Point monitoring at `/login`, which is
-  public and returns 200 — `/` returns a 307 to it, so a checker that follows redirects
-  reports healthy whatever is happening underneath.
+- ~~**No health route.**~~ Closed in docs/85. `GET /api/health` is public and checks the
+  database — point monitoring at that, not at `/login`, which returns 200 for as long as Next
+  is running whatever is happening underneath. `GET /api/health?deep=1`, signed in as the
+  OWNER, additionally **renders a PDF and writes a file**, which is the one way to tell a
+  broken invoice from a box that cannot produce any document at all.
 - **One process only.** If a second instance is ever added behind nginx, the notify endpoint
   must still be called once a day in total; the per-notification idempotency key is the only
   thing standing between a double call and a double send.
@@ -455,6 +463,7 @@ pm2 start adpedia && pm2 save
 | ☐ | `STORAGE_DIR` outside the checkout, and in the backup |
 | ☐ | `pg_dump` restored into a scratch database once, successfully |
 | ☐ | `pm2 save` run, and a reboot actually tested |
+| ☐ | `GET /api/health?deep=1` as the owner — database, storage and renderer all `ok` |
 | ☐ | An invoice PDF downloaded from the deployed box and **looked at** |
 | ☐ | Seed owner password changed, `SEED_OWNER_*` deleted from `.env` |
 | ☐ | The handover §1 blockers — PANs for 13 people, annual tax estimates, FY 2026-27 LUT, CA sign-off on the TDS table — are still client-side, and still block a right answer |

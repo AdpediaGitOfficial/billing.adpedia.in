@@ -18,13 +18,37 @@ export function ShareInvoice({ invoiceId, number, customerName, total }: {
 
   const text = `Invoice ${number} from Adpedia Films Pvt Ltd for ${customerName} — ${total}.`
 
+  /**
+   * 🔴 docs/85 §2 — the server's own sentence, not this component's guess at one.
+   *
+   * This threw `new Error('Could not fetch the document')` and dropped the response body on
+   * the floor. The document routes answer a failure with a plain sentence written for a
+   * person — and when the renderer is the problem that sentence now names the two commands
+   * that fix it. Replacing it here with four words meant the one screen most likely to be
+   * looked at was the one place the explanation could not reach.
+   *
+   * Still defensive about what it shows: only a short plain-text body, because an error from
+   * somewhere further out (a proxy, a login redirect) is an HTML page, and pasting that into
+   * a label under a button helps nobody.
+   */
+  async function reason(res: Response): Promise<string> {
+    const generic = 'Could not fetch the document'
+    try {
+      const body = (await res.text()).trim()
+      const usable = body.length > 0 && body.length < 400 && !body.includes('<')
+      return usable ? body : generic
+    } catch {
+      return generic
+    }
+  }
+
   async function share() {
     setBusy(true); setNote(null)
     const url = `${location.origin}/api/invoices/${invoiceId}/document`
 
     try {
       const res = await fetch(url)
-      if (!res.ok) throw new Error('Could not fetch the document')
+      if (!res.ok) throw new Error(await reason(res))
       const blob = await res.blob()
       // 🔴 Name the file after what it ACTUALLY is. The document route serves HTML until
       // the Playwright PDF worker lands (docs/21 §6), so hard-coding ".pdf" would hand the

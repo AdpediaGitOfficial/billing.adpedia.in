@@ -2,6 +2,7 @@
 // dynamic one breaks under bundlers that compile to a data: URL with no base to resolve
 // against. Chromium itself is still launched lazily, on the first render.
 import { chromium, type Browser, type Page } from 'playwright'
+import { RendererUnavailable } from '@/server/errors'
 
 /**
  * HTML → PDF via headless Chromium.
@@ -96,7 +97,79 @@ async function awaitFont(page: Page, budgetMs: number): Promise<{ faces: number;
   })()`) as Promise<{ faces: number; loaded: number }>
 }
 
+
+/**
+ * Why could this box not make a PDF? — docs/85 §2.
+ *
+ * 🔴 Every invoice, credit note, voucher and payslip in this system is a Chromium render, and
+ * when Chromium will not start **all of them fail at once**. The route caught that like any
+ * other unexpected error: a flat "Could not render the invoice" on screen, the cause in a log
+ * nobody was reading. The deployed box showed exactly that, and from the browser the two
+ * possibilities — a broken invoice and a server with no browser installed — look identical.
+ *
+ * They are not remotely the same problem. One is data, one is four minutes of docs/90 Step 10.
+ * Playwright already says which, in a sentence written for a developer at a terminal; this
+ * turns it into one written for whoever is holding the phone.
+ *
+ * Only the KNOWN shapes are translated. Anything unrecognised stays generic and goes to the
+ * log, because an unrecognised error is where table names and query fragments live — docs/80.
+ */
+export function rendererUnavailable(e: unknown): RendererUnavailable | null {
+  const m = e instanceof Error ? e.message : String(e)
+
+  // Playwright is installed, its browser is not — or `npm ci` pulled a version whose
+  // browser revision was never downloaded. The commonest production failure by far, and the
+  // install is docs/90 Step 10. 🔴 The reference stays in this comment: the sentence below is
+  // read by whoever clicked "download", who has no repository to look any of it up in.
+  if (/Executable doesn't exist|playwright install(?!-deps)/i.test(m)) {
+    return new RendererUnavailable(
+      'The PDF renderer is not installed on this server, so no document can be produced. '
+      + 'Someone with access to the server needs to run `npx playwright install chromium` '
+      + 'from the application directory, as the user the application runs as — '
+      + 'installed as root, the browser is invisible to it.',
+    )
+  }
+
+  // the browser is there; the OS libraries it links against are not
+  if (/missing dependencies|install-deps|error while loading shared libraries|libnss3|libgbm/i.test(m)) {
+    return new RendererUnavailable(
+      'The PDF renderer is installed but cannot start, because this server is missing the '
+      + 'system libraries it needs. Someone with root access needs to run '
+      + '`npx playwright install-deps chromium` from the application directory.',
+    )
+  }
+
+  // 🔴 the shape of an OOM kill. Chromium is a CHILD process, so nothing in the app's own
+  // memory tells you this happened — the only trace is the browser disappearing mid-render.
+  if (/Target (page, context or browser has been )?closed|Target crashed|browser has been closed|Protocol error/i.test(m)) {
+    return new RendererUnavailable(
+      'The PDF renderer stopped while producing this document, which on a small server almost '
+      + 'always means it ran out of memory. Try one document at a time; if it keeps happening, '
+      + 'the server needs more memory or swap space.',
+    )
+  }
+
+  return null
+}
+
+/**
+ * 🔴 The wrapper exists so that a renderer that CANNOT RUN is distinguished from a document
+ * that cannot be rendered, at the one point where both arrive as the same exception.
+ */
 export async function htmlToPdf(html: string, opts: PdfOptions = {}): Promise<Buffer> {
+  try {
+    return await renderPdf(html, opts)
+  } catch (e) {
+    const unavailable = rendererUnavailable(e)
+    if (!unavailable) throw e
+    // 🔴 logged as well as thrown. The sentence above is for the person; the original carries
+    // the path Playwright was looking in, which is what actually settles a wrong-user install.
+    console.error('pdf · renderer unavailable —', e)
+    throw unavailable
+  }
+}
+
+async function renderPdf(html: string, opts: PdfOptions): Promise<Buffer> {
   const browser = await getBrowser()
   const context = await browser.newContext()
   const page = await context.newPage()
