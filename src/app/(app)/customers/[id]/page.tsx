@@ -32,7 +32,7 @@ export default async function EditCustomerPage({ params }: { params: Promise<{ i
           id: customer.id, name: customer.name,
           contactPerson: customer.contactPerson ?? '', email: customer.email ?? '', phone: customer.phone ?? '',
           country: customer.country, stateCode: customer.stateCode ?? '',
-          gstin: customer.gstin ?? '', pan: customer.pan ?? '',
+          gstin: customer.gstin ?? '', pan: customer.pan ?? '', currency: customer.currency,
           paymentTermDays: customer.paymentTermDays,
           defaultTdsSection: customer.defaultTdsSection ?? '',
           line1: addr.line1 ?? '', line2: addr.line2 ?? '', city: addr.city ?? '', pincode: addr.pincode ?? '',

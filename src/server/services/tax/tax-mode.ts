@@ -1,4 +1,5 @@
 import type { TaxMode } from '@prisma/client'
+import { stateName } from '@/lib/indian-states'
 
 export interface TaxModeCompany { stateCode: string }
 export interface TaxModeCustomer {
@@ -40,22 +41,12 @@ export function allowsTds(mode: TaxMode): boolean {
   return mode !== 'EXPORT'
 }
 
-const STATE_NAMES: Record<string, string> = {
-  '01': 'Jammu & Kashmir', '02': 'Himachal Pradesh', '03': 'Punjab', '04': 'Chandigarh',
-  '05': 'Uttarakhand', '06': 'Haryana', '07': 'Delhi', '08': 'Rajasthan', '09': 'Uttar Pradesh',
-  '10': 'Bihar', '11': 'Sikkim', '12': 'Arunachal Pradesh', '13': 'Nagaland', '14': 'Manipur',
-  '15': 'Mizoram', '16': 'Tripura', '17': 'Meghalaya', '18': 'Assam', '19': 'West Bengal',
-  '20': 'Jharkhand', '21': 'Odisha', '22': 'Chhattisgarh', '23': 'Madhya Pradesh', '24': 'Gujarat',
-  '26': 'Dadra & Nagar Haveli and Daman & Diu', '27': 'Maharashtra', '29': 'Karnataka',
-  '30': 'Goa', '31': 'Lakshadweep', '32': 'Kerala', '33': 'Tamil Nadu', '34': 'Puducherry',
-  '35': 'Andaman & Nicobar Islands', '36': 'Telangana', '37': 'Andhra Pradesh', '38': 'Ladakh',
-  '96': 'Other Country', '97': 'Other Territory',
-}
-
-export function stateName(code: string | null | undefined): string {
-  if (!code) return '—'
-  return STATE_NAMES[code] ?? `State ${code}`
-}
+/**
+ * 🔴 The table moved to `lib/indian-states.ts` — four client forms needed it and could not
+ * import from `server`, so each had written out a partial copy. Re-exported here because
+ * this module is where the rest of the codebase has always asked for it.
+ */
+export { stateName, STATE_NAMES } from '@/lib/indian-states'
 
 export function placeOfSupplyLabel(mode: TaxMode, stateCode: string | null): string {
   if (mode === 'EXPORT') return 'Outside India (96 – Other Country)'

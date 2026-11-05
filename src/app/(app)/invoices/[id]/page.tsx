@@ -4,6 +4,7 @@ import { requireContext } from '@/server/context'
 import { archivedDocument } from '@/server/services/storage/document-archive'
 import { prisma } from '@/server/db'
 import { formatINR, amountInWords, Decimal } from '@/lib/money'
+import { currencyWords } from '@/lib/currencies'
 import { invoiceOpen } from '@/lib/invoice-open'
 import { placeOfSupplyLabel, taxModeLabel } from '@/server/services/tax/tax-mode'
 import { lutStatus } from '@/server/services/invoicing/lut'
@@ -158,7 +159,7 @@ export default async function InvoiceDetail({ params }: { params: Promise<{ id: 
         <Card className="p-4">
           <p className="text-[10px] font-semibold uppercase tracking-[0.1em]" style={{ color: 'var(--text-muted)' }}>Total in words</p>
           <p className="mt-1.5 text-[13px] font-semibold">
-            {amountInWords(inv.grandTotal.toString(), inv.currency === 'INR' ? 'Indian Rupees' : 'US Dollars')}
+            {amountInWords(inv.grandTotal.toString(), currencyWords(inv.currency))}
           </p>
         </Card>
 

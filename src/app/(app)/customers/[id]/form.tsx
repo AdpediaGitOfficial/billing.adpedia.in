@@ -3,16 +3,11 @@ import { useActionState, useState } from 'react'
 import Link from 'next/link'
 import { updateCustomerAction } from '../actions'
 import { Card, Field, Button, Alert, inputClass, inputStyle, Pill } from '@/components/ui/kit'
-
-const STATES = [
-  ['32', 'Kerala'], ['29', 'Karnataka'], ['33', 'Tamil Nadu'], ['27', 'Maharashtra'],
-  ['07', 'Delhi'], ['36', 'Telangana'], ['24', 'Gujarat'], ['09', 'Uttar Pradesh'],
-  ['19', 'West Bengal'], ['06', 'Haryana'], ['37', 'Andhra Pradesh'], ['30', 'Goa'],
-]
+import { CountrySelect, StateSelect, CurrencySelect } from '@/components/ui/geo'
 
 export interface CustomerValues {
   id: string; name: string; contactPerson: string; email: string; phone: string
-  country: string; stateCode: string; gstin: string; pan: string
+  country: string; stateCode: string; gstin: string; pan: string; currency: string
   paymentTermDays: number; defaultTdsSection: string
   line1: string; line2: string; city: string; pincode: string
 }
@@ -24,6 +19,7 @@ export function EditCustomerForm({ customer, issuedInvoices }: {
   const [country, setCountry] = useState(customer.country)
   const [stateCode, setStateCode] = useState(customer.stateCode || '32')
   const [gstin, setGstin] = useState(customer.gstin)
+  const [currency, setCurrency] = useState(customer.currency)
 
   const mode = country !== 'IN' ? 'Export · zero-rated, no GST'
     : stateCode === '32' ? 'Intra-state · CGST 9% + SGST 9%'
@@ -33,7 +29,8 @@ export function EditCustomerForm({ customer, issuedInvoices }: {
   // Invoices already issued keep their own frozen copy, so nothing retrospective happens —
   // but someone should know the treatment is about to switch rather than discover it on the
   // next invoice.
-  const taxChanged = stateCode !== customer.stateCode || country !== customer.country || gstin !== customer.gstin
+  const taxChanged = stateCode !== customer.stateCode || country !== customer.country
+    || gstin !== customer.gstin || currency !== customer.currency
 
   return (
     <form action={action}>
@@ -47,20 +44,12 @@ export function EditCustomerForm({ customer, issuedInvoices }: {
           </div>
 
           <Field label="Country">
-            <select name="country" value={country} onChange={(e) => setCountry(e.target.value)} className={inputClass} style={inputStyle}>
-              <option value="IN">India</option>
-              <option value="AE">United Arab Emirates</option>
-              <option value="US">United States</option>
-              <option value="GB">United Kingdom</option>
-              <option value="SG">Singapore</option>
-            </select>
+            <CountrySelect name="country" value={country} onChange={(e) => setCountry(e.target.value)} />
           </Field>
 
           {country === 'IN' && (
             <Field label="State">
-              <select name="stateCode" value={stateCode} onChange={(e) => setStateCode(e.target.value)} className={inputClass} style={inputStyle}>
-                {STATES.map(([code, name]) => <option key={code} value={code}>{name} ({code})</option>)}
-              </select>
+              <StateSelect name="stateCode" value={stateCode} onChange={(e) => setStateCode(e.target.value)} />
             </Field>
           )}
 
@@ -82,6 +71,13 @@ export function EditCustomerForm({ customer, issuedInvoices }: {
           <Field label="Payment terms (days)">
             <input name="paymentTermDays" type="number" inputMode="numeric" defaultValue={customer.paymentTermDays} className={inputClass} style={inputStyle} />
           </Field>
+
+          {country !== 'IN' && (
+            <Field label="Bill this client in"
+              hint="Agreed with the client, never inferred from their country. Invoices already issued keep the currency they were raised in.">
+              <CurrencySelect name="currency" value={currency} onChange={(e) => setCurrency(e.target.value)} />
+            </Field>
+          )}
 
           {country === 'IN' && (
             <div className="sm:col-span-2">

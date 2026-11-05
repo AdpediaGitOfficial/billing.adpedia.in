@@ -8,6 +8,7 @@ import { Icon } from '@/components/shell/icon'
 import { partyBalances } from '@/server/services/reports/party-ledger'
 import { resolvePeriod } from '@/server/services/reports/period'
 import { formatINR } from '@/lib/money'
+import { countryName } from '@/lib/countries'
 
 export default async function CustomersPage() {
   const ctx = await requireContext()
@@ -39,7 +40,7 @@ export default async function CustomersPage() {
         </>
       ) },
     { key: 'place', header: 'Place of supply', width: '18%', mobile: 'secondary',
-      cell: (r) => <span style={{ color: 'var(--text-secondary)' }}>{r.country === 'IN' ? stateName(r.stateCode) : r.country}</span> },
+      cell: (r) => <span style={{ color: 'var(--text-secondary)' }}>{r.country === 'IN' ? stateName(r.stateCode) : countryName(r.country)}</span> },
     { key: 'gstin', header: 'GSTIN', width: '18%', mobile: false,
       cell: (r) => <span className="tabular" style={{ color: 'var(--text-muted)' }}>{r.gstin ?? '—'}</span> },
     { key: 'tax', header: 'Tax treatment', width: '18%', align: 'center', mobile: 'tag',

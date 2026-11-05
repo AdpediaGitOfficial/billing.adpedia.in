@@ -2,9 +2,8 @@
 import { useActionState } from 'react'
 import Link from 'next/link'
 import { Card, Button, Field, Alert, inputClass, inputStyle } from '@/components/ui/kit'
+import { StateSelect } from '@/components/ui/geo'
 import { amendInvoiceAction } from './actions'
-
-const STATES = [['32', 'Kerala'], ['29', 'Karnataka'], ['33', 'Tamil Nadu'], ['27', 'Maharashtra'], ['07', 'Delhi'], ['36', 'Telangana'], ['24', 'Gujarat']]
 
 /**
  * 🔴 Everything here is what the invoice SHOULD have said. Nothing on this form edits the
@@ -34,9 +33,7 @@ export function AmendForm({ invoiceId, invoiceNumber, today, current }: {
 
         <Field label="Place of supply, as it should have been"
           hint="Changing this moves the tax between CGST/SGST and IGST — the value does not change">
-          <select name="stateCode" defaultValue={current.stateCode ?? ''} className={inputClass} style={inputStyle}>
-            {STATES.map(([c, n]) => <option key={c} value={c}>{n} ({c})</option>)}
-          </select>
+          <StateSelect name="stateCode" defaultValue={current.stateCode ?? ''} />
         </Field>
 
         <Field label="Taxable value, as it should have been" hint="Leave as it is unless the value itself was keyed wrong">

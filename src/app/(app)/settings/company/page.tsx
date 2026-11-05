@@ -3,6 +3,7 @@ import { requireContext } from '@/server/context'
 import { prisma } from '@/server/db'
 import { Card, PageHeader, Pill, Alert } from '@/components/ui/kit'
 import { CompanyEditForm } from './edit-form'
+import { SwiftForm } from './swift-form'
 import { RocForm } from './roc-form'
 import { rocYears } from '@/server/services/compliance/roc'
 import { gstr9Due } from '@/server/services/compliance/deadlines'
@@ -96,6 +97,13 @@ export default async function CompanySettingsPage() {
                 <td className="px-4 py-2.5 text-right">
                   <span className="tabular">{b.accountNo}</span>
                   <span className="block text-[11.5px] tabular" style={{ color: 'var(--text-muted)' }}>{b.ifsc}</span>
+                </td>
+                <td className="px-4 py-2.5 text-right">
+                  {/* 🔴 Editable, because the invoice template prints it and nothing could
+                      set it — an overseas client had no way to remit. docs/87. */}
+                  <SwiftForm bankAccountId={b.id} swift={b.swift ?? ''} />
+                  <span className="block text-[11px] uppercase tracking-wider"
+                    style={{ color: 'var(--text-muted)' }}>SWIFT</span>
                 </td>
                 <td className="px-4 py-2.5 text-right">
                   {b.isDefault && <Pill tone="good">default</Pill>}

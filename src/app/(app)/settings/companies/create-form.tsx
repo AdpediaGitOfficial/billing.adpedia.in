@@ -1,6 +1,7 @@
 'use client'
 import { useActionState } from 'react'
 import { Button, Field, Alert, inputClass, inputStyle } from '@/components/ui/kit'
+import { StateSelect, CurrencySelect } from '@/components/ui/geo'
 import { createCompanyAction } from './actions'
 
 const CONSTITUTIONS = [
@@ -33,12 +34,16 @@ export function CreateCompanyForm() {
           <input name="gstin" maxLength={15} autoCapitalize="characters"
             className={`${inputClass} uppercase`} style={inputStyle} placeholder="32AAAPA1234A1Z5" />
         </Field>
-        <Field label="State code" hint="Two digits — 32 is Kerala. Decides CGST+SGST versus IGST">
-          <input name="stateCode" required maxLength={2} defaultValue="32" className={inputClass} style={inputStyle} />
+        <Field label="State" hint="Decides CGST+SGST versus IGST — and must agree with the GSTIN above">
+          <StateSelect name="stateCode" required defaultValue="32" />
         </Field>
         <Field label="Document prefix" hint="2 to 4 letters. Rule 46 caps a document number at 16 characters">
           <input name="seriesPrefix" required maxLength={4} autoCapitalize="characters"
             className={`${inputClass} uppercase`} style={inputStyle} placeholder="SEC" />
+        </Field>
+        <Field label="Bills overseas clients in"
+          hint="The default for a new export client — each client can be set to something else. The books stay in rupees.">
+          <CurrencySelect name="billingCurrencyDefault" defaultValue="USD" />
         </Field>
       </div>
 

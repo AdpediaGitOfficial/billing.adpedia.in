@@ -3,6 +3,7 @@ import type { RequestContext } from '@/server/context'
 import { assertCan } from '@/server/auth/permissions'
 import { audit } from '@/server/audit'
 import { AppError, NotFound } from '@/server/errors'
+import { countryName } from '@/lib/countries'
 import { stateCodeFromGstin, resolveTaxMode, taxModeLabel } from '@/server/services/tax/tax-mode'
 
 export interface CustomerInput {
@@ -11,6 +12,7 @@ export interface CustomerInput {
   email?: string
   phone?: string
   country?: string
+  currency?: string
   stateCode?: string | null
   gstin?: string | null
   pan?: string | null
@@ -40,6 +42,19 @@ function validate(input: CustomerInput) {
   }
 }
 
+/**
+ * 🔴 The billing address PRINTS on the invoice, so its `country` is a name, not a code.
+ *
+ * Normalised here rather than in the form action, because the service is the boundary: the
+ * action was already doing it and a second caller would not have. Found by rendering an
+ * invoice to a Dubai client and reading the address block, which ended "AE".
+ */
+export function printableAddress(address: unknown, country: string) {
+  const a = (address ?? {}) as Record<string, unknown>
+  const stored = String(a.country ?? '').trim()
+  return { ...a, country: countryName(stored || country) || stored }
+}
+
 export async function createCustomer(ctx: RequestContext, input: CustomerInput) {
   assertCan(ctx.role, 'customers', 'write')
   validate(input)
@@ -56,9 +71,13 @@ export async function createCustomer(ctx: RequestContext, input: CustomerInput) 
       gstin: input.gstin || null,
       pan: input.pan || null,
       customerType: input.customerType ?? ((input.country ?? 'IN') === 'IN' ? 'B2B' : 'EXPORT'),
+      // 🔴 Only meaningful for an export: `invoiceCurrency` forces INR on a domestic
+      // invoice whatever is stored here. Written so it can no longer be USD by default
+      // for a client who agreed on something else.
+      currency: (input.currency || 'USD').toUpperCase(),
       paymentTermDays: input.paymentTermDays ?? 15,
       defaultTdsSection: input.defaultTdsSection ?? null,
-      billingAddress: input.billingAddress as never,
+      billingAddress: printableAddress(input.billingAddress, input.country ?? 'IN') as never,
     },
   })
   await audit(ctx, { entity: 'Customer', entityId: customer.id, action: 'CREATE', after: { name: customer.name } })
@@ -83,9 +102,10 @@ export async function updateCustomer(ctx: RequestContext, id: string, input: Cus
       gstin: input.gstin || null,
       pan: input.pan || null,
       customerType: input.customerType ?? existing.customerType,
+      currency: (input.currency || existing.currency).toUpperCase(),
       paymentTermDays: input.paymentTermDays ?? existing.paymentTermDays,
       defaultTdsSection: input.defaultTdsSection ?? null,
-      billingAddress: input.billingAddress as never,
+      billingAddress: printableAddress(input.billingAddress, input.country ?? 'IN') as never,
     },
   })
   // 🔴 Record the TAX-RELEVANT fields, not just the name. A changed state code or GSTIN
@@ -94,8 +114,8 @@ export async function updateCustomer(ctx: RequestContext, id: string, input: Cus
   // treatment switched.
   await audit(ctx, {
     entity: 'Customer', entityId: id, action: 'UPDATE',
-    before: { name: existing.name, gstin: existing.gstin, stateCode: existing.stateCode, country: existing.country, billingAddress: existing.billingAddress },
-    after: { name: customer.name, gstin: customer.gstin, stateCode: customer.stateCode, country: customer.country, billingAddress: customer.billingAddress },
+    before: { name: existing.name, gstin: existing.gstin, stateCode: existing.stateCode, country: existing.country, currency: existing.currency, billingAddress: existing.billingAddress },
+    after: { name: customer.name, gstin: customer.gstin, stateCode: customer.stateCode, country: customer.country, currency: customer.currency, billingAddress: customer.billingAddress },
   })
   return customer
 }

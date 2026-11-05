@@ -2,7 +2,7 @@
 import { z } from 'zod'
 import { revalidatePath } from 'next/cache'
 import { requireContext } from '@/server/context'
-import { updateCompanyProfile } from '@/server/services/company/profile'
+import { updateCompanyProfile, setBankSwift } from '@/server/services/company/profile'
 import { AppError } from '@/server/errors'
 import { recordRocDates } from '@/server/services/compliance/roc'
 
@@ -66,4 +66,25 @@ export async function recordRocDatesAction(_prev: { error?: string; ok?: string 
   revalidatePath('/settings/company')
   revalidatePath('/tax/calendar')
   return { ok: 'Saved' }
+}
+
+/**
+ * docs/87 — the SWIFT code an overseas client needs in order to pay the invoice.
+ *
+ * 🔴 `assertCan` lives in the service, not here: a server action is a POST endpoint with a
+ * generated name, so the check has to be below the boundary, not on the screen that calls it.
+ */
+export async function setBankSwiftAction(
+  _prev: { error?: string; ok?: string } | null, form: FormData,
+) {
+  const ctx = await requireContext()
+  try {
+    const r = await setBankSwift(ctx, String(form.get('bankAccountId') ?? ''), String(form.get('swift') ?? ''))
+    revalidatePath('/settings/company')
+    return r.swift
+      ? { ok: `${r.label} now carries ${r.swift} — it prints on every invoice that shows this account.` }
+      : { ok: `${r.label} no longer shows a SWIFT code.` }
+  } catch (e) {
+    return { error: e instanceof AppError ? e.message : 'Could not save that SWIFT code' }
+  }
 }

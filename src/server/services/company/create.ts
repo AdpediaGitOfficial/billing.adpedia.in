@@ -48,6 +48,8 @@ export interface CreateCompanyInput {
   }
   /** 2–4 letters. The document series are built from it — Rule 46 caps a number at 16 chars */
   seriesPrefix: string
+  /** 🔴 What a NEW overseas client of this entity is billed in. The books stay in INR. */
+  billingCurrencyDefault?: string
   /** what GL 1010 is called here, e.g. "Axis Bank — Current 9210…" */
   bankLabel?: string
   /** who signs this entity's documents — "Shinelal C P" — and as what — "Managing Partner" */
@@ -207,6 +209,7 @@ export async function createCompany(ctx: RequestContext, input: CreateCompanyInp
           country: input.address.country?.trim() || 'India',
         },
         currencyDefault: 'INR',
+        billingCurrencyDefault: (input.billingCurrencyDefault || 'USD').toUpperCase(),
         fyStartMonth,
         signatoryName: input.signatoryName?.trim() || null,
         signatoryDesignation: input.signatoryDesignation?.trim() || null,

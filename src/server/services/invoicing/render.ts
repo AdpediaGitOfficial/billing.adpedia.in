@@ -3,6 +3,8 @@ import QRCode from 'qrcode'
 import { join, resolve } from 'node:path'
 import { prisma } from '@/server/db'
 import { Decimal, formatINR, amountInWords } from '@/lib/money'
+import { countryName } from '@/lib/countries'
+import { currencyWords } from '@/lib/currencies'
 import { NotFound } from '@/server/errors'
 import { placeOfSupplyLabel } from '@/server/services/tax/tax-mode'
 import { sacSummary, type ComputedLine } from '@/server/services/tax/gst'
@@ -168,7 +170,7 @@ export async function renderInvoiceHtml(companyId: string, invoiceId: string): P
     [/(<div class="name" data-bind="customer\.name">)[^<]*/, `$1${esc(billTo.name)}`],
     [/(<address data-bind="customer\.billingAddress">)[\s\S]*?(<\/address>)/, `$1${addressHtml(billTo.address)}$2`],
     [/(<b data-bind="customer\.gstinOrNA">)[^<]*/, `$1${isExport ? 'Not applicable — overseas recipient' : esc(billTo.gstin ?? '—')}`],
-    [/(<b data-bind="customer\.stateLabel">)[^<]*/, `$1${esc(isExport ? billTo.country : placeOfSupplyLabel(inv.taxMode, billTo.stateCode))}`],
+    [/(<b data-bind="customer\.stateLabel">)[^<]*/, `$1${esc(isExport ? countryName(billTo.country) : placeOfSupplyLabel(inv.taxMode, billTo.stateCode))}`],
 
     [/(<b data-bind="project\.name">)[^<]*/, `$1${esc(inv.project?.name ?? '—')}`],
     [/(<b data-bind="invoice\.customerRef">)[^<]*/, `$1${esc(inv.customerRef ?? '—')}`],
@@ -177,7 +179,7 @@ export async function renderInvoiceHtml(companyId: string, invoiceId: string): P
     [/(<tbody>)[\s\S]*?(<\/tbody>\s*<\/table>\s*<section class="foot-grid">)/, `$1${rows}\n    $2`],
     [/(<tbody data-bind="invoice\.sacSummary">)[\s\S]*?(<\/tbody>)/, `$1${sacRows}$2`],
 
-    [/(<p data-bind="invoice\.totalInWords">)[^<]*/, `$1${esc(amountInWords(inv.grandTotal.toString(), cur === 'INR' ? 'Indian Rupees' : 'US Dollars'))}`],
+    [/(<p data-bind="invoice\.totalInWords">)[^<]*/, `$1${esc(amountInWords(inv.grandTotal.toString(), currencyWords(cur)))}`],
     [/(<span data-bind="invoice\.taxableValue">)[^<]*/, `$1${money(inv.taxableValue.toString())}`],
     [/(<span data-bind="invoice\.cgst">)[^<]*/, `$1${money(inv.cgst.toString())}`],
     [/(<span data-bind="invoice\.sgst">)[^<]*/, `$1${money(inv.sgst.toString())}`],

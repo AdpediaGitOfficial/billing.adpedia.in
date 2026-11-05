@@ -103,3 +103,42 @@ export async function updateCompanyProfile(ctx: RequestContext, input: CompanyPr
   await audit(ctx, { entity: 'Company', entityId: ctx.companyId, action: 'UPDATE', before, after: data })
   return company
 }
+
+/**
+ * The SWIFT/BIC of an account shown on invoices — docs/87.
+ *
+ * 🔴 `templates/invoice/tax-invoice.html` has carried a SWIFT row since docs/03, bound and
+ * rendered, and `CompanyBankAccount.swift` has been nullable and unwritten since the schema
+ * was laid down. Nothing could set it, so every export invoice printed "—" exactly where an
+ * overseas client looks for where to send the money.
+ *
+ * Eight characters is the institution; eleven adds the branch. Both are valid, and the
+ * eleventh characters "XXX" mean the head office — so the length check allows 8 or 11 and
+ * nothing between.
+ */
+const SWIFT_RE = /^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$/
+
+export async function setBankSwift(ctx: RequestContext, bankAccountId: string, swift: string) {
+  assertCan(ctx.role, 'settings.company', 'write')
+
+  const code = swift.trim().toUpperCase().replace(/\s+/g, '')
+  if (code && !SWIFT_RE.test(code)) {
+    throw new AppError(
+      `"${swift.trim()}" is not a SWIFT code — eight characters for the bank, or eleven with the branch, as on the cheque book or the bank's remittance advice`,
+    )
+  }
+
+  // 🔴 Scoped to the company. The id arrives in a form body, so it is a request, not a fact.
+  const account = await prisma.companyBankAccount.findFirst({
+    where: { id: bankAccountId, companyId: ctx.companyId },
+    select: { id: true, label: true, swift: true },
+  })
+  if (!account) throw new AppError('That account is not one of this company’s')
+
+  await prisma.companyBankAccount.update({ where: { id: account.id }, data: { swift: code || null } })
+  await audit(ctx, {
+    entity: 'CompanyBankAccount', entityId: account.id, action: 'UPDATE',
+    before: { swift: account.swift }, after: { swift: code || null },
+  })
+  return { label: account.label, swift: code || null }
+}

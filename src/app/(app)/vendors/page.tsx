@@ -5,6 +5,7 @@ import { stateName } from '@/server/services/tax/tax-mode'
 import { partyBalances } from '@/server/services/reports/party-ledger'
 import { resolvePeriod } from '@/server/services/reports/period'
 import { formatINR } from '@/lib/money'
+import { countryName } from '@/lib/countries'
 import { Icon } from '@/components/shell/icon'
 import { Card, PageHeader, Pill, Empty, Button, DataTable, Alert, type Column, tapTarget } from '@/components/ui/kit'
 
@@ -37,7 +38,7 @@ export default async function VendorsPage() {
         </>
       ) },
     { key: 'place', header: 'Place', width: '14%', mobile: 'secondary',
-      cell: (r) => <span style={{ color: 'var(--text-secondary)' }}>{r.country === 'IN' ? stateName(r.stateCode) : r.country}</span> },
+      cell: (r) => <span style={{ color: 'var(--text-secondary)' }}>{r.country === 'IN' ? stateName(r.stateCode) : countryName(r.country)}</span> },
     { key: 'pan', header: 'PAN', width: '15%', mobile: false,
       cell: (r) => r.panVerified
         ? <span className="tabular" style={{ color: 'var(--text-muted)' }}>{r.pan}</span>

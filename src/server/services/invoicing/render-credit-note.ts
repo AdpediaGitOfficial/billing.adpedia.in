@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { prisma } from '@/server/db'
 import { Decimal, formatINR, amountInWords } from '@/lib/money'
+import { currencyWords } from '@/lib/currencies'
 import { NotFound } from '@/server/errors'
 import { placeOfSupplyLabel } from '@/server/services/tax/tax-mode'
 import { gstAdjustmentDeadline } from './credit-note'
@@ -163,7 +164,7 @@ export async function renderCreditNoteHtml(companyId: string, creditNoteId: stri
 
     [/(<p data-bind="note\.reasonFull">)[^<]*/, `$1${esc(note.reason)}`],
     [/(<p data-bind="note\.totalInWords">)[^<]*/,
-      `$1${esc(amountInWords(note.grandTotal.toString(), cur === 'INR' ? 'Indian Rupees' : 'US Dollars'))}`],
+      `$1${esc(amountInWords(note.grandTotal.toString(), currencyWords(cur)))}`],
 
     [/(<span data-bind="note\.cgstRate">)[^<]*/, `$1${ratePct(cgst)}`],
     [/(<span data-bind="note\.sgstRate">)[^<]*/, `$1${ratePct(sgst)}`],

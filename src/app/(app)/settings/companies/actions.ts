@@ -55,6 +55,7 @@ export async function createCompanyAction(
       gstin: str('gstin') || null,
       stateCode: str('stateCode'),
       seriesPrefix: str('seriesPrefix'),
+      billingCurrencyDefault: str('billingCurrencyDefault') || undefined,
       bankLabel: str('bankLabel') || undefined,
       signatoryName: str('signatoryName') || undefined,
       signatoryDesignation: str('signatoryDesignation') || undefined,

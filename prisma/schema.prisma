@@ -53,7 +53,12 @@ model Company {
   brandPrimaryHex      String? @default("#4135AF")
   brandFont            String? @default("Poppins")
 
+  /// The BOOKS currency. An Indian entity keeps its ledger, GST and TDS in rupees;
+  /// this is not a setting, it is what the accounts are denominated in.
   currencyDefault    String  @default("INR")
+  /// 🔴 What a NEW overseas client is billed in unless that client says otherwise.
+  /// Distinct from `currencyDefault` above: the books stay in rupees either way.
+  billingCurrencyDefault String @default("USD")
   fyStartMonth       Int     @default(4) // April
   invoiceFooterText  String?
   defaultTerms       String?

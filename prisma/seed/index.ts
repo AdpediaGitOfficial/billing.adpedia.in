@@ -123,16 +123,18 @@ export async function seedAll(prisma: PrismaClient, opts: SeedOptions = {}) {
   const bankGl = await prisma.account.findUniqueOrThrow({ where: { companyId_code: { companyId: company.id, code: '1010' } } })
   await prisma.companyBankAccount.upsert({
     where: { companyId_accountNo: { companyId: company.id, accountNo: '921020015185413' } },
-    update: {},
+    // 🔴 The SWIFT is the one bank field an overseas client cannot pay without, and it
+    // prints on the invoice. Updated on a reseed so an existing database picks it up.
+    update: { swift: 'AXISINBB046' },
     create: {
       companyId: company.id, label: 'Axis Bank — Current',
       accountName: ADPEDIA.legalName, accountNo: '921020015185413',
-      ifsc: 'UTIB0002174', micr: '680211006',
+      ifsc: 'UTIB0002174', micr: '680211006', swift: 'AXISINBB046',
       bankName: 'Axis Bank Ltd', branch: 'Chalakudy (CHAL KL)',
       currency: 'INR', ledgerAccountId: bankGl.id, showOnInvoice: true, isDefault: true,
     },
   })
-  log('  bank         Axis 921020015185413 -> GL 1010')
+  log('  bank         Axis 921020015185413 (AXISINBB046) -> GL 1010')
 
   // ── starter bank rules. These four narrations are the BANK's own wording, identical
   // on every Axis account, so there is nothing company-specific to learn: a charge is a

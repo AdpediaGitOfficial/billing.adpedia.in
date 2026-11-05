@@ -3,8 +3,7 @@ import { useActionState, useState } from 'react'
 import Link from 'next/link'
 
 import { Card, PageHeader, Field, Button, Alert, inputClass, inputStyle } from '@/components/ui/kit'
-
-const STATES = [['32', 'Kerala'], ['29', 'Karnataka'], ['33', 'Tamil Nadu'], ['27', 'Maharashtra'], ['07', 'Delhi'], ['36', 'Telangana'], ['24', 'Gujarat']]
+import { CountrySelect, StateSelect } from '@/components/ui/geo'
 
 export interface VendorInitial {
   id?: string
@@ -71,22 +70,13 @@ export function VendorForm({ action: submit, initial, title, sub, submitLabel }:
             </Field>
 
             <Field label="Country">
-              <select name="country" value={country} onChange={(e) => setCountry(e.target.value)} className={inputClass} style={inputStyle}>
-                <option value="IN">India</option>
-                <option value="US">United States</option>
-                <option value="SG">Singapore</option>
-                <option value="AE">United Arab Emirates</option>
-                <option value="GB">United Kingdom</option>
-                <option value="IE">Ireland</option>
-              </select>
+              <CountrySelect name="country" value={country} onChange={(e) => setCountry(e.target.value)} />
             </Field>
 
             {!foreign && (
               <>
                 <Field label="State">
-                  <select name="stateCode" className={inputClass} style={inputStyle} defaultValue={initial?.stateCode ?? '32'}>
-                    {STATES.map(([c, n]) => <option key={c} value={c}>{n} ({c})</option>)}
-                  </select>
+                  <StateSelect name="stateCode" defaultValue={initial?.stateCode ?? '32'} />
                 </Field>
                 <Field label="GSTIN" hint="Leave blank if the vendor is unregistered">
                   <input name="gstin" value={gstin} onChange={(e) => setGstin(e.target.value.toUpperCase())} className={inputClass} style={inputStyle} />
