@@ -11,6 +11,7 @@ import { allocateNumber } from '@/server/services/invoicing/numbering'
 import { noteTotals } from '@/server/services/invoicing/notes'
 import { invoiceOpen, NO_NOTES } from '@/lib/invoice-open'
 import { fyQuarter } from '@/lib/fy'
+import { requireDefaultBank } from '@/server/services/company/bank-account'
 
 export interface ReceiptAllocationInput {
   invoiceId: string
@@ -43,7 +44,7 @@ export async function createReceipt(ctx: RequestContext, input: CreateReceiptInp
   const result = await prisma.$transaction(async (tx) => {
     const bank = input.bankAccountId
       ? await tx.companyBankAccount.findFirstOrThrow({ where: { id: input.bankAccountId, companyId: ctx.companyId }, include: { ledgerAccount: true } })
-      : await tx.companyBankAccount.findFirstOrThrow({ where: { companyId: ctx.companyId, isDefault: true }, include: { ledgerAccount: true } })
+      : await requireDefaultBank(tx, ctx.companyId)
     if (!bank.ledgerAccount) throw new AppError(`Bank account ${bank.label} is not mapped to a ledger account`)
 
     let cash = ZERO, tdsTotal = ZERO

@@ -4,6 +4,7 @@ import { prisma } from '@/server/db'
 import { Card, PageHeader, Pill, Alert } from '@/components/ui/kit'
 import { CompanyEditForm } from './edit-form'
 import { SwiftForm } from './swift-form'
+import { BankAccountForm } from './bank-form'
 import { RocForm } from './roc-form'
 import { rocYears } from '@/server/services/compliance/roc'
 import { gstr9Due } from '@/server/services/compliance/deadlines'
@@ -84,6 +85,12 @@ export default async function CompanySettingsPage() {
 
       <Card flush className="overflow-hidden">
         <Section title="Bank accounts" />
+        {co.bankAccounts.length === 0 && (
+          <p className="px-4 py-3 text-[12.5px]" style={{ color: 'var(--text-muted)' }}>
+            No bank account yet. Until one is added, invoices print nothing under Payment details
+            and a receipt cannot be recorded.
+          </p>
+        )}
         <table className="w-full text-[13px]">
           <tbody>
             {co.bankAccounts.map((b) => (
@@ -113,6 +120,11 @@ export default async function CompanySettingsPage() {
             ))}
           </tbody>
         </table>
+      </Card>
+
+      <Card className="p-4">
+        <p className="eyebrow">Add a bank account</p>
+        <div className="mt-3"><BankAccountForm first={co.bankAccounts.length === 0} /></div>
       </Card>
 
       <Card flush className="overflow-hidden">

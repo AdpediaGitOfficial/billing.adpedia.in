@@ -58,6 +58,14 @@ describe('Indian states', () => {
     expect(STATE_OPTIONS.find((s) => s.code === '97')).toBeUndefined()
   })
 
+  it('🔴 is listed by name, so a person can find their state — not in object-key order', () => {
+    const names = STATE_OPTIONS.map((s) => s.name)
+    expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)))
+    // the bug: integer-like keys first, so "Jammu & Kashmir" (01) came after "Ladakh" (38)
+    expect(names.indexOf('Andhra Pradesh')).toBeLessThan(names.indexOf('Jammu & Kashmir'))
+    expect(names.indexOf('Jammu & Kashmir')).toBeLessThan(names.indexOf('Ladakh'))
+  })
+
   it('is the same table `tax-mode` has always exported', () => {
     expect(stateNameFromTaxMode('32')).toBe(stateName('32'))
     expect(stateNameFromTaxMode('32')).toBe('Kerala')

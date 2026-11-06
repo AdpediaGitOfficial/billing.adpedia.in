@@ -5,6 +5,7 @@ import { requireContext } from '@/server/context'
 import { updateCompanyProfile, setBankSwift } from '@/server/services/company/profile'
 import { AppError } from '@/server/errors'
 import { recordRocDates } from '@/server/services/compliance/roc'
+import { addBankAccount } from '@/server/services/company/bank-account'
 
 const Schema = z.object({
   tradeName: z.string().optional(),
@@ -86,5 +87,30 @@ export async function setBankSwiftAction(
       : { ok: `${r.label} no longer shows a SWIFT code.` }
   } catch (e) {
     return { error: e instanceof AppError ? e.message : 'Could not save that SWIFT code' }
+  }
+}
+
+/**
+ * docs/88 — somewhere for the money to arrive.
+ *
+ * `assertCan` is in the service: a server action is a POST endpoint with a generated name.
+ */
+export async function addBankAccountAction(
+  _prev: { error?: string; ok?: string } | null, form: FormData,
+) {
+  const ctx = await requireContext()
+  const str = (k: string) => String(form.get(k) ?? '')
+  try {
+    const a = await addBankAccount(ctx, {
+      label: str('label'), bankName: str('bankName'), branch: str('branch'),
+      accountName: str('accountName'), accountNo: str('accountNo'),
+      ifsc: str('ifsc'), swift: str('swift'), upiId: str('upiId'),
+      showOnInvoice: form.get('showOnInvoice') === 'on',
+      makeDefault: form.get('makeDefault') === 'on',
+    })
+    revalidatePath('/settings/company')
+    return { ok: `${a.label} is added${a.showOnInvoice ? ' and now prints on invoices' : ''}.` }
+  } catch (e) {
+    return { error: e instanceof AppError ? e.message : 'Could not add that bank account' }
   }
 }

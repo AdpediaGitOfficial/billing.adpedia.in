@@ -116,7 +116,7 @@ export async function updateCompanyProfile(ctx: RequestContext, input: CompanyPr
  * eleventh characters "XXX" mean the head office — so the length check allows 8 or 11 and
  * nothing between.
  */
-const SWIFT_RE = /^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$/
+export const SWIFT_RE = /^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$/
 
 export async function setBankSwift(ctx: RequestContext, bankAccountId: string, swift: string) {
   assertCan(ctx.role, 'settings.company', 'write')

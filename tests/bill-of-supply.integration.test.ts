@@ -2,8 +2,9 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { PrismaClient } from '@prisma/client'
 import { resetDb } from './helpers/db'
 import { createCompany } from '@/server/services/company/create'
-import { createInvoice, sendInvoice } from '@/server/services/invoicing/invoice'
+import { createInvoice, sendInvoice, previewInvoice } from '@/server/services/invoicing/invoice'
 import { renderInvoiceHtml } from '@/server/services/invoicing/render'
+import { recordAmendment } from '@/server/services/tax/gst-amendment'
 import { archivedDocument } from '@/server/services/storage/document-archive'
 import { trialBalance } from '@/server/services/reports/statements'
 import type { RequestContext } from '@/server/context'
@@ -149,5 +150,102 @@ describe('an unregistered entity issues a bill of supply', () => {
 
     expect(archived, 'nothing on file — the docs/59 banner would show for ever').toBeTruthy()
     expect(archived!.kind).toBe('BILL_OF_SUPPLY')
+  })
+})
+
+/**
+ * 🔴 docs/88 — a PERSONAL ACCOUNT: one person's freelance income, with no GST and no filings.
+ *
+ * The invoice form carried a hidden 18% on every line and no field to change it, so
+ * `assertMayChargeGst` refused every save from an entity that may not collect GST — and told
+ * the person to "set the rate to 0". These are the same calls the form makes.
+ */
+describe('a personal account bills without GST, a SAC code or a LUT', () => {
+  const personalLine = { description: 'Website renewal', quantity: '1', rate: '250', gstRatePct: '0' }
+
+  /** the overseas client the screenshot showed */
+  let overseasId = ''
+  beforeAll(async () => {
+    // 🔴 off by default, which hides the SAC column for EVERY entity and would make both
+    // assertions below pass for the wrong reason. On, so only the no-SAC rule can hide it.
+    await prisma.company.update({ where: { id: ctxB.companyId }, data: { showSacOnInvoice: true } })
+    overseasId = (await prisma.customer.create({ data: {
+      companyId: ctxB.companyId, name: 'Ahura International Co. Ltd', country: 'CN', stateCode: null,
+      customerType: 'EXPORT', currency: 'USD', paymentTermDays: 15, billingAddress: { country: 'China' },
+    } })).id
+  })
+
+  it('previews as a bill of supply, with no GST, no LUT and no SAC complaint', async () => {
+    const p = await previewInvoice(ctxB, { customerId: overseasId, date: '2026-11-06', lines: [personalLine] })
+    expect(p.docType).toBe('BILL_OF_SUPPLY')
+    expect(p.chargesGst).toBe(false)
+    expect(p.requiresLut).toBe(false)
+    // 🔴 the red "Every invoice line needs a SAC code" on a document that is in no GSTR-1
+    expect(p.sacIssues).toEqual([])
+  })
+
+  it('🔴 saves and sends an overseas invoice with no SAC code at all', async () => {
+    const draft = await createInvoice(ctxB, { customerId: overseasId, date: '2026-11-06', lines: [personalLine] })
+    const sent = await sendInvoice(ctxB, draft.id)
+    expect(sent.docType).toBe('BILL_OF_SUPPLY')
+    expect(sent.currency).toBe('USD')
+    expect(Number(sent.grandTotal)).toBe(250)
+    expect(sent.lutId).toBeNull()
+
+    const html = await renderInvoiceHtml(ctxB.companyId, sent.id)
+    // no column of dashes where a SAC would be, and no HSN summary under it
+    expect(html).toMatch(/class="sheet [^"]*hide-sac/)
+    expect(html).toContain('Bill of Supply')
+
+    // 🔴 and none of the GST vocabulary: a personal account is in no return, so its client is
+    // not told about a GSTR-1 reporting bucket or a reverse-charge position
+    expect(html).not.toContain('Place of Supply')
+    expect(html).not.toContain('96 – Other Country')
+    expect(html).not.toMatch(/reverse charge/i)
+    expect(html).toContain('Supplied to')
+    expect(html).toContain('China')
+    // the country is the address; it is not printed again as a "State"
+    expect(html).not.toMatch(/class="lbl">State/)
+  })
+
+  it('a line that DOES carry a SAC still prints it', async () => {
+    const draft = await createInvoice(ctxB, {
+      customerId: overseasId, date: '2026-11-07',
+      lines: [{ ...personalLine, sacCode: '998314' }],
+    })
+    const sent = await sendInvoice(ctxB, draft.id)
+    const html = await renderInvoiceHtml(ctxB.companyId, sent.id)
+    expect(html).not.toMatch(/class="sheet [^"]*hide-sac/)
+  })
+
+  it('the server still refuses a charged GST — the form is fixed, the safety net is not', async () => {
+    await expect(createInvoice(ctxB, {
+      customerId: overseasId, date: '2026-11-08', lines: [{ ...personalLine, gstRatePct: '18' }],
+    })).rejects.toThrow(/not registered for GST/)
+  })
+
+  it('🔴 refuses a GSTR-1 amendment — it corrects a return this entity does not file', async () => {
+    const draft = await createInvoice(ctxB, { customerId: overseasId, date: '2026-11-09', lines: [personalLine] })
+    const sent = await sendInvoice(ctxB, draft.id)
+    // the button is hidden for this entity, and the server refuses what the UI hides
+    await expect(recordAmendment(ctxB, {
+      invoiceId: sent.id, date: '2026-11-20', reason: 'Recipient details keyed wrongly',
+    } as never)).rejects.toThrow(/not registered for GST/)
+  })
+
+  it('the registered company is unchanged: still needs a SAC, still shown the complaint', async () => {
+    const a = await prisma.company.findFirstOrThrow({ where: { pan: 'AAUCA9985H' } })
+    const user = await prisma.user.findFirstOrThrow()
+    const ctxA: RequestContext = { userId: user.id, companyId: a.id, role: 'OWNER' }
+    const client = await prisma.customer.create({ data: {
+      companyId: a.id, name: 'A domestic client of the company', country: 'IN', stateCode: '32',
+      customerType: 'B2B', paymentTermDays: 15, billingAddress: {},
+    } })
+    const p = await previewInvoice(ctxA, {
+      customerId: client.id, date: '2026-11-06',
+      lines: [{ description: 'Staff augmentation', quantity: '1', rate: '1000', gstRatePct: '18' }],
+    })
+    expect(p.chargesGst).toBe(true)
+    expect(p.sacIssues.some((i) => i.level === 'error')).toBe(true)
   })
 })

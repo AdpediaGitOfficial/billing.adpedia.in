@@ -4,6 +4,7 @@ import { join, resolve } from 'node:path'
 import { prisma } from '@/server/db'
 import { Decimal, formatINR, amountInWords } from '@/lib/money'
 import { countryName } from '@/lib/countries'
+import { stateName } from '@/lib/indian-states'
 import { currencyWords } from '@/lib/currencies'
 import { NotFound } from '@/server/errors'
 import { placeOfSupplyLabel } from '@/server/services/tax/tax-mode'
@@ -78,7 +79,11 @@ export async function renderInvoiceHtml(companyId: string, invoiceId: string): P
   // the template's mode classes
   const taxClass = isExport ? 'mode-export' : inv.taxMode === 'INTER' ? 'mode-inter' : 'mode-intra'
   const tdsClass = inv.tdsSection === '194J' ? 'tds-194j' : inv.tdsSection === '194C' ? 'tds-194c' : 'tds-none'
-  const sacClass = co.showSacOnInvoice ? '' : ' hide-sac'
+  // 🔴 docs/88 — a bill of supply needs no SAC, and a personal account's lines usually have
+  // none. With none on ANY line the column and the HSN summary are dropped rather than printed
+  // as a column of dashes. One line with a SAC brings both back.
+  const noSacAnywhere = inv.docType === 'BILL_OF_SUPPLY' && inv.lines.every((l) => !l.sacCode)
+  const sacClass = co.showSacOnInvoice && !noSacAnywhere ? '' : ' hide-sac'
   const lutClass = isExport && !inv.lut ? ' lut-expired' : ''
   /**
    * 🔴 docs/82 §5 — the document an UNREGISTERED supplier issues.
@@ -304,6 +309,23 @@ export async function renderInvoiceHtml(companyId: string, invoiceId: string): P
    */
   if (inv.docType === 'BILL_OF_SUPPLY') {
     html = html.replace(/(<div class="party from">[\s\S]*?)<div class="idlist">[\s\S]*?<\/div>/, '$1')
+
+    /**
+     * 🔴 docs/88 — and none of the GST vocabulary either. A personal account's client read
+     * "Place of Supply: Outside India (96 – Other Country)" — a GSTR-1 reporting bucket — and
+     * "Whether tax is payable under reverse charge: No" from a person who is in no return. The
+     * cell says who it was supplied to; the reverse-charge line is removed, not hidden, for the
+     * same reason the identifiers above are; and an overseas client's country is not printed
+     * twice, once as the address and again as a "State".
+     */
+    const suppliedTo = isExport ? countryName(billTo.country) : stateName(billTo.stateCode)
+    html = html
+      .replace(/<div class="k">Place of Supply<\/div>(<div class="v" data-bind="invoice\.placeOfSupply">)[^<]*/,
+        `<div class="k">Supplied to</div>$1${esc(suppliedTo)}`)
+      .replace(/<li><span class="rcm-note">[\s\S]*?<\/span><\/li>\s*/, '')
+    if (isExport) {
+      html = html.replace(/<span><span class="lbl">State<\/span> <b data-bind="customer\.stateLabel">[^<]*<\/b><\/span>/, '')
+    }
   }
 
   const [logo, signature] = await Promise.all([

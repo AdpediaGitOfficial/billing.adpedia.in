@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { requireContext } from '@/server/context'
 import { prisma } from '@/server/db'
 import { PageHeader, Alert } from '@/components/ui/kit'
+import { mayCollectTax } from '@/server/services/invoicing/document-type'
 import { InvoiceForm } from '../../new/form'
 import { updateInvoiceAction } from '../../actions'
 
@@ -23,6 +24,9 @@ export default async function EditInvoicePage({ params }: { params: Promise<{ id
   })
   if (!invoice) notFound()
 
+  const company = await prisma.company.findUniqueOrThrow({
+    where: { id: ctx.companyId }, select: { gstRegistrationType: true },
+  })
   const [customers, projects, items] = await Promise.all([
     prisma.customer.findMany({ where: { companyId: ctx.companyId, isActive: true }, orderBy: { name: 'asc' },
       select: { id: true, name: true, country: true, stateCode: true, defaultTdsSection: true } }),
@@ -55,6 +59,7 @@ export default async function EditInvoicePage({ params }: { params: Promise<{ id
       <PageHeader title="Edit draft"
         sub="Nothing has been posted and no number has been allocated — this draft exists only here." />
       <InvoiceForm
+        canChargeGst={mayCollectTax(company.gstRegistrationType)}
         customers={customers}
         projects={projects}
         items={items.map((i) => ({ ...i, defaultRate: i.defaultRate?.toString() ?? null }))}

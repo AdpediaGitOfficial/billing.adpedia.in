@@ -33,6 +33,10 @@ export const STATE_OPTIONS: readonly { code: string; name: string }[] =
   Object.entries(STATE_NAMES)
     .filter(([code]) => code !== '96' && code !== '97')
     .map(([code, name]) => ({ code, name }))
+    // 🔴 by NAME. Left in `Object.entries` order a list of 36 puts Jammu & Kashmir (01) after
+    // Ladakh (38): JavaScript lists integer-like keys ("10" … "38") before "01" … "09". Found by
+    // opening the dropdown. The code is still shown beside each name.
+    .sort((a, b) => a.name.localeCompare(b.name))
 
 export function stateName(code: string | null | undefined): string {
   if (!code) return '—'

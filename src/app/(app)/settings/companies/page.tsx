@@ -1,18 +1,10 @@
+import { CONSTITUTION_LABEL } from '@/lib/constitution'
 import { requireContext } from '@/server/context'
 import { can } from '@/server/auth/permissions'
 import { Card, PageHeader, Pill, Alert } from '@/components/ui/kit'
 import { myCompanies } from '@/server/services/company/switch'
 import { SwitchButton } from './switch-button'
 import { CreateCompanyForm } from './create-form'
-import type { Constitution } from '@prisma/client'
-
-const CONSTITUTION_LABEL: Record<Constitution, string> = {
-  PRIVATE_LIMITED: 'Private limited',
-  PUBLIC_LIMITED: 'Public limited',
-  LLP: 'LLP',
-  PARTNERSHIP: 'Partnership',
-  PROPRIETORSHIP: 'Proprietorship',
-}
 
 export default async function CompaniesPage() {
   const ctx = await requireContext()
@@ -63,9 +55,10 @@ export default async function CompaniesPage() {
           <p className="eyebrow mb-3">Add another entity</p>
           <p className="mb-4 text-[12px]" style={{ color: 'var(--text-muted)' }}>
             It is created complete — its own chart of accounts, financial year and document
-            series — so it can raise its first invoice immediately. A proprietorship gets
-            capital and drawings instead of share capital, which is how personal spending is
-            recorded without touching taxable profit.
+            series — so it can raise its first invoice immediately. A personal account is for your
+            own freelance income and invoices: no GST, no company filings, and capital and drawings
+            instead of share capital, which is how personal spending is recorded without touching
+            taxable profit.
           </p>
           <CreateCompanyForm />
         </Card>

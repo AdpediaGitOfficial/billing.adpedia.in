@@ -60,7 +60,7 @@ export async function requireDrawings(companyId: string, what: string) {
         differently: <strong>remuneration</strong>, which is salary in the director&apos;s hands and
         carries TDS under s.192; a <strong>dividend</strong>, which is a distribution of
         already-taxed profit; or a <strong>loan</strong> through GL 2500 Director&apos;s Current
-        Account, which s.185 limits and which has to come back. Switch to the proprietorship, or
+        Account, which s.185 limits and which has to come back. Switch to the personal account, or
         record what actually happened.
       </Alert>
     </div>

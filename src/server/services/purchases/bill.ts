@@ -10,6 +10,7 @@ import { postJournal, reverseJournal } from '@/server/services/accounting/journa
 import { postVendorBill, postTdsDeduction, postRcmSelfInvoice, postBillPayment } from '@/server/services/accounting/rules/purchase'
 import { allocateNumber } from '@/server/services/invoicing/numbering'
 import { resolveTds, cumulativeThisFy, type TdsDecision } from '@/server/services/tax/tds-resolver'
+import { requireDefaultBank } from '@/server/services/company/bank-account'
 
 const RCM_RATE = new Decimal(18)   // import of services
 
@@ -307,7 +308,7 @@ export async function payBill(ctx: RequestContext, input: { billId: string; date
 
     const bank = input.bankAccountId
       ? await tx.companyBankAccount.findFirstOrThrow({ where: { id: input.bankAccountId, companyId: ctx.companyId }, include: { ledgerAccount: true } })
-      : await tx.companyBankAccount.findFirstOrThrow({ where: { companyId: ctx.companyId, isDefault: true }, include: { ledgerAccount: true } })
+      : await requireDefaultBank(tx, ctx.companyId)
     if (!bank.ledgerAccount) throw new AppError(`Bank account ${bank.label} is not mapped to a ledger account`)
 
     const amount = round2(new Decimal(input.amount))

@@ -131,9 +131,17 @@ export async function previewInvoice(ctx: RequestContext, input: CreateInvoiceIn
     tds,
     // 🔴 docs/82 §4 — not for a bill of supply: there is no zero-rating without a rate
     requiresLut: requiresLut(taxMode) && carriesTax(docType),
+    /**
+     * 🔴 docs/88 — says what this document IS, so the form does not have to guess from the
+     * tax mode. A bill of supply carries no tax and is reported in no return.
+     */
+    docType,
+    chargesGst: carriesTax(docType),
     // surfaced on the form so a wrong SAC is caught before the invoice is numbered, not
-    // after it has been sent and reported in GSTR-1
-    sacIssues: sacIssuesFor(input.lines),
+    // after it has been sent and reported in GSTR-1 — and ONLY then: a SAC feeds the HSN/SAC
+    // summary, which an entity that files no GSTR-1 does not have. Its red "needs a SAC"
+    // line on a personal account's invoice was a complaint about a return nobody files.
+    sacIssues: carriesTax(docType) ? sacIssuesFor(input.lines) : [],
     nextNumber: await peekNextNumber(prisma, {
       companyId: ctx.companyId,
       financialYearId: fy.id,

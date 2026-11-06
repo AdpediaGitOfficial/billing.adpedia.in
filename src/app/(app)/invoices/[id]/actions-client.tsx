@@ -54,7 +54,7 @@ export function InvoiceActions({ invoiceId, status, canSend, blockedReason }: {
         <>
           <Button variant="ghost" onClick={() => setCancelling((v) => !v)} disabled={pending}>Cancel invoice</Button>
           <p className="mt-2 text-[11.5px]" style={{ color: 'var(--text-muted)' }}>
-            Cancelling keeps the number and posts a reversal — a GST series may not have unexplained gaps.
+            Cancelling keeps the number and posts a reversal — a numbered series should have no unexplained gaps.
           </p>
         </>
       )}

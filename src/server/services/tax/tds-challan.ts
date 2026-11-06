@@ -8,6 +8,7 @@ import { assertPostable } from '@/server/services/accounting/period'
 import { postJournal } from '@/server/services/accounting/journal'
 import { tdsPayableAccount } from '@/server/services/accounting/rules/purchase'
 import type { Posting } from '@/server/services/accounting/types'
+import { requireDefaultBank } from '@/server/services/company/bank-account'
 
 const DAY = 86_400_000
 
@@ -168,7 +169,7 @@ export async function createChallan(ctx: RequestContext, input: ChallanInput) {
 
     const bank = input.bankAccountId
       ? await tx.companyBankAccount.findFirstOrThrow({ where: { id: input.bankAccountId, companyId: ctx.companyId }, include: { ledgerAccount: true } })
-      : await tx.companyBankAccount.findFirstOrThrow({ where: { companyId: ctx.companyId, isDefault: true }, include: { ledgerAccount: true } })
+      : await requireDefaultBank(tx, ctx.companyId)
     if (!bank.ledgerAccount) throw new AppError(`Bank account ${bank.label} is not mapped to a ledger account`)
 
     const challan = await tx.tdsChallan.create({

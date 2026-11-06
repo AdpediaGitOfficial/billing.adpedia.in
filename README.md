@@ -92,9 +92,10 @@ payroll, projects and bank reconciliation on a double-entry ledger.
 | [85 · The document that would not download](docs/85-the-document-that-would-not-download.md) | A 500 on a deployed invoice: an archived copy that was fatal to read rather than rebuilt, a renderer that could not say it was missing, a screen that threw the server's explanation away — and the health route docs/90 listed as a known gap |
 | [86 · What an invoice still asks for](docs/86-what-an-invoice-still-asks-for.md) | Eleven places computed what a client owes without reading the credit notes against it — including the guard that let a receipt be banked for money already given back, and the chase that emailed the client for it |
 | [87 · The lists nothing could choose from](docs/87-the-lists-nothing-could-choose-from.md) | Every country, every GST state and a billing currency a client can actually be set to — and the SWIFT code and "US Dollars" that two invoice lines printed wrongly because of it |
+| [88 · The personal account](docs/88-the-personal-account.md) | One person's own books: an invoice form that could not save, a bank account nothing could create, and a receipt that threw — found by sending an invoice as that entity and reading what the client got |
 | [90 · Deployment](docs/90-deployment.md) | Step by step on a plain Ubuntu box — npm, pm2, Postgres, nginx, Chromium, the daily run, backups. No Docker |
 
-**1,318 tests passing** · typecheck and lint clean · production build passes.
+**1,348 tests passing** · typecheck and lint clean · production build passes.
 
 ```bash
 cp .env.example .env     # set DATABASE_URL and JWT_SECRET

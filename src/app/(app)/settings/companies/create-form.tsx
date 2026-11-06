@@ -1,16 +1,9 @@
 'use client'
 import { useActionState } from 'react'
+import { CONSTITUTION_LABEL, CONSTITUTION_ORDER } from '@/lib/constitution'
 import { Button, Field, Alert, inputClass, inputStyle } from '@/components/ui/kit'
 import { StateSelect, CurrencySelect } from '@/components/ui/geo'
 import { createCompanyAction } from './actions'
-
-const CONSTITUTIONS = [
-  ['PROPRIETORSHIP', 'Proprietorship'],
-  ['PRIVATE_LIMITED', 'Private limited'],
-  ['LLP', 'LLP'],
-  ['PARTNERSHIP', 'Partnership'],
-  ['PUBLIC_LIMITED', 'Public limited'],
-] as const
 
 export function CreateCompanyForm() {
   const [state, action, pending] = useActionState(createCompanyAction, null)
@@ -21,9 +14,9 @@ export function CreateCompanyForm() {
         <Field label="Legal name" hint="Exactly as registered — it prints on every document">
           <input name="legalName" required className={inputClass} style={inputStyle} placeholder="AKASH — PROPRIETOR" />
         </Field>
-        <Field label="Constitution" hint="Decides the equity section: share capital, or capital and drawings">
+        <Field label="Constitution" hint="Personal account — your own freelance income, no GST and no company filings. The others carry the full legal compliance.">
           <select name="constitution" defaultValue="PROPRIETORSHIP" className={inputClass} style={inputStyle}>
-            {CONSTITUTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            {CONSTITUTION_ORDER.map((v) => <option key={v} value={v}>{CONSTITUTION_LABEL[v]}</option>)}
           </select>
         </Field>
         <Field label="PAN" hint="Its 4th character must agree with the constitution — P for an individual, C for a company">

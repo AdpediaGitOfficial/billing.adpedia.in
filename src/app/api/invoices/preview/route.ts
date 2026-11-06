@@ -30,6 +30,10 @@ export async function POST(req: Request) {
       placeOfSupplyLabel: p.placeOfSupplyLabel,
       currency: p.currency,
       requiresLut: p.requiresLut,
+      // 🔴 docs/88 — copied field by field, so a field added to the service never reaches the form
+      // unless it is added here too. `chargesGst` is what turns the GST rows off.
+      docType: p.docType,
+      chargesGst: p.chargesGst,
       nextNumber: p.nextNumber,
       sacIssues: p.sacIssues,
       totals: {

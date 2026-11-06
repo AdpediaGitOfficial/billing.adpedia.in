@@ -9,6 +9,7 @@ import { invoiceOpen } from '@/lib/invoice-open'
 import { placeOfSupplyLabel, taxModeLabel } from '@/server/services/tax/tax-mode'
 import { lutStatus } from '@/server/services/invoicing/lut'
 import { carriesTax } from '@/server/services/invoicing/document-type'
+import { filesGstr1And3b } from '@/server/services/tax/gst-registration'
 import { Card, PageHeader, Pill, Button, Alert } from '@/components/ui/kit'
 import { InvoiceActions } from './actions-client'
 import { ShareInvoice } from '@/components/pwa/share-invoice'
@@ -33,6 +34,12 @@ export default async function InvoiceDetail({ params }: { params: Promise<{ id: 
   if (!inv) notFound()
 
   const isDraft = inv.status === 'DRAFT'
+  // whether this entity files GSTR-1 at all — what "Amend" corrects. docs/88
+  const filesReturn = filesGstr1And3b(
+    (await prisma.company.findUniqueOrThrow({
+      where: { id: ctx.companyId }, select: { gstRegistrationType: true },
+    })).gstRegistrationType,
+  )
   // 🔴 docs/82 §4 — a bill of supply for an overseas client needs no LUT, so it is not missing one
   const lut = inv.taxMode === 'EXPORT' && carriesTax(inv.docType)
     ? await lutStatus(prisma, ctx.companyId, inv.financialYear.label)
@@ -62,7 +69,8 @@ export default async function InvoiceDetail({ params }: { params: Promise<{ id: 
     <div className="max-w-3xl">
       <PageHeader back={{ href: '/invoices', label: 'Invoices' }}
         title={isDraft ? 'Draft invoice' : inv.number}
-        sub={`${inv.customer.name} · ${taxModeLabel(inv.taxMode)}`}
+        // 🔴 docs/88 — a bill of supply is not "zero-rated under LUT": it carries no tax at all
+        sub={`${inv.customer.name} · ${carriesTax(inv.docType) ? taxModeLabel(inv.taxMode) : 'Bill of supply · no GST'}`}
         action={
           <div className="flex flex-wrap gap-2">
             <a href={`/api/invoices/${inv.id}/document`} target="_blank" rel="noreferrer">
@@ -90,7 +98,8 @@ export default async function InvoiceDetail({ params }: { params: Promise<{ id: 
             {!isDraft && inv.status !== 'CANCELLED' && (
               <Link href={`/invoices/${inv.id}/debit-note`}><Button variant="ghost">Debit note</Button></Link>
             )}
-            {!isDraft && inv.status !== 'CANCELLED' && (
+            {/* 🔴 docs/88 — "Amend" corrects what GSTR-1 reported; an entity in no return has none */}
+            {!isDraft && inv.status !== 'CANCELLED' && filesReturn && (
               <Link href={`/invoices/${inv.id}/amend`}><Button variant="ghost">Amend</Button></Link>
             )}
           </div>
@@ -114,7 +123,9 @@ export default async function InvoiceDetail({ params }: { params: Promise<{ id: 
         <Pill tone={inv.status === 'PAID' ? 'good' : inv.status === 'CANCELLED' ? 'neutral' : isDraft ? 'neutral' : 'accent'}>
           {inv.status.replace('_', ' ')}
         </Pill>
-        <Pill tone="neutral">Place of supply {placeOfSupplyLabel(inv.taxMode, inv.customer.stateCode)}</Pill>
+        {carriesTax(inv.docType) && (
+          <Pill tone="neutral">Place of supply {placeOfSupplyLabel(inv.taxMode, inv.customer.stateCode)}</Pill>
+        )}
         {inv.lut && <Pill tone="good">LUT {inv.lut.arn}</Pill>}
       </div>
 
@@ -169,7 +180,7 @@ export default async function InvoiceDetail({ params }: { params: Promise<{ id: 
             {new Decimal(inv.cgst.toString()).gt(0) && <Row k="CGST" v={money(inv.cgst.toString())} />}
             {new Decimal(inv.sgst.toString()).gt(0) && <Row k="SGST" v={money(inv.sgst.toString())} />}
             {new Decimal(inv.igst.toString()).gt(0) && <Row k="IGST" v={money(inv.igst.toString())} />}
-            {inv.taxMode === 'EXPORT' && <Row k="GST — zero rated" v="0.00" />}
+            {inv.taxMode === 'EXPORT' && carriesTax(inv.docType) && <Row k="GST — zero rated" v="0.00" />}
             <Row k="Invoice total" v={money(inv.grandTotal.toString())} strong />
             {inv.tdsSection && (
               <>

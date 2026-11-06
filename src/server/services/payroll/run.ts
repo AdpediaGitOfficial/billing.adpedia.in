@@ -11,6 +11,7 @@ import { postPayrollRun, postSalaryPayment, PAYROLL_ACCOUNTS, type PayslipLine }
 import { computeMonthlyTds192 } from './tds-192'
 import { professionTaxFor, isDeductionMonth, halfYearOf } from './profession-tax'
 import { allocationFor, splitByAllocation } from './allocation'
+import { requireDefaultBank } from '@/server/services/company/bank-account'
 
 export interface SalaryComponent { code: string; name: string; type: 'EARNING' | 'DEDUCTION'; amount: string }
 
@@ -244,7 +245,7 @@ export async function paySalaries(ctx: RequestContext, runId: string, date: stri
 
     const bank = bankAccountId
       ? await tx.companyBankAccount.findFirstOrThrow({ where: { id: bankAccountId, companyId: ctx.companyId }, include: { ledgerAccount: true } })
-      : await tx.companyBankAccount.findFirstOrThrow({ where: { companyId: ctx.companyId, isDefault: true }, include: { ledgerAccount: true } })
+      : await requireDefaultBank(tx, ctx.companyId)
     if (!bank.ledgerAccount) throw new AppError(`Bank account ${bank.label} is not mapped to a ledger account`)
 
     await postJournal(ctx, {

@@ -3,6 +3,7 @@ import { useActionState, useEffect, useRef, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { createInvoiceAction } from '../actions'
 import { Card, Field, Button, Pill, inputClass, inputStyle, tapTarget } from '@/components/ui/kit'
+import { blankLine, linesToSend, withGstRule, type FormLine } from '@/lib/invoice-lines'
 
 type Customer = { id: string; name: string; country: string; stateCode: string | null; defaultTdsSection: string | null }
 type Project = { id: string; name: string; customerId: string }
@@ -17,16 +18,17 @@ type Item = { id: string; name: string; sacCode: string | null; defaultRate: str
  * revenue sub-accounts in the chart (4030 Design, 4040 Film & Video Production) permanently
  * empty and the P&L's revenue section a single line.
  */
-type Line = { description: string; sacCode: string; quantity: string; rate: string; gstRatePct: string; serviceItemId?: string | null }
+type Line = FormLine
 
 interface Preview {
   taxMode: string; placeOfSupplyLabel: string; currency: string; requiresLut: boolean; nextNumber: string | null
+  /** false for a bill of supply — no GST row, no LUT, no SAC complaint. docs/88 */
+  chargesGst?: boolean
   sacIssues?: { line: number; description: string; level: 'error' | 'warn'; message: string }[]
   totals: { taxableValue: string; cgst: string; sgst: string; igst: string; roundOff: string; grandTotal: string }
   tds: { section: string | null; tdsAmount: string; netPayable: string }
 }
 
-const blank = (): Line => ({ description: '', sacCode: '', quantity: '1', rate: '', gstRatePct: '18', serviceItemId: null })
 const inr = (v: string) => new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2 }).format(Number(v))
 
 /** What an existing draft arrives with — docs/70. */
@@ -40,7 +42,12 @@ export interface InvoiceDraft {
   lines: Line[]
 }
 
-export function InvoiceForm({ customers, projects, items, draft, submit, backHref = '/invoices' }: {
+export function InvoiceForm({ customers, projects, items, draft, submit, backHref = '/invoices', canChargeGst = true }: {
+  /**
+   * 🔴 false for an entity that may not collect GST (a personal account). Decides the rate a
+   * line starts at and what is sent — see lib/invoice-lines. docs/88
+   */
+  canChargeGst?: boolean
   customers: Customer[]
   projects: Project[]
   items: Item[]
@@ -55,7 +62,7 @@ export function InvoiceForm({ customers, projects, items, draft, submit, backHre
   const [customerId, setCustomerId] = useState(draft?.customerId ?? '')
   const [date, setDate] = useState(draft?.date ?? new Date().toISOString().slice(0, 10))
   const [tdsSection, setTdsSection] = useState(draft?.tdsSection ?? '')
-  const [lines, setLines] = useState<Line[]>(draft?.lines.length ? draft.lines : [blank()])
+  const [lines, setLines] = useState<Line[]>(draft?.lines.length ? draft.lines : [blankLine(canChargeGst)])
   const [preview, setPreview] = useState<Preview | null>(null)
 
   const customer = customers.find((c) => c.id === customerId)
@@ -80,10 +87,10 @@ export function InvoiceForm({ customers, projects, items, draft, submit, backHre
     if (!customerId || !lines.some((l) => l.rate)) { setPreview(null); return }
     const res = await fetch('/api/invoices/preview', {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ customerId, date, tdsSection: tdsSection || null, lines }),
+      body: JSON.stringify({ customerId, date, tdsSection: tdsSection || null, lines: withGstRule(lines, canChargeGst) }),
     })
     setPreview(res.ok ? await res.json() : null)
-  }, [customerId, date, tdsSection, lines])
+  }, [customerId, date, tdsSection, lines, canChargeGst])
 
   useEffect(() => { const t = setTimeout(refresh, 250); return () => clearTimeout(t) }, [refresh])
 
@@ -92,7 +99,7 @@ export function InvoiceForm({ customers, projects, items, draft, submit, backHre
 
   return (
     <form action={action}>
-      <input type="hidden" name="lines" value={JSON.stringify(lines.filter((l) => l.description && l.rate))} />
+      <input type="hidden" name="lines" value={JSON.stringify(linesToSend(lines, canChargeGst))} />
       <input type="hidden" name="tdsSection" value={tdsSection} />
 
       <Card className="p-5">
@@ -122,12 +129,23 @@ export function InvoiceForm({ customers, projects, items, draft, submit, backHre
 
         {preview && (
           <div className="mt-4 flex flex-wrap items-center gap-2 rounded-md px-3 py-2.5" style={{ background: 'var(--color-brand-50)' }}>
-            <Pill>{preview.taxMode === 'INTRA' ? 'Intra-state · CGST + SGST'
-              : preview.taxMode === 'INTER' ? 'Inter-state · IGST'
-              : 'Export · zero-rated'}</Pill>
-            <span className="text-[11.5px]" style={{ color: 'var(--color-brand-700)' }}>
-              Place of supply {preview.placeOfSupplyLabel} · next number {preview.nextNumber}
-            </span>
+            {preview.chargesGst === false ? (
+              <>
+                <Pill>Bill of supply · no GST</Pill>
+                <span className="text-[11.5px]" style={{ color: 'var(--color-brand-700)' }}>
+                  No tax is charged · next number {preview.nextNumber}
+                </span>
+              </>
+            ) : (
+              <>
+                <Pill>{preview.taxMode === 'INTRA' ? 'Intra-state · CGST + SGST'
+                  : preview.taxMode === 'INTER' ? 'Inter-state · IGST'
+                  : 'Export · zero-rated'}</Pill>
+                <span className="text-[11.5px]" style={{ color: 'var(--color-brand-700)' }}>
+                  Place of supply {preview.placeOfSupplyLabel} · next number {preview.nextNumber}
+                </span>
+              </>
+            )}
             {preview.requiresLut && <Pill tone="critical">Needs a LUT for this FY</Pill>}
           </div>
         )}
@@ -172,7 +190,7 @@ export function InvoiceForm({ customers, projects, items, draft, submit, backHre
               </div>
               <div className="sm:col-span-2">
                 <input value={l.sacCode} onChange={(e) => setLine(i, { sacCode: e.target.value })}
-                  placeholder="SAC" inputMode="numeric" className={inputClass} style={inputStyle} />
+                  placeholder={canChargeGst ? 'SAC' : 'SAC (optional)'} inputMode="numeric" className={inputClass} style={inputStyle} />
               </div>
               <div className="sm:col-span-1">
                 <input value={l.quantity} onChange={(e) => setLine(i, { quantity: e.target.value })}
@@ -193,7 +211,7 @@ export function InvoiceForm({ customers, projects, items, draft, submit, backHre
         </div>
         <datalist id="svc">{items.map((i) => <option key={i.id} value={i.name} />)}</datalist>
 
-        <button type="button" onClick={() => setLines((ls) => [...ls, blank()])}
+        <button type="button" onClick={() => setLines((ls) => [...ls, blankLine(canChargeGst)])}
           className={`mt-3 text-[13px] font-semibold ${tapTarget}`} style={{ color: 'var(--accent)' }}>+ Add line</button>
       </Card>
 
@@ -212,9 +230,13 @@ export function InvoiceForm({ customers, projects, items, draft, submit, backHre
         {preview && (
           <dl className="mt-5 ml-auto max-w-xs text-[13.5px]">
             <Row k="Taxable value" v={inr(preview.totals.taxableValue)} />
-            {preview.taxMode === 'INTRA' && <><Row k="CGST 9%" v={inr(preview.totals.cgst)} /><Row k="SGST 9%" v={inr(preview.totals.sgst)} /></>}
-            {preview.taxMode === 'INTER' && <Row k="IGST 18%" v={inr(preview.totals.igst)} />}
-            {preview.taxMode === 'EXPORT' && <Row k="GST — zero rated" v="0.00" />}
+            {preview.chargesGst !== false && (
+              <>
+                {preview.taxMode === 'INTRA' && <><Row k="CGST 9%" v={inr(preview.totals.cgst)} /><Row k="SGST 9%" v={inr(preview.totals.sgst)} /></>}
+                {preview.taxMode === 'INTER' && <Row k="IGST 18%" v={inr(preview.totals.igst)} />}
+                {preview.taxMode === 'EXPORT' && <Row k="GST — zero rated" v="0.00" />}
+              </>
+            )}
             {preview.totals.roundOff !== '0.00' && <Row k="Round off" v={inr(preview.totals.roundOff)} />}
             <Row k="Invoice total" v={inr(preview.totals.grandTotal)} strong />
             {preview.tds.section && (

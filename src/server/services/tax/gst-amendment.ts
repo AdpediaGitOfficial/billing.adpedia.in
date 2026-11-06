@@ -2,6 +2,7 @@ import { prisma } from '@/server/db'
 import { Decimal, ZERO, round2, halveTax } from '@/lib/money'
 import type { RequestContext } from '@/server/context'
 import { assertCan } from '@/server/auth/permissions'
+import { assertFilesGstr1And3b } from './gst-registration'
 import { audit } from '@/server/audit'
 import { AppError, NotFound } from '@/server/errors'
 import { postJournal } from '@/server/services/accounting/journal'
@@ -208,6 +209,10 @@ export async function previewAmendment(ctx: RequestContext, input: AmendmentInpu
  */
 export async function recordAmendment(ctx: RequestContext, input: AmendmentInput) {
   assertCan(ctx.role, 'invoices.cancel', 'approve')
+  // 🔴 docs/88 — a table 9A amendment corrects what was REPORTED in GSTR-1. An entity that files
+  // no GSTR-1 has nothing to correct, and the screen no longer offers it; the server refuses
+  // what the UI hides, so a typed URL cannot record one.
+  await assertFilesGstr1And3b(ctx.companyId, 'GSTR-1 amendment')
   if (input.reason.trim().length < 5) {
     throw new AppError('An amendment needs a reason — it is reported in GSTR-1 and read by the client')
   }
