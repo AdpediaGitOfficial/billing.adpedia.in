@@ -3,6 +3,7 @@ import { requireContext } from '@/server/context'
 import { prisma } from '@/server/db'
 import { apSummary, tdsPayableSummary } from '@/server/services/purchases/payables'
 import { formatINR } from '@/lib/money'
+import { formatDocAmount } from '@/lib/fx'
 import { Card, PageHeader, StatCard, Pill, Empty, Button, DataTable, type Column, type Tone, statGrid } from '@/components/ui/kit'
 import type { BillStatus } from '@prisma/client'
 import { can } from '@/server/auth/permissions'
@@ -59,7 +60,7 @@ export default async function BillsPage({ searchParams }: {
       cell: (r) => <span style={{ color: 'var(--text-secondary)' }}>{r.billDate.toISOString().slice(0, 10)}</span> },
     { key: 'tds', header: 'TDS', width: '12%', align: 'right', mobile: false,
       cell: (r) => Number(r.tdsAmount) > 0
-        ? <><span className="block tabular">{formatINR(r.tdsAmount.toString())}</span>
+        ? <><span className="block tabular">{formatDocAmount(r.currency, r.tdsAmount.toString())}</span>
             <span className="block text-[11px]" style={{ color: 'var(--text-muted)' }}>{r.tdsSection}</span></>
         : <span style={{ color: 'var(--text-muted)' }}>—</span> },
     { key: 'status', header: 'Status', width: '13%', align: 'center', mobile: 'tag',
@@ -67,10 +68,10 @@ export default async function BillsPage({ searchParams }: {
     { key: 'amount', header: 'Amount', width: '15%', align: 'right', mobile: 'value',
       cell: (r) => (
         <>
-          <span className="block font-semibold">{formatINR(r.grandTotal.toString())}</span>
+          <span className="block font-semibold">{formatDocAmount(r.currency, r.grandTotal.toString())}</span>
           {Number(r.tdsAmount) > 0 && (
             <span className="block text-[11px]" style={{ color: 'var(--text-muted)' }}>
-              pay {formatINR(Number(r.grandTotal) - Number(r.tdsAmount), { decimals: false })}
+              pay {formatDocAmount(r.currency, Number(r.grandTotal) - Number(r.tdsAmount))}
             </span>
           )}
         </>

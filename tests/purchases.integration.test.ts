@@ -184,7 +184,7 @@ describe('bill posting and payment', () => {
   it('pays the vendor net of TDS and refuses to pay the withheld part', async () => {
     const bill = await prisma.vendorBill.findFirstOrThrow({ where: { billNumber: 'EX/010' } })
     await expect(payBill(ctx, { billId: bill.id, date: DATE, amount: '236000', mode: 'NEFT' }))
-      .rejects.toThrow(/TDS of ₹4000 is withheld, not paid to the vendor/)
+      .rejects.toThrow(/TDS of ₹4,000\.00 is withheld, not paid to the vendor/)
 
     await payBill(ctx, { billId: bill.id, date: DATE, amount: '232000', mode: 'NEFT', reference: 'NEFT/EX010' })
     const paid = await prisma.vendorBill.findUniqueOrThrow({ where: { id: bill.id } })

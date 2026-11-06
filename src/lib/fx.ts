@@ -51,3 +51,9 @@ export function formatDocAmount(currency: string, v: Decimal.Value): string {
   if (!isForeign(currency)) return formatINR(v)
   return `${currency} ${new Decimal(v).toNumber().toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
+
+/** "94.480000" → "94.4800": four places is plenty on screen; the figure sent back keeps its own */
+export const showRate = (r: string) => Number(r).toFixed(4)
+
+/** "94.480000" → "94.48": what a person would type into the rate field */
+export const plainRate = (r: string) => (r.includes('.') ? r.replace(/0+$/, '').replace(/\.$/, '') : r)

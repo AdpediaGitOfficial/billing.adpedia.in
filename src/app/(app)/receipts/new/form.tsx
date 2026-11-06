@@ -4,7 +4,8 @@ import Link from 'next/link'
 import { Card, Button, Field, Pill, Alert, inputClass, inputStyle } from '@/components/ui/kit'
 import { createReceiptAction } from '../actions'
 import { settleInFull as proposeSettlement } from '@/lib/settlement'
-import { formatDocAmount } from '@/lib/fx'
+import { formatDocAmount, showRate } from '@/lib/fx'
+import { useLiveRate } from '@/components/fx/use-live-rate'
 
 interface OpenInvoice {
   id: string; number: string; currency: string
@@ -69,6 +70,8 @@ export function ReceiptForm({ invoices, banks, preselect }: {
   const money = (cur: string, v: number) => (cur === 'INR' ? inr(v) : formatDocAmount(cur, v))
 
   const totalCash = mine.reduce((a, i) => a + n(get(i.id).amount), 0)
+  // docs/94 — a sanity figure beside the rupees the bank actually credited, never a replacement for them
+  const { live } = useLiveRate(foreignCurrency ?? '', date)
   const totalTds = mine.reduce((a, i) => a + n(get(i.id).tds), 0)
 
   const overAllocated = mine.filter((i) => n(get(i.id).amount) + n(get(i.id).tds) > n(i.outstanding) + 0.5)
@@ -114,6 +117,11 @@ export function ReceiptForm({ invoices, banks, preselect }: {
               hint={`The ₹ amount that actually reached the account for this ${foreignCurrency} payment — see the statement or the FIRC. The difference from the invoice's rate is booked as forex gain or loss.`}>
               <input inputMode="decimal" value={inrAmount} onChange={(e) => setInrAmount(e.target.value)}
                 placeholder="e.g. 20,950.00" className={inputClass} style={inputStyle} />
+              {live && live.exact && totalCash > 0 && (
+                <p className="mt-1 text-[11.5px]" style={{ color: 'var(--text-muted)' }}>
+                  About {inr(totalCash * Number(live.rate))} at the live rate of ₹{showRate(live.rate)} ({live.source}, {live.asOf}) — the bank&rsquo;s figure is the one to type.
+                </p>
+              )}
             </Field>
           )}
           <Field label="Bank charge" hint="Optional — deducted by the bank on the way in (in rupees)">

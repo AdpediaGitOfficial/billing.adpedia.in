@@ -2,6 +2,7 @@ import { prisma } from '@/server/db'
 import { Decimal, ZERO } from '@/lib/money'
 import type { RequestContext } from '@/server/context'
 import { assertCan } from '@/server/auth/permissions'
+import { outstandingInr } from '@/lib/bill-fx'
 
 export interface PayableRow {
   billId: string
@@ -13,8 +14,13 @@ export interface PayableRow {
   grandTotal: Decimal
   tdsWithheld: Decimal
   paid: Decimal
-  /** what the vendor is actually owed — gross less TDS less what has been paid */
+  /** what the vendor is actually owed — gross less TDS less what has been paid, in `currency` */
   outstanding: Decimal
+  currency: string
+  /** the TDS withheld, in rupees */
+  tdsWithheldInr: Decimal
+  /** docs/93 — the same in rupees as payables carries it. The summary adds THESE. */
+  outstandingInr: Decimal
   daysOverdue: number
   bucket: 'current' | '1-30' | '31-60' | '61-90' | '90+'
   isRcm: boolean
@@ -47,6 +53,8 @@ export async function apAgeing(ctx: RequestContext, asOf = new Date()): Promise<
       vendorName: b.vendor.name, vendorId: b.vendor.id,
       billDate: b.billDate, dueDate: b.dueDate,
       grandTotal, tdsWithheld, paid, outstanding, daysOverdue,
+      currency: b.currency, outstandingInr: outstandingInr(b, outstanding),
+      tdsWithheldInr: new Decimal((b.tdsAmountInr ?? b.tdsAmount).toString()),
       bucket: daysOverdue === 0 ? 'current' : daysOverdue <= 30 ? '1-30' : daysOverdue <= 60 ? '31-60' : daysOverdue <= 90 ? '61-90' : '90+',
       isRcm: b.isRcm,
     }
@@ -60,11 +68,11 @@ export async function apSummary(ctx: RequestContext, asOf = new Date()) {
 
   const weekOut = new Date(asOf.getTime() + 7 * DAY)
   for (const r of rows) {
-    buckets[r.bucket] = buckets[r.bucket].plus(r.outstanding)
-    total = total.plus(r.outstanding)
-    tdsWithheld = tdsWithheld.plus(r.tdsWithheld)
+    buckets[r.bucket] = buckets[r.bucket].plus(r.outstandingInr)
+    total = total.plus(r.outstandingInr)
+    tdsWithheld = tdsWithheld.plus(r.tdsWithheldInr)
     if (r.daysOverdue > 0) overdueCount++
-    if (r.dueDate <= weekOut) dueThisWeek = dueThisWeek.plus(r.outstanding)
+    if (r.dueDate <= weekOut) dueThisWeek = dueThisWeek.plus(r.outstandingInr)
   }
   return { rows, buckets, total, tdsWithheld, overdueCount, dueThisWeek, billCount: rows.length }
 }

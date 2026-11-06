@@ -5,6 +5,7 @@ import { assertCan } from '@/server/auth/permissions'
 import { invoiceOpen, NO_NOTES } from '@/lib/invoice-open'
 import { noteTotals } from '@/server/services/invoicing/notes'
 import { inrOf } from '@/lib/fx'
+import { outstandingInr } from '@/lib/bill-fx'
 
 export const BUCKETS = ['Not due', '1–30', '31–60', '61–90', '90+'] as const
 export type Bucket = typeof BUCKETS[number]
@@ -133,7 +134,8 @@ export async function payablesAgeing(ctx: RequestContext, asOf: Date = new Date(
     return [{
       id: b.id, number: b.billNumber, partyId: b.vendor.id, partyName: b.vendor.name,
       date: b.billDate, dueDate: b.dueDate, daysOverdue, bucket: bucketFor(daysOverdue),
-      outstanding, tdsWithheld: tds,
+      // docs/93 — rupees as payables carries them
+      outstanding: outstandingInr(b, outstanding), tdsWithheld: new Decimal((b.tdsAmountInr ?? b.tdsAmount).toString()),
     }]
   })
 

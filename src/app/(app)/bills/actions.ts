@@ -21,6 +21,9 @@ const Schema = z.object({
   projectId: z.string().optional(),
   billNumber: z.string().min(1, "Enter the vendor's bill number"),
   billDate: z.string().min(1),
+  // docs/93 — the currency the vendor billed in and the rate it is booked at; absent for rupees
+  currency: z.string().optional(),
+  fxRate: z.string().optional(),
   lines: z.string(),
 })
 
@@ -38,7 +41,10 @@ export async function createBillAction(_prev: { error?: string } | null, formDat
 
   let id: string
   try {
-    const bill = await createBill(ctx, { ...parsed.data, projectId: parsed.data.projectId || undefined, lines })
+    const bill = await createBill(ctx, {
+      ...parsed.data, projectId: parsed.data.projectId || undefined,
+      currency: parsed.data.currency || undefined, fxRate: parsed.data.fxRate || undefined, lines,
+    })
     id = bill.id
   } catch (e) {
     return { error: e instanceof AppError ? e.message : 'Could not create the bill' }
@@ -58,10 +64,10 @@ export async function approveBillAction(billId: string) {
   }
 }
 
-export async function payBillAction(billId: string, amount: string, date: string, reference?: string) {
+export async function payBillAction(billId: string, amount: string, date: string, reference?: string, inrAmount?: string) {
   const ctx = await requireContext()
   try {
-    await payBill(ctx, { billId, amount, date, mode: 'NEFT', reference })
+    await payBill(ctx, { billId, amount, date, mode: 'NEFT', reference, inrAmount: inrAmount || undefined })
     revalidatePath('/bills'); revalidatePath(`/bills/${billId}`)
     return { ok: true as const }
   } catch (e) {

@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { requireContext } from '@/server/context'
 import { prisma } from '@/server/db'
 import { formatINR, Decimal } from '@/lib/money'
+import { formatDocAmount, rateIsSet } from '@/lib/fx'
 import { Card, CardHeader, PageHeader, Pill, Alert } from '@/components/ui/kit'
 import { BillActions } from './actions-client'
 import { ReverseButton } from '@/components/corrections/reverse-button'
@@ -31,6 +32,9 @@ export default async function BillDetail({ params }: { params: Promise<{ id: str
   const tds = new Decimal(bill.tdsAmount.toString())
   const paid = new Decimal(bill.amountPaid.toString())
   const owed = total.minus(tds).minus(paid)
+  // docs/93 — the bill's own figures are in `currency`; the ledger entries below are rupees
+  const money = (v: Decimal.Value) => formatDocAmount(bill.currency, v)
+  const foreign = bill.currency !== 'INR'
 
   return (
     <div className="max-w-3xl space-y-4">
@@ -75,7 +79,7 @@ export default async function BillDetail({ params }: { params: Promise<{ id: str
               <tr key={l.id} className="border-t" style={{ borderColor: 'var(--rule)' }}>
                 <td className="px-4 py-3">{l.description}</td>
                 <td className="px-4 py-3 text-center tabular" style={{ color: 'var(--text-muted)' }}>{l.sacCode ?? '—'}</td>
-                <td className="px-4 py-3 text-right tabular">{formatINR(l.taxableValue.toString())}</td>
+                <td className="px-4 py-3 text-right tabular">{money(l.taxableValue.toString())}</td>
               </tr>
             ))}
           </tbody>
@@ -84,17 +88,20 @@ export default async function BillDetail({ params }: { params: Promise<{ id: str
 
       <Card>
         <dl className="ml-auto max-w-sm text-[13.5px]">
-          <Row k="Taxable value" v={formatINR(bill.taxableValue.toString())} />
-          {Number(bill.cgst) > 0 && <><Row k="CGST" v={formatINR(bill.cgst.toString())} /><Row k="SGST" v={formatINR(bill.sgst.toString())} /></>}
-          {Number(bill.igst) > 0 && <Row k="IGST" v={formatINR(bill.igst.toString())} />}
-          <Row k="Bill total" v={formatINR(total)} strong />
-          {tds.gt(0) && <Row k={`Less TDS u/s ${bill.tdsSection}`} v={`(${formatINR(tds)})`} />}
-          {paid.gt(0) && <Row k="Paid" v={formatINR(paid)} />}
-          <Row k="Owed to the vendor" v={formatINR(owed)} strong />
+          <Row k="Taxable value" v={money(bill.taxableValue.toString())} />
+          {Number(bill.cgst) > 0 && <><Row k="CGST" v={money(bill.cgst.toString())} /><Row k="SGST" v={money(bill.sgst.toString())} /></>}
+          {Number(bill.igst) > 0 && <Row k="IGST" v={money(bill.igst.toString())} />}
+          <Row k="Bill total" v={money(total)} strong />
+          {foreign && (rateIsSet(bill.currency, bill.fxRate.toString()) && bill.grandTotalInr
+            ? <Row k={`Booked at ₹${new Decimal(bill.fxRate.toString()).toFixed(4)} per ${bill.currency}`} v={formatINR(bill.grandTotalInr.toString())} />
+            : <Row k="Exchange rate" v="not entered" />)}
+          {tds.gt(0) && <Row k={`Less TDS u/s ${bill.tdsSection}`} v={`(${money(tds)})`} />}
+          {paid.gt(0) && <Row k="Paid" v={money(paid)} />}
+          <Row k="Owed to the vendor" v={money(owed)} strong />
         </dl>
       </Card>
 
-      <BillActions billId={bill.id} status={bill.status} owed={owed.toFixed(2)} />
+      <BillActions billId={bill.id} status={bill.status} owed={owed.toFixed(2)} currency={bill.currency} />
 
       {bill.payments.length > 0 && (
         <Card>
@@ -108,9 +115,10 @@ export default async function BillDetail({ params }: { params: Promise<{ id: str
                 {p.cancelledAt
                   ? <span className="text-[11.5px]" style={{ color: 'var(--text-muted)' }}>cancelled</span>
                   : <ReverseButton action={cancelBillPaymentAction} idName="paymentId" id={p.id}
-                      prompt={`Why is this ${formatINR(p.amount.toString())} payment being reversed?`} />}
+                      prompt={`Why is this ${money(p.amount.toString())} payment being reversed?`} />}
                 <span className="tabular font-semibold" style={p.cancelledAt ? { textDecoration: 'line-through', color: 'var(--text-muted)' } : undefined}>
-                  {formatINR(p.amount.toString())}
+                  {money(p.amount.toString())}
+                  {p.inrAmount && <span className="block text-right text-[11px] font-normal" style={{ color: 'var(--text-muted)' }}>{formatINR(p.inrAmount.toString())} paid</span>}
                 </span>
               </span>
             </div>

@@ -4,7 +4,8 @@ import { prisma } from '@/server/db'
 import { can } from '@/server/auth/permissions'
 import { previewRebook } from '@/server/services/invoicing/rebook'
 import { formatINR } from '@/lib/money'
-import { parseFxRate } from '@/lib/fx'
+import { parseFxRate, plainRate, showRate } from '@/lib/fx'
+import { liveRate } from '@/server/services/fx-rates'
 import { PageHeader, Card, Alert, Button, inputClass, inputStyle, Field } from '@/components/ui/kit'
 import { ConfirmRebook } from './confirm-form'
 
@@ -39,6 +40,8 @@ export default async function RebookPage({ params, searchParams }: {
     )
   }
 
+  // docs/94 — the rate FOR THE INVOICE'S DATE, not today's: a correction books what it should have been
+  const suggestion = await liveRate(inv.currency, (date || inv.date.toISOString().slice(0, 10))).catch(() => null)
   const hasRate = parseFxRate(rate) !== null
   let preview = null
   let problem: string | null = null
@@ -63,8 +66,16 @@ export default async function RebookPage({ params, searchParams }: {
       <Card className="p-5">
         <form method="get" className="grid gap-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
           <Field label={`Exchange rate (₹ per 1 ${inv.currency})`} hint="The rate on the invoice date.">
-            <input name="rate" defaultValue={rate} inputMode="decimal" placeholder="e.g. 84.25"
+            <input name="rate" defaultValue={rate || (suggestion && suggestion.requested === (date || inv.date.toISOString().slice(0, 10)) ? plainRate(suggestion.rate.toFixed(6)) : '')} inputMode="decimal" placeholder="e.g. 94.14"
               className={inputClass} style={inputStyle} />
+            {suggestion && (
+              <p className="mt-1 text-[11.5px]" style={{ color: suggestion.stale ? 'var(--warn)' : 'var(--text-muted)' }}>
+                {suggestion.requested !== (date || inv.date.toISOString().slice(0, 10))
+                  ? `No rate for that date — the latest held is from ${suggestion.requested}: `
+                  : `${suggestion.stale ? 'Last known rate' : 'Rate'} for ${suggestion.requested}: `}
+                ₹{showRate(suggestion.rate.toFixed(6))} · {suggestion.source}, {suggestion.asOf}
+              </p>
+            )}
           </Field>
           <Field label="Date of the correction" hint="Defaults to the invoice date.">
             <input name="date" type="date" defaultValue={date} className={inputClass} style={inputStyle} />

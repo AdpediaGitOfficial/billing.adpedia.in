@@ -10,6 +10,8 @@ const Body = z.object({
   billDate: z.string().min(1),
   tdsSection: z.string().nullable().optional(),
   itcEligible: z.boolean().optional(),
+  currency: z.string().optional(),
+  fxRate: z.string().optional(),
   lines: z.array(z.object({
     description: z.string().default(''),
     sacCode: z.string().optional(),
@@ -34,6 +36,11 @@ export async function POST(req: Request) {
       rcmIgst: p.rcmIgst.toFixed(2),
       netPayable: p.netPayable.toFixed(2),
       itcEligible: p.itcEligible,
+      // docs/93 — copied field by field like the rest: the form shows the rupee figures from these
+      currency: p.currency,
+      fxRate: p.fxRate.toFixed(6),
+      grandTotalInr: p.grandTotalInr ? p.grandTotalInr.toFixed(2) : null,
+      tdsAmountDoc: p.tdsAmountDoc.toFixed(2),
       warnings: p.warnings,
       tds: {
         applies: p.tds.applies,

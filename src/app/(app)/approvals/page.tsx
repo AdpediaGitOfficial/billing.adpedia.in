@@ -18,7 +18,8 @@ export default async function ApprovalsPage() {
     orderBy: [{ billDate: 'asc' }],
   })
 
-  const total = bills.reduce((a, b) => a.plus(b.grandTotal.toString()), ZERO)
+  // docs/93 — rupees: a foreign bill counts as the rupee total it will be booked at
+  const total = bills.reduce((a, b) => a.plus((b.grandTotalInr ?? b.grandTotal).toString()), ZERO)
   const today = new Date()
   const overdue = bills.filter((b) => b.dueDate < today)
 

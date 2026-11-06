@@ -148,6 +148,10 @@ CRON_SECRET="<openssl rand -hex 24>"
 STORAGE_DRIVER=local
 STORAGE_DIR=/srv/adpedia-storage
 
+# docs/94 — exchange-rate suggestions. The box must be able to reach api.frankfurter.dev and
+# open.er-api.com over HTTPS; "off" stops the lookups and the rate is typed.
+FX_LIVE_RATES=on
+
 SEED_OWNER_EMAIL=akash@adpedia.in
 SEED_OWNER_PASSWORD=<a temporary password, changed at first login>
 ENV

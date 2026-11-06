@@ -96,9 +96,24 @@ export function postRcmSelfInvoice(doc: { selfInvoiceNo: string; vendorId: strin
 
 export function postBillPayment(doc: {
   billNumber: string; vendorId: string; amount: Decimal; bankAccountCode: string
+  /**
+   * docs/93 — for a foreign-currency bill, the rupees of payables this payment clears at the
+   * BILL's rate. `amount` is then the rupees that left the bank, and the difference is the
+   * realised forex: the bank paid more than the payable carried is a loss (5900), less a gain.
+   */
+  apCleared?: Decimal
 }): Posting[] {
+  if (!doc.apCleared) {
+    return [
+      { accountCode: AP, debit: doc.amount, narration: `Payment against ${doc.billNumber}`, vendorId: doc.vendorId },
+      { accountCode: doc.bankAccountCode, credit: doc.amount, vendorId: doc.vendorId },
+    ]
+  }
+  const diff = doc.amount.minus(doc.apCleared)
   return [
-    { accountCode: AP, debit: doc.amount, narration: `Payment against ${doc.billNumber}`, vendorId: doc.vendorId },
+    { accountCode: AP, debit: doc.apCleared, narration: `Payment against ${doc.billNumber}`, vendorId: doc.vendorId },
+    ...(diff.gt(0) ? [{ accountCode: '5900', debit: diff, narration: 'Forex loss', vendorId: doc.vendorId }] : []),
+    ...(diff.lt(0) ? [{ accountCode: '4920', credit: diff.abs(), narration: 'Forex gain', vendorId: doc.vendorId }] : []),
     { accountCode: doc.bankAccountCode, credit: doc.amount, vendorId: doc.vendorId },
   ]
 }

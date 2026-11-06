@@ -4,6 +4,8 @@ import Link from 'next/link'
 import { createInvoiceAction } from '../actions'
 import { Card, Field, Button, Pill, inputClass, inputStyle, tapTarget } from '@/components/ui/kit'
 import { blankLine, linesToSend, withGstRule, type FormLine } from '@/lib/invoice-lines'
+import { useLiveRate, plainRate } from '@/components/fx/use-live-rate'
+import { LiveRateNote } from '@/components/fx/live-rate-note'
 
 type Customer = { id: string; name: string; country: string; stateCode: string | null; defaultTdsSection: string | null }
 type Project = { id: string; name: string; customerId: string }
@@ -68,8 +70,13 @@ export function InvoiceForm({ customers, projects, items, draft, submit, backHre
   const [date, setDate] = useState(draft?.date ?? new Date().toISOString().slice(0, 10))
   const [tdsSection, setTdsSection] = useState(draft?.tdsSection ?? '')
   const [fxRate, setFxRate] = useState(draft?.fxRate ?? '')
+  // 🔴 docs/94 — the live rate fills the field until a person types one, or until a draft that already
+  // has a rate is opened: a saved rate is the one the invoice is booked at and must not move
+  const [rateTyped, setRateTyped] = useState(!!draft?.fxRate)
   const [lines, setLines] = useState<Line[]>(draft?.lines.length ? draft.lines : [blankLine(canChargeGst)])
   const [preview, setPreview] = useState<Preview | null>(null)
+  const { live, loading: rateLoading } = useLiveRate(preview?.currency ?? '', date)
+  useEffect(() => { if (live && live.exact && !rateTyped) setFxRate(plainRate(live.rate)) }, [live, rateTyped])
 
   const customer = customers.find((c) => c.id === customerId)
   const customerProjects = projects.filter((p) => p.customerId === customerId)
@@ -137,9 +144,11 @@ export function InvoiceForm({ customers, projects, items, draft, submit, backHre
               without it. */}
           {preview && preview.currency !== 'INR' && (
             <Field label={`Exchange rate (₹ per 1 ${preview.currency})`}
-              hint="The rate on the invoice date — e.g. the RBI reference rate or your bank's. The invoice is booked in rupees at this rate.">
-              <input name="fxRate" inputMode="decimal" value={fxRate} onChange={(e) => setFxRate(e.target.value)}
-                placeholder="e.g. 84.25" className={inputClass} style={inputStyle} />
+              hint="Filled in from the live rate for the invoice date; change it to your bank's or the RBI's if that is what you book at. It is frozen when you save.">
+              <input name="fxRate" inputMode="decimal" value={fxRate} onChange={(e) => { setFxRate(e.target.value); setRateTyped(true) }}
+                placeholder="e.g. 94.14" className={inputClass} style={inputStyle} />
+              <LiveRateNote currency={preview.currency} live={live} loading={rateLoading} current={fxRate}
+                onUse={(r) => { setFxRate(plainRate(r)); setRateTyped(false) }} />
             </Field>
           )}
         </div>

@@ -132,3 +132,44 @@ describe('docs/91 sweep: nothing adds an invoice\'s own-currency amounts into a 
     for (const f of Object.keys(NOT_AGGREGATING)) expect(text.has(f), f).toBe(true)
   })
 })
+
+describe('docs/93 sweep: nothing adds a vendor bill\'s own-currency amounts into a rupee total', () => {
+  const src = files('src')
+  const text = new Map(src.map((f) => [f, readFileSync(f, 'utf8')]))
+
+  it('sees the bill readers it is about', () => {
+    expect(text.get('src/server/services/purchases/payables.ts')).toContain('vendorBill.findMany')
+    expect(text.get('src/server/services/tax/pan-register.ts')).toContain('inrOf')
+  })
+
+  it('no database-side SUM over vendor bills: a sum cannot apply each bill\'s own rate', () => {
+    const bad = src.filter((f) => /vendorBill\.(aggregate|groupBy)\s*\(([\s\S]{0,600}?)_sum\s*:/.test(text.get(f)!))
+    expect(bad).toEqual([])
+  })
+
+  const NOT_AGGREGATING: Record<string, string> = {
+    'src/app/(app)/approvals/page.tsx': 'adds grandTotalInr, the rupee total the bill will be booked at',
+    'src/server/services/banking/reconcile.ts': 'rupee bills only — foreign ones are filtered out',
+    'src/server/services/compliance/chases.ts': 'selects the vendor to write to, no amount',
+    'src/server/services/invoicing/series-register.ts': 'document numbers and dates',
+    'src/server/services/tax/gstr2b.ts': 'credit-claiming bills only; a foreign bill claims none (reverse charge books its own credit)',
+  }
+  it('every bill reader converts to rupees or is listed as not summing', () => {
+    const readers = src.filter((f) => /vendorBill\.findMany/.test(text.get(f)!))
+    expect(readers.length).toBeGreaterThanOrEqual(8)
+    const unaccounted = readers.filter((f) => !/@\/lib\/(fx|bill-fx)/.test(text.get(f)!) && !(f in NOT_AGGREGATING))
+    expect(unaccounted).toEqual([])
+    for (const f of Object.keys(NOT_AGGREGATING)) expect(text.has(f), f).toBe(true)
+  })
+
+  it('and pure helpers are right: the last payment settles exactly, the carry is proportional', async () => {
+    const { clearedInr, carryingInr, billInr } = await import('@/lib/bill-fx')
+    const D = (v: string) => new Decimal(v)
+    expect(clearedInr(D('8400'), D('100'), D('40'), D('0'), false).toFixed(2)).toBe('3360.00')
+    expect(clearedInr(D('8400'), D('100'), D('99.8'), D('3360'), true).toFixed(2)).toBe('5040.00')
+    expect(carryingInr(D('8400'), D('100'), D('60')).toFixed(2)).toBe('5040.00')
+    expect(carryingInr(D('8400'), D('100'), D('0')).toFixed(2)).toBe('0.00')
+    const r = billInr({ costByAccount: { '5210': D('33.33'), '5220': D('66.67') }, cgst: D('0'), sgst: D('0'), igst: D('0') }, '83.456789')
+    expect(r.grand.toFixed(2)).toBe(r.costByAccount['5210'].plus(r.costByAccount['5220']).toFixed(2))
+  })
+})

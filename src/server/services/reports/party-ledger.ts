@@ -122,7 +122,8 @@ async function partyLedger(
     : await prisma.vendorBill.groupBy({
         by: ['currency'],
         where: {
-          companyId: ctx.companyId, vendorId: partyId, currency: { not: 'INR' },
+          // docs/93 — a foreign bill with a rate is rupees in the ledger; only one booked with none is mixed
+          companyId: ctx.companyId, vendorId: partyId, currency: { not: 'INR' }, fxRate: 1,
           status: { not: 'DRAFT' }, billDate: { gte: period.from, lte: period.to },
         },
         _count: true,

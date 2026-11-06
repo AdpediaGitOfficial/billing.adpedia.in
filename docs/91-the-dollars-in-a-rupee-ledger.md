@@ -15,10 +15,10 @@ rate policy. This module makes one and applies it.
 Ind AS 21 / AS 11: a foreign-currency transaction is recorded at the rate on the date of the
 transaction; settling it at a different rate is a **realised** forex gain or loss.
 
-- **The rate is typed, not fetched.** There is no rate source in this system and a rate
-  invented here would turn a wrong number into a confident one. It is rupees per one unit of
-  the invoice currency, on the invoice date — the RBI reference rate or the bank's, the person
-  entering it decides.
+- **The rate is the person's to set.** It is rupees per one unit of the invoice currency, on the
+  invoice date. When this was written there was no rate source and it was typed; docs/94 now fills
+  the field from a live lookup, which is a suggestion — what is saved is what is in the field, and it
+  is frozen on the document.
 - **The document stays in its own currency.** The invoice the client holds says USD 250; only
   the ledger is in rupees. `invoiceOpen`, the over-allocation guard and every per-invoice
   screen keep working in the invoice's currency.
@@ -101,9 +101,7 @@ reader.
   realised differences are booked, at receipt.
 - **A foreign advance.** Booked as a rupee receipt and not adjustable against a foreign
   invoice (§4); a USD bank account is still booked at its rupee value.
-- **Vendor bills in a foreign currency.** `VendorBill.currency`/`fxRate` are still unused: a
-  bill from a foreign vendor is entered in rupees and always was. Income was asked for; this is
-  the mirror image and is not done.
+- **Vendor bills in a foreign currency** — done in docs/93.
 - **Credit notes against a part-paid foreign invoice** round separately from receipts, so a
   paisa of difference is possible when both are used on one invoice.
 - **Rule 34** — see §1.

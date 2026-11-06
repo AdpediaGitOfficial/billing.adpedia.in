@@ -1,6 +1,7 @@
 import { prisma } from '@/server/db'
 import type { Tx } from '@/server/db'
 import { Decimal, ZERO, round2, formatINR } from '@/lib/money'
+import { inrOf } from '@/lib/fx'
 import { NotFound } from '@/server/errors'
 import { isCompanyOrFirm, isValidPanFormat } from './pan'
 
@@ -54,16 +55,18 @@ export async function rateAsOf(sectionCode: string, onDate: Date, tx: Tx = prism
 export async function cumulativeThisFy(
   companyId: string, vendorId: string, sectionCode: string, financialYearId: string, excludeBillId?: string, tx: Tx = prisma,
 ): Promise<Decimal> {
-  const rows = await tx.vendorBill.aggregate({
+  // docs/93 — in RUPEES: thresholds are rupee figures, and a database-side sum cannot apply each
+  // bill's own exchange rate
+  const rows = await tx.vendorBill.findMany({
     where: {
       companyId, vendorId, financialYearId,
       tdsSection: sectionCode,
       status: { not: 'CANCELLED' },
       ...(excludeBillId ? { id: { not: excludeBillId } } : {}),
     },
-    _sum: { taxableValue: true },
+    select: { taxableValue: true, currency: true, fxRate: true },
   })
-  return new Decimal(rows._sum.taxableValue?.toString() ?? 0)
+  return rows.reduce((a, b) => a.plus(inrOf(b, b.taxableValue.toString())), ZERO)
 }
 
 /**

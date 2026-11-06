@@ -927,6 +927,11 @@ model VendorBill {
   sgst         Decimal @default(0) @db.Decimal(18, 2)
   igst         Decimal @default(0) @db.Decimal(18, 2)
   grandTotal   Decimal @db.Decimal(18, 2)
+  /// docs/93 — the bill in RUPEES as it was booked: the sum of each cost account and tax head
+  /// converted on its own, which is what payables was credited. Null on a rupee bill. Stored, not
+  /// recomputed, because every reader that needs "what 1100's twin, 2000, carries for this bill"
+  /// would otherwise convert the total and miss the entry by a paisa.
+  grandTotalInr Decimal? @db.Decimal(18, 2)
 
   // — reverse charge (foreign suppliers) —
   isRcm             Boolean @default(false)
@@ -940,7 +945,13 @@ model VendorBill {
   // — TDS we deduct —
   tdsSection   String?
   tdsRatePct   Decimal?    @db.Decimal(5, 2)
+  /// in `currency`, like the rest of the bill — what is subtracted from the grand total to find
+  /// what the vendor is owed
   tdsAmount    Decimal     @default(0) @db.Decimal(18, 2)
+  /// docs/93 — the same deduction in RUPEES, exactly as the TDS decision worked it out. Null on a
+  /// rupee bill. A foreign bill cannot recover it from `tdsAmount` by multiplying: the 2-place
+  /// rounding of one is up to ₹0.4 of the other at a rate near 84, and a challan is exact.
+  tdsAmountInr Decimal?    @db.Decimal(18, 2)
   tdsChallanId String?
   tdsChallan   TdsChallan? @relation(fields: [tdsChallanId], references: [id])
 
@@ -981,7 +992,10 @@ model BillPayment {
   billId          String
   bill            VendorBill       @relation(fields: [billId], references: [id])
   date            DateTime
+  /// in the bill's currency
   amount          Decimal          @db.Decimal(18, 2)
+  /// docs/93 — for a foreign bill, the RUPEES that left the bank. Null on a rupee bill.
+  inrAmount       Decimal?         @db.Decimal(18, 2)
   mode            PaymentMode
   reference       String?
   bankAccountId   String?
@@ -2165,4 +2179,22 @@ model GstNoteAmendment {
 
   @@index([companyId, periodLabel])
   @@index([companyId, noteId])
+}
+
+/// docs/94 — a rate the system fetched, kept so that what a document was booked at can always be
+/// traced, and so a past date's rate never changes underneath it. Rupees per ONE unit of `currency`.
+/// The rate a document is BOOKED at is copied onto the document (`Invoice.fxRate`,
+/// `VendorBill.fxRate`) and is frozen there; this table only feeds the suggestion.
+model ExchangeRate {
+  id            String   @id @default(cuid())
+  currency      String
+  /// the date the rate was ASKED for
+  requestedDate DateTime @db.Date
+  /// the date the source says the rate is FROM — earlier than requested on a weekend or holiday
+  asOfDate      DateTime @db.Date
+  rate          Decimal  @db.Decimal(18, 6)
+  source        String
+  fetchedAt     DateTime @default(now())
+
+  @@unique([currency, requestedDate])
 }

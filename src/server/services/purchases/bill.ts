@@ -12,6 +12,9 @@ import { allocateNumber } from '@/server/services/invoicing/numbering'
 import { resolveTds, cumulativeThisFy, type TdsDecision } from '@/server/services/tax/tds-resolver'
 import { requireDefaultBank } from '@/server/services/company/bank-account'
 import { isGstRegistered } from '@/server/services/invoicing/document-type'
+import { isForeign, rateIsSet, toInr, formatDocAmount } from '@/lib/fx'
+import { documentFxRate } from '@/server/services/fx-rate'
+import { billInr, clearedInr } from '@/lib/bill-fx'
 
 const RCM_RATE = new Decimal(18)   // import of services
 
@@ -33,6 +36,10 @@ export interface BillInput {
   tdsSection?: string | null
   itcEligible?: boolean
   itcBlockedReason?: string
+  /** docs/93 — the currency the vendor billed in; line amounts are in it. Default INR. */
+  currency?: string
+  /** rupees per one unit of `currency`, on the bill date. Foreign only. */
+  fxRate?: string
   lines: BillLineInput[]
 }
 
@@ -45,6 +52,13 @@ export interface BillPreview {
   tds: TdsDecision
   netPayable: Decimal
   itcEligible: boolean
+  /** docs/93 — the bill's currency and the rate it is booked at */
+  currency: string
+  fxRate: Decimal
+  /** the bill in rupees as it will be booked; null when it is in rupees already or has no rate yet */
+  grandTotalInr: Decimal | null
+  /** TDS in the bill's own currency (`tds.tdsAmount` is rupees: the decision is made in rupees) */
+  tdsAmountDoc: Decimal
   /** the entity is GST-registered — decides whether input credit and reverse charge exist at all */
   registered: boolean
   warnings: string[]
@@ -74,14 +88,28 @@ export async function previewBill(ctx: RequestContext, input: BillInput, exclude
     ? 'NONE'
     : vendor.stateCode === company.stateCode ? 'INTRA' : 'INTER'
 
+  const currency = (input.currency ?? 'INR').trim().toUpperCase()
+  if (!/^[A-Z]{3}$/.test(currency)) throw new AppError(`"${input.currency}" is not a currency code — use the three-letter code, like USD.`)
+  const fxRate = documentFxRate(currency, input.fxRate)
+  const foreign = isForeign(currency)
+  if (foreign && !rateIsSet(currency, fxRate)) {
+    warnings.push(`Enter the exchange rate for this ${currency} bill — rupees per one ${currency} on the bill date. The books are kept in rupees, and the TDS and reverse charge below are worked out on the rupee value.`)
+  }
+
   let taxableValue = ZERO, cgst = ZERO, sgst = ZERO, igst = ZERO
+  const costByAccount: Record<string, Decimal> = {}
   for (const l of input.lines) {
     const base = round2(new Decimal(l.rate).mul(new Decimal(l.quantity ?? '1')))
     const g = splitGst(base, new Decimal(l.gstRatePct ?? '18'), mode)
     taxableValue = taxableValue.plus(base)
     cgst = cgst.plus(g.cgst); sgst = sgst.plus(g.sgst); igst = igst.plus(g.igst)
+    costByAccount[l.expenseAccountCode] = (costByAccount[l.expenseAccountCode] ?? ZERO).plus(base)
   }
   const grandTotal = taxableValue.plus(cgst).plus(sgst).plus(igst)
+  // docs/93 — the bill in rupees: each cost account and tax head converted on its own, the total
+  // being what they add up to. Everything statutory below (reverse charge, TDS) works on this.
+  const inr = foreign && rateIsSet(currency, fxRate) ? billInr({ costByAccount, cgst, sgst, igst }, fxRate) : null
+  const taxableInr = foreign ? toInr(taxableValue, fxRate) : taxableValue
 
   // 🔴 reverse charge — the supplier charges nothing, Adpedia self-accounts IGST
   /**
@@ -92,7 +120,7 @@ export async function previewBill(ctx: RequestContext, input: BillInput, exclude
    * unregistered recipient owes the IGST at all, so it is named and left, as docs/79 does.
    */
   const registered = isGstRegistered(company.gstRegistrationType)
-  const rcmIgst = vendor.rcmApplicable && registered ? round2(taxableValue.mul(RCM_RATE).div(100)) : ZERO
+  const rcmIgst = vendor.rcmApplicable && registered ? round2(taxableInr.mul(RCM_RATE).div(100)) : ZERO
   if (vendor.rcmApplicable && !registered) {
     warnings.push(
       `${vendor.name} has no Indian GSTIN, so this may be an import of service liable to reverse charge. ` +
@@ -141,7 +169,7 @@ export async function previewBill(ctx: RequestContext, input: BillInput, exclude
   const tds = await resolveTds({
     sectionCode: section,
     onDate: billDate,
-    thisBillBase: taxableValue,
+    thisBillBase: taxableInr,   // docs/93 — thresholds and rates are on the rupee value
     deductee: {
       pan: vendor.pan, panVerified: vendor.panVerified,
       lowerDeductionRate: vendor.lowerDeductionRate ? new Decimal(vendor.lowerDeductionRate.toString()) : null,
@@ -152,6 +180,9 @@ export async function previewBill(ctx: RequestContext, input: BillInput, exclude
     cumulativeBefore,
   })
   if (tds.warning) warnings.push(tds.warning)
+  // the deduction is decided in rupees and subtracted from the bill in its own currency. The
+  // rupee figure is kept exactly (`tds.tdsAmount`); this is only what the vendor is NOT paid.
+  const tdsAmountDoc = foreign ? round2(tds.tdsAmount.div(fxRate)) : tds.tdsAmount
 
   if (vendor.country !== 'IN' && section === '195') {
     warnings.push(
@@ -176,7 +207,8 @@ export async function previewBill(ctx: RequestContext, input: BillInput, exclude
   return {
     vendor: { id: vendor.id, name: vendor.name, isForeignSupplier: vendor.isForeignSupplier, rcmApplicable: vendor.rcmApplicable, pan: vendor.pan, panVerified: vendor.panVerified },
     taxableValue, cgst, sgst, igst, grandTotal, rcmIgst, tds,
-    netPayable: grandTotal.minus(tds.tdsAmount),
+    currency, fxRate, grandTotalInr: inr ? inr.grand : null, tdsAmountDoc,
+    netPayable: grandTotal.minus(tdsAmountDoc),
     itcEligible, registered, warnings,
   }
 }
@@ -186,6 +218,14 @@ export async function createBill(ctx: RequestContext, input: BillInput) {
   if (input.lines.length === 0) throw new AppError('A bill needs at least one line')
 
   const p = await previewBill(ctx, input)
+  /**
+   * 🔴 docs/93 — a foreign bill is not saved without the rate it is booked at. Unlike an invoice
+   * draft this cannot wait for approval: the TDS and the reverse charge are worked out HERE, on
+   * the rupee value, and a rate of 1 would work them out on dollars.
+   */
+  if (isForeign(p.currency) && !rateIsSet(p.currency, p.fxRate)) {
+    throw new AppError(`Enter the exchange rate for this ${p.currency} bill before saving it — rupees per one ${p.currency} on the bill date.`)
+  }
   const billDate = new Date(input.billDate)
   const fy = await assertPostable(ctx.companyId, billDate)
   const vendor = await prisma.vendor.findUniqueOrThrow({ where: { id: input.vendorId } })
@@ -204,6 +244,8 @@ export async function createBill(ctx: RequestContext, input: BillInput) {
       companyId: ctx.companyId, financialYearId: fy.id,
       vendorId: input.vendorId, projectId: input.projectId,
       billNumber: input.billNumber, billDate, dueDate,
+      currency: p.currency, fxRate: p.fxRate.toFixed(6),
+      grandTotalInr: p.grandTotalInr ? p.grandTotalInr.toFixed(2) : null,
       taxableValue: p.taxableValue.toFixed(2),
       cgst: p.cgst.toFixed(2), sgst: p.sgst.toFixed(2), igst: p.igst.toFixed(2),
       grandTotal: p.grandTotal.toFixed(2),
@@ -215,7 +257,8 @@ export async function createBill(ctx: RequestContext, input: BillInput) {
       // threshold still counts toward it, and the cumulative lookup reads this column
       tdsSection: p.tds.sectionCode,
       tdsRatePct: p.tds.applies ? p.tds.ratePct.toFixed(2) : null,
-      tdsAmount: p.tds.tdsAmount.toFixed(2),
+      tdsAmount: p.tdsAmountDoc.toFixed(2),
+      tdsAmountInr: isForeign(p.currency) ? p.tds.tdsAmount.toFixed(2) : null,
       status: 'DRAFT',
       lines: {
         create: input.lines.map((l) => {
@@ -258,21 +301,40 @@ export async function approveBill(ctx: RequestContext, billId: string) {
       costByAccount[code] = (costByAccount[code] ?? ZERO).plus(l.taxableValue.toString())
     }
 
+    /**
+     * 🔴 docs/93 — a foreign bill is posted in rupees at the rate it carries: every cost account
+     * and tax head converted on its own, payables credited with their sum. Before this the
+     * dollars were posted as rupees, so a person had to convert by hand before keying it.
+     */
+    const foreign = isForeign(bill.currency)
+    if (foreign && !rateIsSet(bill.currency, bill.fxRate.toString())) {
+      throw new AppError(`${bill.billNumber} is in ${bill.currency} and has no exchange rate, so it cannot be posted to a rupee ledger.`)
+    }
+    const rate = new Decimal(bill.fxRate.toString())
+    const inr = foreign
+      ? billInr({
+          costByAccount,
+          cgst: new Decimal(bill.cgst.toString()), sgst: new Decimal(bill.sgst.toString()), igst: new Decimal(bill.igst.toString()),
+        }, rate)
+      : null
+
     await postJournal(ctx, {
       date: bill.billDate,
       narration: `Bill ${bill.billNumber} — ${bill.vendor.name}`,
       sourceType: 'VENDOR_BILL', sourceId: bill.id,
       postings: postVendorBill({
         billNumber: bill.billNumber, vendorId: bill.vendorId, projectId: bill.projectId,
-        costByAccount,
-        cgst: new Decimal(bill.cgst.toString()), sgst: new Decimal(bill.sgst.toString()), igst: new Decimal(bill.igst.toString()),
-        grandTotal: new Decimal(bill.grandTotal.toString()),
+        costByAccount: inr ? inr.costByAccount : costByAccount,
+        cgst: inr ? inr.cgst : new Decimal(bill.cgst.toString()),
+        sgst: inr ? inr.sgst : new Decimal(bill.sgst.toString()),
+        igst: inr ? inr.igst : new Decimal(bill.igst.toString()),
+        grandTotal: inr ? inr.grand : new Decimal(bill.grandTotal.toString()),
         itcEligible: bill.itcEligible,
       }),
     }, tx)
 
-    // ── TDS ──
-    const tdsAmount = new Decimal(bill.tdsAmount.toString())
+    // ── TDS ── in rupees: the deduction, the challan and the 27Q/26Q row are rupee figures
+    const tdsAmount = new Decimal((bill.tdsAmountInr ?? bill.tdsAmount).toString())
     if (bill.tdsSection && tdsAmount.gt(0)) {
       await postJournal(ctx, {
         date: bill.billDate,
@@ -290,7 +352,7 @@ export async function approveBill(ctx: RequestContext, billId: string) {
           vendorId: bill.vendorId, deducteePan: bill.vendor.pan,
           documentType: 'VENDOR_BILL', documentId: bill.id,
           deductedOn: bill.billDate,
-          baseAmount: bill.taxableValue.toString(),
+          baseAmount: foreign ? toInr(bill.taxableValue.toString(), rate).toFixed(2) : bill.taxableValue.toString(),
           ratePct: bill.tdsRatePct?.toString() ?? '0',
           tdsAmount: tdsAmount.toFixed(2),
         },
@@ -323,7 +385,7 @@ export async function approveBill(ctx: RequestContext, billId: string) {
   })
 }
 
-export async function payBill(ctx: RequestContext, input: { billId: string; date: string; amount: string; mode: 'NEFT' | 'RTGS' | 'IMPS' | 'UPI' | 'CHEQUE' | 'CASH' | 'CARD' | 'SWIFT' | 'OTHER'; reference?: string; bankAccountId?: string }) {
+export async function payBill(ctx: RequestContext, input: { billId: string; date: string; amount: string; /** rupees that left the bank — foreign bills only (docs/93) */ inrAmount?: string; mode: 'NEFT' | 'RTGS' | 'IMPS' | 'UPI' | 'CHEQUE' | 'CASH' | 'CARD' | 'SWIFT' | 'OTHER'; reference?: string; bankAccountId?: string }) {
   assertCan(ctx.role, 'bills', 'write')
   const date = new Date(input.date)
   await assertPostable(ctx.companyId, date)
@@ -340,24 +402,57 @@ export async function payBill(ctx: RequestContext, input: { billId: string; date
     if (!bank.ledgerAccount) throw new AppError(`Bank account ${bank.label} is not mapped to a ledger account`)
 
     const amount = round2(new Decimal(input.amount))
-    const owed = new Decimal(bill.grandTotal.toString())
-      .minus(bill.tdsAmount.toString())
-      .minus(bill.amountPaid.toString())
+    const owedTotal = new Decimal(bill.grandTotal.toString()).minus(bill.tdsAmount.toString())
+    const owed = owedTotal.minus(bill.amountPaid.toString())
     if (amount.gt(owed.plus('0.5'))) {
-      throw new AppError(`Paying ₹${amount.toFixed(2)} exceeds the ₹${owed.toFixed(2)} outstanding on ${bill.billNumber} — TDS of ₹${bill.tdsAmount} is withheld, not paid to the vendor.`)
+      throw new AppError(`Paying ${formatDocAmount(bill.currency, amount)} exceeds the ${formatDocAmount(bill.currency, owed)} outstanding on ${bill.billNumber} — TDS of ${formatDocAmount(bill.currency, bill.tdsAmount.toString())} is withheld, not paid to the vendor.`)
+    }
+
+    /**
+     * 🔴 docs/93 — a foreign bill is paid in its own currency and leaves the bank in rupees. The
+     * person types the rupees; the realised forex is DERIVED, never typed: rupees out, less the
+     * rupees of payables this payment clears at the BILL's rate. Positive is a loss (5900), and
+     * a card's own markup lands there too.
+     */
+    const foreign = isForeign(bill.currency)
+    let inrAmount: Decimal | null = null
+    let apCleared: Decimal | undefined
+    if (foreign) {
+      if (!rateIsSet(bill.currency, bill.fxRate.toString()) || !bill.grandTotalInr) {
+        throw new AppError(`${bill.billNumber} is in ${bill.currency} and was never booked at an exchange rate, so it cannot be paid from a rupee ledger.`)
+      }
+      inrAmount = input.inrAmount ? round2(new Decimal(input.inrAmount)) : null
+      if (!inrAmount || inrAmount.lte(0)) {
+        throw new AppError(`Enter the rupees that left the bank for this ${bill.currency} payment. The books are kept in rupees, and the difference from the bill's rate is booked as forex gain or loss.`)
+      }
+      const priorPayments = await tx.billPayment.findMany({ where: { billId: bill.id }, select: { id: true } })
+      const prior = await tx.journalLine.findMany({
+        where: { account: { code: '2000', companyId: ctx.companyId }, journalEntry: { sourceType: 'BILL_PAYMENT', sourceId: { in: priorPayments.map((p) => p.id) } } },
+        select: { debit: true, credit: true },
+      })
+      const alreadyCleared = prior.reduce((a, l) => a.plus(l.debit.toString()).minus(l.credit.toString()), ZERO)
+      const payableInr = new Decimal(bill.grandTotalInr.toString()).minus((bill.tdsAmountInr ?? 0).toString())
+      const paidAfter = new Decimal(bill.amountPaid.toString()).plus(amount)
+      apCleared = clearedInr(payableInr, owedTotal, paidAfter, alreadyCleared, paidAfter.gte(owedTotal.minus('0.5')))
+    } else if (input.inrAmount) {
+      throw new AppError('The rupees paid are only for a foreign-currency bill.')
     }
 
     const payment = await tx.billPayment.create({
       data: {
         companyId: ctx.companyId, billId: bill.id, date,
-        amount: amount.toFixed(2), mode: input.mode, reference: input.reference, bankAccountId: bank.id,
+        amount: amount.toFixed(2), inrAmount: inrAmount ? inrAmount.toFixed(2) : null,
+        mode: input.mode, reference: input.reference, bankAccountId: bank.id,
       },
     })
 
     await postJournal(ctx, {
       date, narration: `Payment ${bill.billNumber} — ${bill.vendor.name}`,
       sourceType: 'BILL_PAYMENT', sourceId: payment.id,
-      postings: postBillPayment({ billNumber: bill.billNumber, vendorId: bill.vendorId, amount, bankAccountCode: bank.ledgerAccount.code }),
+      postings: postBillPayment({
+        billNumber: bill.billNumber, vendorId: bill.vendorId,
+        amount: inrAmount ?? amount, bankAccountCode: bank.ledgerAccount.code, apCleared,
+      }),
     }, tx)
 
     const paid = new Decimal(bill.amountPaid.toString()).plus(amount)

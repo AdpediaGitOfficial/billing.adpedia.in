@@ -3,6 +3,9 @@ import { useActionState, useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { createBillAction } from '../actions'
 import { Card, Field, Button, Alert, Pill, inputClass, inputStyle, tapTarget } from '@/components/ui/kit'
+import { CurrencySelect } from '@/components/ui/geo'
+import { useLiveRate, plainRate } from '@/components/fx/use-live-rate'
+import { LiveRateNote } from '@/components/fx/live-rate-note'
 
 type Vendor = { id: string; name: string; country: string; gstin: string | null; pan: string | null; panVerified: boolean; rcmApplicable: boolean; defaultTdsSection: string | null }
 type Line = { description: string; sacCode: string; quantity: string; rate: string; gstRatePct: string; expenseAccountCode: string }
@@ -10,11 +13,14 @@ type Line = { description: string; sacCode: string; quantity: string; rate: stri
 interface Preview {
   taxableValue: string; cgst: string; sgst: string; igst: string; grandTotal: string
   rcmIgst: string; netPayable: string; itcEligible: boolean; warnings: string[]
+  /** docs/93 */
+  currency: string; fxRate: string; grandTotalInr: string | null; tdsAmountDoc: string
   tds: { applies: boolean; section: string | null; ratePct: string; applyOn: string; amount: string; reason: string; cumulativeBefore: string; cumulativeAfter: string }
 }
 
 const blank = (): Line => ({ description: '', sacCode: '', quantity: '1', rate: '', gstRatePct: '18', expenseAccountCode: '5210' })
 const inr = (v: string) => '₹' + new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2 }).format(Number(v))
+const money = (cur: string, v: string) => cur === 'INR' ? inr(v) : `${cur} ${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2 }).format(Number(v))}`
 
 export function BillForm({ vendors, projects, accounts }: {
   vendors: Vendor[]; projects: { id: string; name: string }[]; accounts: { code: string; name: string }[]
@@ -22,19 +28,25 @@ export function BillForm({ vendors, projects, accounts }: {
   const [state, action, pending] = useActionState(createBillAction, null)
   const [vendorId, setVendorId] = useState('')
   const [billDate, setBillDate] = useState(new Date().toISOString().slice(0, 10))
+  // docs/93 — what a foreign vendor billed in, and the rate to book it at
+  const [currency, setCurrency] = useState('INR')
+  const [fxRate, setFxRate] = useState('')
+  const [rateTyped, setRateTyped] = useState(false)   // docs/94 — until typed, the live rate fills it
   const [lines, setLines] = useState<Line[]>([blank()])
   const [preview, setPreview] = useState<Preview | null>(null)
 
   const vendor = vendors.find((v) => v.id === vendorId)
+  const { live, loading: rateLoading } = useLiveRate(vendor && vendor.country !== 'IN' ? currency : '', billDate)
+  useEffect(() => { if (live && live.exact && !rateTyped) setFxRate(plainRate(live.rate)) }, [live, rateTyped])
 
   const refresh = useCallback(async () => {
     if (!vendorId || !lines.some((l) => l.rate)) { setPreview(null); return }
     const res = await fetch('/api/bills/preview', {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ vendorId, billDate, billNumber: 'PREVIEW', lines }),
+      body: JSON.stringify({ vendorId, billDate, billNumber: 'PREVIEW', currency, fxRate: fxRate || undefined, lines }),
     })
     setPreview(res.ok ? await res.json() : null)
-  }, [vendorId, billDate, lines])
+  }, [vendorId, billDate, currency, fxRate, lines])
 
   useEffect(() => { const t = setTimeout(refresh, 250); return () => clearTimeout(t) }, [refresh])
 
@@ -47,7 +59,14 @@ export function BillForm({ vendors, projects, accounts }: {
       <Card>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Vendor">
-            <select name="vendorId" required value={vendorId} onChange={(e) => setVendorId(e.target.value)} className={inputClass} style={inputStyle}>
+            <select name="vendorId" required value={vendorId}
+              onChange={(e) => {
+                setVendorId(e.target.value)
+                // a foreign vendor most often bills in dollars; a domestic one in rupees. Either can be changed.
+                const v = vendors.find((x) => x.id === e.target.value)
+                setCurrency(v && v.country !== 'IN' ? 'USD' : 'INR'); setFxRate(''); setRateTyped(false)
+              }}
+              className={inputClass} style={inputStyle}>
               <option value="">Select…</option>
               {vendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
             </select>
@@ -64,6 +83,24 @@ export function BillForm({ vendors, projects, accounts }: {
           <Field label="Bill date">
             <input name="billDate" type="date" required value={billDate} onChange={(e) => setBillDate(e.target.value)} className={inputClass} style={inputStyle} />
           </Field>
+          {/* docs/93 — shown for an overseas vendor. The amounts below are then in THIS currency, and
+              the books are kept in rupees at the rate typed here. There is no rate source in the
+              system, so it is typed; a bill cannot be saved without it. */}
+          {vendor && vendor.country !== 'IN' && (
+            <>
+              <Field label="Bill currency" hint="What the vendor's invoice is in — the amounts below are in it">
+                <CurrencySelect name="currency" value={currency} onChange={(e) => { setCurrency(e.target.value); setFxRate(''); setRateTyped(false) }} />
+              </Field>
+              {currency !== 'INR' && (
+                <Field label={`Exchange rate (₹ per 1 ${currency})`} hint="Filled in from the live rate for the bill date; change it to your bank's or the RBI's if that is what you book at. It is frozen when you save.">
+                  <input name="fxRate" inputMode="decimal" value={fxRate} onChange={(e) => { setFxRate(e.target.value); setRateTyped(true) }}
+                    placeholder="e.g. 94.14" className={inputClass} style={inputStyle} />
+                  <LiveRateNote currency={currency} live={live} loading={rateLoading} current={fxRate}
+                    onUse={(r) => { setFxRate(plainRate(r)); setRateTyped(false) }} />
+                </Field>
+              )}
+            </>
+          )}
         </div>
 
         {vendor && (
@@ -128,16 +165,19 @@ export function BillForm({ vendors, projects, accounts }: {
 
           <Card className="mt-4">
             <dl className="ml-auto max-w-sm text-[13.5px]">
-              <Row k="Taxable value" v={inr(preview.taxableValue)} />
-              {Number(preview.cgst) > 0 && <><Row k="CGST" v={inr(preview.cgst)} /><Row k="SGST" v={inr(preview.sgst)} /></>}
-              {Number(preview.igst) > 0 && <Row k="IGST" v={inr(preview.igst)} />}
-              <Row k="Bill total" v={inr(preview.grandTotal)} strong />
+              <Row k="Taxable value" v={money(preview.currency, preview.taxableValue)} />
+              {Number(preview.cgst) > 0 && <><Row k="CGST" v={money(preview.currency, preview.cgst)} /><Row k="SGST" v={money(preview.currency, preview.sgst)} /></>}
+              {Number(preview.igst) > 0 && <Row k="IGST" v={money(preview.currency, preview.igst)} />}
+              <Row k="Bill total" v={money(preview.currency, preview.grandTotal)} strong />
+              {preview.currency !== 'INR' && (
+                <Row k="Booked in the ledger as" v={preview.grandTotalInr ? inr(preview.grandTotalInr) : 'enter the rate'} />
+              )}
               {Number(preview.rcmIgst) > 0 && (
-                <Row k="IGST under reverse charge (cash)" v={inr(preview.rcmIgst)} tone="warn" />
+                <Row k="IGST under reverse charge (cash, ₹)" v={inr(preview.rcmIgst)} tone="warn" />
               )}
               {preview.tds.applies && (
                 <>
-                  <Row k={`Less TDS u/s ${preview.tds.section} @ ${preview.tds.ratePct}%`} v={`(${inr(preview.tds.amount)})`} tone="warn" />
+                  <Row k={`Less TDS u/s ${preview.tds.section} @ ${preview.tds.ratePct}%`} v={`(${money(preview.currency, preview.tdsAmountDoc)})`} tone="warn" />
                   {preview.tds.applyOn !== preview.taxableValue && (
                     <p className="py-1 text-[11.5px]" style={{ color: 'var(--warn)' }}>
                       Charged on {inr(preview.tds.applyOn)} — the vendor&rsquo;s whole year, not this bill alone.
@@ -145,7 +185,7 @@ export function BillForm({ vendors, projects, accounts }: {
                   )}
                 </>
               )}
-              <Row k="Payable to the vendor" v={inr(preview.netPayable)} strong />
+              <Row k="Payable to the vendor" v={money(preview.currency, preview.netPayable)} strong />
             </dl>
             {!preview.tds.applies && preview.tds.reason && (
               <p className="mt-3 text-right text-[11.5px]" style={{ color: 'var(--text-muted)' }}>{preview.tds.reason}</p>

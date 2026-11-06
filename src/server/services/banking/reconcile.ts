@@ -31,7 +31,8 @@ async function loadCandidates(companyId: string) {
       include: { customer: { select: { id: true, name: true, aliases: true } } },
     }),
     prisma.vendorBill.findMany({
-      where: { companyId, status: { in: ['APPROVED', 'PARTIALLY_PAID'] } },
+      // docs/93 — rupee bills only: a bank line is rupees and a foreign bill is in its own currency
+      where: { companyId, currency: 'INR', status: { in: ['APPROVED', 'PARTIALLY_PAID'] } },
       include: { vendor: { select: { id: true, name: true, aliases: true } } },
     }),
     prisma.bankRule.findMany({ where: { companyId } }),

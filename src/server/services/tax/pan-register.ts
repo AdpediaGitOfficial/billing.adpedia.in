@@ -1,4 +1,5 @@
 import { prisma } from '@/server/db'
+import { inrOf } from '@/lib/fx'
 import { Decimal, ZERO } from '@/lib/money'
 import type { RequestContext } from '@/server/context'
 import { assertCan } from '@/server/auth/permissions'
@@ -99,15 +100,18 @@ export async function panRegister(ctx: RequestContext): Promise<PanRegister> {
   ])
 
   // how much each vendor has actually been billed this year, so the exposure is real
-  const billed = await prisma.vendorBill.groupBy({
-    by: ['vendorId'],
+  // docs/93 — in rupees, each bill at its own rate: a database-side sum would add dollars to rupees
+  const billedBills = await prisma.vendorBill.findMany({
     where: {
       companyId: ctx.companyId, status: { notIn: ['DRAFT', 'CANCELLED'] },
       ...(fy ? { financialYearId: fy.id } : {}),
     },
-    _sum: { taxableValue: true },
+    select: { vendorId: true, currency: true, fxRate: true, taxableValue: true },
   })
-  const billedBy = new Map(billed.map((b) => [b.vendorId, new Decimal(b._sum.taxableValue?.toString() ?? '0')]))
+  const billedBy = new Map<string, Decimal>()
+  for (const b of billedBills) {
+    billedBy.set(b.vendorId, (billedBy.get(b.vendorId) ?? new Decimal(0)).plus(inrOf(b, b.taxableValue.toString())))
+  }
   const cardsBy = await panCardCounts(ctx)
 
   const rows: PanGap[] = []
