@@ -11,6 +11,7 @@ import { postVendorBill, postTdsDeduction, postRcmSelfInvoice, postBillPayment }
 import { allocateNumber } from '@/server/services/invoicing/numbering'
 import { resolveTds, cumulativeThisFy, type TdsDecision } from '@/server/services/tax/tds-resolver'
 import { requireDefaultBank } from '@/server/services/company/bank-account'
+import { isGstRegistered } from '@/server/services/invoicing/document-type'
 
 const RCM_RATE = new Decimal(18)   // import of services
 
@@ -44,6 +45,8 @@ export interface BillPreview {
   tds: TdsDecision
   netPayable: Decimal
   itcEligible: boolean
+  /** the entity is GST-registered — decides whether input credit and reverse charge exist at all */
+  registered: boolean
   warnings: string[]
 }
 
@@ -81,8 +84,22 @@ export async function previewBill(ctx: RequestContext, input: BillInput, exclude
   const grandTotal = taxableValue.plus(cgst).plus(sgst).plus(igst)
 
   // 🔴 reverse charge — the supplier charges nothing, Adpedia self-accounts IGST
-  const rcmIgst = vendor.rcmApplicable ? round2(taxableValue.mul(RCM_RATE).div(100)) : ZERO
-  if (vendor.rcmApplicable) {
+  /**
+   * 🔴 docs/89 — credit under s.16(1) belongs to a REGISTERED person. For an unregistered
+   * entity the GST a vendor charged is part of the cost, and the reverse-charge half is not
+   * ours to account for: `postRcmSelfInvoice` debits 1240 as a recoverable asset, which for
+   * this entity is a debit that can never be utilised. Nothing here can say whether an
+   * unregistered recipient owes the IGST at all, so it is named and left, as docs/79 does.
+   */
+  const registered = isGstRegistered(company.gstRegistrationType)
+  const rcmIgst = vendor.rcmApplicable && registered ? round2(taxableValue.mul(RCM_RATE).div(100)) : ZERO
+  if (vendor.rcmApplicable && !registered) {
+    warnings.push(
+      `${vendor.name} has no Indian GSTIN, so this may be an import of service liable to reverse charge. ` +
+      'This entity is not registered for GST, and this system will not account for IGST under reverse charge ' +
+      'for it — no self-invoice is raised and no input credit is booked. Ask the CA before approving it.',
+    )
+  } else if (vendor.rcmApplicable) {
     warnings.push(
       `${vendor.name} has no Indian GSTIN, so this is an import of service. IGST of ${rcmIgst.toFixed(2)} is payable under reverse charge — in cash, never set off against existing ITC — and a self-invoice will be generated under s.31(3)(f). The same amount is claimable as input credit in the period.`,
     )
@@ -142,8 +159,17 @@ export async function previewBill(ctx: RequestContext, input: BillInput, exclude
     )
   }
 
-  const itcEligible = input.itcEligible ?? (mode !== 'NONE')
-  if (!itcEligible && (cgst.gt(0) || sgst.gt(0) || igst.gt(0))) {
+  if (!registered && input.itcEligible) {
+    throw new AppError(
+      'This entity is not registered for GST, so there is no input credit to claim — s.16(1) '
+      + 'gives credit to a registered person. The tax the vendor charged is part of the cost '
+      + 'of the bill, and that is where it is posted.',
+    )
+  }
+  const itcEligible = registered && (input.itcEligible ?? (mode !== 'NONE'))
+  if (!registered && (cgst.gt(0) || sgst.gt(0) || igst.gt(0))) {
+    warnings.push('This entity is not registered for GST, so the GST on this bill is part of its cost — there is no input credit to claim.')
+  } else if (!itcEligible && (cgst.gt(0) || sgst.gt(0) || igst.gt(0))) {
     warnings.push('Input credit is blocked on this bill, so the GST becomes part of the cost rather than a recoverable asset.')
   }
 
@@ -151,7 +177,7 @@ export async function previewBill(ctx: RequestContext, input: BillInput, exclude
     vendor: { id: vendor.id, name: vendor.name, isForeignSupplier: vendor.isForeignSupplier, rcmApplicable: vendor.rcmApplicable, pan: vendor.pan, panVerified: vendor.panVerified },
     taxableValue, cgst, sgst, igst, grandTotal, rcmIgst, tds,
     netPayable: grandTotal.minus(tds.tdsAmount),
-    itcEligible, warnings,
+    itcEligible, registered, warnings,
   }
 }
 
@@ -182,7 +208,9 @@ export async function createBill(ctx: RequestContext, input: BillInput) {
       cgst: p.cgst.toFixed(2), sgst: p.sgst.toFixed(2), igst: p.igst.toFixed(2),
       grandTotal: p.grandTotal.toFixed(2),
       isRcm: p.rcmIgst.gt(0), rcmIgst: p.rcmIgst.toFixed(2),
-      itcEligible: p.itcEligible, itcBlockedReason: input.itcBlockedReason,
+      itcEligible: p.itcEligible,
+      itcBlockedReason: p.registered ? input.itcBlockedReason
+        : 'The entity is not registered for GST — s.16(1) gives credit to a registered person only',
       // the section is stored even when nothing is deducted — a bill below the
       // threshold still counts toward it, and the cumulative lookup reads this column
       tdsSection: p.tds.sectionCode,

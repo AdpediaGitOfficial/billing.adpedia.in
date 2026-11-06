@@ -96,12 +96,7 @@ The list was committed in `0211615` looking right in the source and wrong on the
 
 ## 6. What this does not do
 
-- **Vendor bills still carry the hidden 18.** *(Read from `bill.ts` and `rules/purchase.ts`, not exercised — no test posts a bill as an unregistered entity.)* `bills/new/form.tsx` has the same default, and
-  `postBill` does not read the entity's registration, so a personal account booking a bill
-  from a GST-registered vendor would debit **input GST (1210–1230) as a recoverable asset** —
-  credit this entity has no right to, and which would understate its expense and so overstate
-  its profit. `expense.ts` already refuses exactly that (s.16(1)); the bill path does not. It is
-  a posting rule, not a form default, so it is recorded here and not changed in this module.
+- **Vendor bills and input credit** — exercised and fixed in docs/89. The hidden 18 on the bill form is the rate the vendor charges, which is a legitimate default; the defect was where the tax was posted.
 - **USD income is booked at face value in rupees.** The ledger entry for a USD 250 invoice
   reads ₹250.00. This is docs/84 §5 and docs/86 §6 again, and it matters most for exactly this
   entity: a personal account recording what a freelancer actually earned from overseas clients
