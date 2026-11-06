@@ -1,5 +1,6 @@
 import { prisma } from '@/server/db'
 import { Decimal, ZERO } from '@/lib/money'
+import { isForeign, parseFxRate, rateIsSet, toInr } from '@/lib/fx'
 
 import type { RequestContext } from '@/server/context'
 import { AppError, NotFound } from '@/server/errors'
@@ -69,7 +70,24 @@ export interface CreateInvoiceInput {
   customerRef?: string
   milestone?: string
   tdsSection?: '194J' | '194C' | null
+  /** docs/91 — rupees per one unit of the invoice currency, on the invoice date. Foreign only. */
+  fxRate?: string
   lines: InvoiceLineInput[]
+}
+
+/**
+ * docs/91 — the rate this document is booked at. Rupees need none. A foreign document keeps
+ * the rate it already had unless a new one is typed, and a rate that is typed but not a
+ * positive number is refused rather than quietly dropped back to the "not entered" 1.
+ */
+export function documentFxRate(currency: string, raw: string | undefined, existing?: Decimal.Value | null): Decimal {
+  if (!isForeign(currency)) return new Decimal(1)
+  if (raw != null && raw.trim() !== '') {
+    const r = parseFxRate(raw)
+    if (!r) throw new AppError('The exchange rate must be a positive number — rupees per one unit of the invoice currency, up to 6 decimals.')
+    return r
+  }
+  return existing != null ? new Decimal(existing) : new Decimal(1)
 }
 
 /**
@@ -114,6 +132,8 @@ export async function previewInvoice(ctx: RequestContext, input: CreateInvoiceIn
   const docType = docTypeFor(company.gstRegistrationType, taxMode)
 
   const totals = computeInvoice(toLineInputs(input.lines), taxMode)
+  const currency = invoiceCurrency(taxMode, customer.currency)
+  const fxRate = documentFxRate(currency, input.fxRate)
   const tds = computeInvoiceTds({
     taxableValue: totals.taxableValue,
     grandTotal: totals.grandTotal,
@@ -126,7 +146,10 @@ export async function previewInvoice(ctx: RequestContext, input: CreateInvoiceIn
     taxMode,
     placeOfSupply: taxMode === 'EXPORT' ? '96' : (customer.stateCode ?? company.stateCode),
     placeOfSupplyLabel: placeOfSupplyLabel(taxMode, customer.stateCode),
-    currency: invoiceCurrency(taxMode, customer.currency),
+    currency,
+    // docs/91 — what the books will carry, so the form can show the rupee figure beside the dollar one
+    fxRate: fxRate.toFixed(6),
+    inrGrandTotal: rateIsSet(currency, fxRate) && isForeign(currency) ? toInr(totals.grandTotal, fxRate).toFixed(2) : null,
     totals,
     tds,
     // 🔴 docs/82 §4 — not for a bill of supply: there is no zero-rating without a rate
@@ -190,6 +213,7 @@ export async function createInvoice(ctx: RequestContext, input: CreateInvoiceInp
         taxMode,
         placeOfSupply: taxMode === 'EXPORT' ? '96' : (customer.stateCode ?? company.stateCode),
         currency: invoiceCurrency(taxMode, customer.currency),
+        fxRate: documentFxRate(invoiceCurrency(taxMode, customer.currency), input.fxRate).toFixed(6),
         taxableValue: totals.taxableValue.toFixed(2),
         cgst: totals.cgst.toFixed(2),
         sgst: totals.sgst.toFixed(2),
@@ -308,6 +332,11 @@ export async function updateInvoiceDraft(ctx: RequestContext, invoiceId: string,
         taxMode,
         placeOfSupply: taxMode === 'EXPORT' ? '96' : (customer.stateCode ?? company.stateCode),
         currency: invoiceCurrency(taxMode, customer.currency),
+        // 🔴 a draft re-pointed at another currency must not carry the old currency's rate
+        fxRate: documentFxRate(
+          invoiceCurrency(taxMode, customer.currency), input.fxRate,
+          existing.currency === invoiceCurrency(taxMode, customer.currency) ? existing.fxRate : null,
+        ).toFixed(6),
         taxableValue: totals.taxableValue.toFixed(2),
         cgst: totals.cgst.toFixed(2),
         sgst: totals.sgst.toFixed(2),
@@ -372,6 +401,17 @@ export async function sendInvoice(ctx: RequestContext, invoiceId: string) {
 
     await assertPostable(ctx.companyId, inv.date, tx)
 
+    /**
+     * 🔴 docs/91 — no foreign invoice is numbered without the rate it will be booked at.
+     * Before this, a USD invoice posted its dollars into the rupee ledger at face value.
+     */
+    if (!rateIsSet(inv.currency, inv.fxRate.toString())) {
+      throw new AppError(
+        `Enter the exchange rate for this ${inv.currency} invoice before sending it — rupees per one ${inv.currency} on ${inv.date.toISOString().slice(0, 10)}. ` +
+        'The books are kept in rupees, so the invoice is booked at that rate.',
+      )
+    }
+
     // 🔴 hard block — no zero-rated export without a LUT covering this financial year
     const lutId = await resolveLutForInvoice(tx, {
       companyId: ctx.companyId,
@@ -429,6 +469,7 @@ export async function sendInvoice(ctx: RequestContext, invoiceId: string) {
       igst: new Decimal(inv.igst.toString()),
       roundOff: new Decimal(inv.roundOff.toString()),
       revenueByAccount,
+      fxRate: isForeign(inv.currency) ? new Decimal(inv.fxRate.toString()) : undefined,
     })
 
     await postJournal(ctx, {

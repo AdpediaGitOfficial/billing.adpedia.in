@@ -5,6 +5,7 @@ import { archivedDocument } from '@/server/services/storage/document-archive'
 import { prisma } from '@/server/db'
 import { formatINR, amountInWords, Decimal } from '@/lib/money'
 import { currencyWords } from '@/lib/currencies'
+import { rateIsSet, toInr } from '@/lib/fx'
 import { invoiceOpen } from '@/lib/invoice-open'
 import { placeOfSupplyLabel, taxModeLabel } from '@/server/services/tax/tax-mode'
 import { lutStatus } from '@/server/services/invoicing/lut'
@@ -182,6 +183,13 @@ export default async function InvoiceDetail({ params }: { params: Promise<{ id: 
             {new Decimal(inv.igst.toString()).gt(0) && <Row k="IGST" v={money(inv.igst.toString())} />}
             {inv.taxMode === 'EXPORT' && carriesTax(inv.docType) && <Row k="GST — zero rated" v="0.00" />}
             <Row k="Invoice total" v={money(inv.grandTotal.toString())} strong />
+            {/* docs/91 — the books are in rupees; say at what rate this document is carried */}
+            {inv.currency !== 'INR' && (
+              rateIsSet(inv.currency, inv.fxRate.toString())
+                ? <Row k={`Booked at ₹${new Decimal(inv.fxRate.toString()).toFixed(4)} per ${inv.currency}`}
+                    v={formatINR(toInr(inv.grandTotal.toString(), inv.fxRate.toString()).toString())} />
+                : <Row k="Exchange rate" v="not entered — needed to send" />
+            )}
             {inv.tdsSection && (
               <>
                 <Row k={`Less TDS u/s ${inv.tdsSection}`} v={`(${money(inv.tdsAmount.toString())})`} />

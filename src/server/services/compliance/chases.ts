@@ -1,5 +1,6 @@
 import { prisma } from '@/server/db'
 import { Decimal, ZERO, formatINR } from '@/lib/money'
+import { formatDocAmount } from '@/lib/fx'
 import type { RequestContext } from '@/server/context'
 import { assertCan } from '@/server/auth/permissions'
 import { audit } from '@/server/audit'
@@ -284,10 +285,10 @@ export async function outstandingChases(ctx: RequestContext): Promise<Chase[]> {
       kind: 'INVOICE_OVERDUE', subjectId: inv.id, partyName: inv.customer.name,
       email: inv.customer.email ?? null, phone: inv.customer.phone ?? null,
       why: `${days} days past the due date`,
-      subject: `Invoice ${inv.number} — ${formatINR(outstanding)} outstanding`,
+      subject: `Invoice ${inv.number} — ${formatDocAmount(inv.currency, outstanding)} outstanding`,
       body: sign(name,
         `Invoice ${inv.number} dated ${day(inv.date)} fell due on ` +
-        `${day(inv.dueDate)} and ${formatINR(outstanding)} is still outstanding.\n\n` +
+        `${day(inv.dueDate)} and ${formatDocAmount(inv.currency, outstanding)} is still outstanding.\n\n` +
         `Could you let us know when it is scheduled for payment? If it has already been paid, ` +
         `the UTR or cheque details would help us match it.`),
       lastAskedAt: asked.get(`INVOICE_OVERDUE:${inv.id}`) ?? null,

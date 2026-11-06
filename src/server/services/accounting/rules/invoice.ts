@@ -1,4 +1,5 @@
 import { Decimal, ZERO } from '@/lib/money'
+import { toInr } from '@/lib/fx'
 import type { Posting } from '../types'
 
 export interface InvoicePostingDoc {
@@ -12,6 +13,12 @@ export interface InvoicePostingDoc {
   roundOff: Decimal
   /** revenue split by income account code, e.g. { '4020': 70000, '4030': 15000 } */
   revenueByAccount: Record<string, Decimal>
+  /**
+   * docs/91 — rupees per unit of the document currency, when the amounts above are NOT rupees.
+   * Every line is converted and receivables is the SUM of what was converted, so the entry
+   * balances to the paisa whatever the rounding does; absent means the amounts are rupees.
+   */
+  fxRate?: Decimal
 }
 
 export const ACCOUNTS = {
@@ -34,21 +41,30 @@ export const ACCOUNTS = {
 export function postInvoice(doc: InvoicePostingDoc): Posting[] {
   const postings: Posting[] = []
   const dim = { customerId: doc.customerId, projectId: doc.projectId ?? undefined }
+  const conv = (v: Decimal) => (doc.fxRate ? toInr(v, doc.fxRate) : v)
 
-  postings.push({ accountCode: ACCOUNTS.AR, debit: doc.grandTotal, narration: `Invoice ${doc.number}`, ...dim })
+  const revenue = Object.entries(doc.revenueByAccount)
+    .filter(([, amount]) => !amount.isZero())
+    .map(([code, amount]) => [code, conv(amount)] as const)
+  const cgst = conv(doc.cgst), sgst = conv(doc.sgst), igst = conv(doc.igst), roundOff = conv(doc.roundOff)
 
-  for (const [code, amount] of Object.entries(doc.revenueByAccount)) {
-    if (amount.isZero()) continue
-    postings.push({ accountCode: code, credit: amount, ...dim })
-  }
+  // in rupees this is the document total untouched; in a foreign currency it is the sum of the
+  // converted parts, because converting the total separately could disagree by a paisa
+  const receivable = doc.fxRate
+    ? revenue.reduce((a, [, v]) => a.plus(v), ZERO).plus(cgst).plus(sgst).plus(igst).plus(roundOff)
+    : doc.grandTotal
 
-  if (doc.cgst.gt(0)) postings.push({ accountCode: ACCOUNTS.OUTPUT_CGST, credit: doc.cgst, ...dim })
-  if (doc.sgst.gt(0)) postings.push({ accountCode: ACCOUNTS.OUTPUT_SGST, credit: doc.sgst, ...dim })
-  if (doc.igst.gt(0)) postings.push({ accountCode: ACCOUNTS.OUTPUT_IGST, credit: doc.igst, ...dim })
+  postings.push({ accountCode: ACCOUNTS.AR, debit: receivable, narration: `Invoice ${doc.number}`, ...dim })
+
+  for (const [code, amount] of revenue) postings.push({ accountCode: code, credit: amount, ...dim })
+
+  if (cgst.gt(0)) postings.push({ accountCode: ACCOUNTS.OUTPUT_CGST, credit: cgst, ...dim })
+  if (sgst.gt(0)) postings.push({ accountCode: ACCOUNTS.OUTPUT_SGST, credit: sgst, ...dim })
+  if (igst.gt(0)) postings.push({ accountCode: ACCOUNTS.OUTPUT_IGST, credit: igst, ...dim })
 
   // Round-off goes to its own line so the trial balance never carries a silent residue.
-  if (doc.roundOff.gt(0)) postings.push({ accountCode: ACCOUNTS.ROUND_OFF_GAIN, credit: doc.roundOff, narration: 'Round off', ...dim })
-  else if (doc.roundOff.lt(0)) postings.push({ accountCode: ACCOUNTS.ROUND_OFF_LOSS, debit: doc.roundOff.abs(), narration: 'Round off', ...dim })
+  if (roundOff.gt(0)) postings.push({ accountCode: ACCOUNTS.ROUND_OFF_GAIN, credit: roundOff, narration: 'Round off', ...dim })
+  else if (roundOff.lt(0)) postings.push({ accountCode: ACCOUNTS.ROUND_OFF_LOSS, debit: roundOff.abs(), narration: 'Round off', ...dim })
 
   return postings
 }

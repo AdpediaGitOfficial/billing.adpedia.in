@@ -1,4 +1,5 @@
 import { prisma } from '@/server/db'
+import { inrOf } from '@/lib/fx'
 import { Decimal, ZERO } from '@/lib/money'
 
 /**
@@ -101,7 +102,7 @@ export async function outwardSupplies(companyId: string, from: Date, to: Date) {
       companyId, date: { gte: from, lte: to },
       status: { notIn: ['DRAFT', 'CANCELLED'] },
     },
-    select: { taxMode: true, taxableValue: true, cgst: true, sgst: true, igst: true, customer: { select: { gstin: true } } },
+    select: { taxMode: true, currency: true, fxRate: true, taxableValue: true, cgst: true, sgst: true, igst: true, customer: { select: { gstin: true } } },
   })
 
   const bucket = () => ({ taxable: ZERO as Decimal, cgst: ZERO as Decimal, sgst: ZERO as Decimal, igst: ZERO as Decimal, count: 0 })
@@ -109,10 +110,12 @@ export async function outwardSupplies(companyId: string, from: Date, to: Date) {
 
   for (const i of invoices) {
     const target = i.taxMode === 'EXPORT' || i.taxMode === 'SEZ_WITHOUT_PAY' ? out.zeroRated : out.taxable
-    target.taxable = target.taxable.plus(i.taxableValue.toString())
-    target.cgst = target.cgst.plus(i.cgst.toString())
-    target.sgst = target.sgst.plus(i.sgst.toString())
-    target.igst = target.igst.plus(i.igst.toString())
+    // docs/91 — GSTR-3B 3.1 is in rupees; an export invoice's value is converted at its own rate
+    // (rule 34 asks for the notified rate at the time of supply — a CA question, see docs/91)
+    target.taxable = target.taxable.plus(inrOf(i, i.taxableValue.toString()))
+    target.cgst = target.cgst.plus(inrOf(i, i.cgst.toString()))
+    target.sgst = target.sgst.plus(inrOf(i, i.sgst.toString()))
+    target.igst = target.igst.plus(inrOf(i, i.igst.toString()))
     target.count += 1
   }
   return out

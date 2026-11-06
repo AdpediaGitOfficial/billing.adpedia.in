@@ -33,7 +33,7 @@ export function gstr1ToCsv(r: Gstr1): string {
   for (const b of r.b2cs) out.push(row(['OE', b.placeOfSupply, b.rate, d2(b.taxableValue), '0.00']))
 
   section('exp — Exports')
-  out.push(row(['Export Type', 'Invoice Number', 'Invoice Date', 'Invoice Value', 'Port Code', 'Shipping Bill Number', 'Shipping Bill Date', 'Rate', 'Taxable Value', 'Currency', 'Recipient', 'LUT ARN']))
+  out.push(row(['Export Type', 'Invoice Number', 'Invoice Date', 'Invoice Value (INR)', 'Port Code', 'Shipping Bill Number', 'Shipping Bill Date', 'Rate', 'Taxable Value (INR)', 'Invoice Currency', 'Recipient', 'LUT ARN']))
   for (const e of r.exports) {
     out.push(row([e.exportType, e.invoiceNumber, e.invoiceDate, d2(e.invoiceValue), '', '', '', 0, d2(e.taxableValue), e.currency, e.customerName, e.lutArn]))
   }

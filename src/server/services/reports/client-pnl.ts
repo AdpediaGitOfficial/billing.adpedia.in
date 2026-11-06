@@ -3,6 +3,7 @@ import { Decimal, ZERO } from '@/lib/money'
 import type { RequestContext } from '@/server/context'
 import { assertCan } from '@/server/auth/permissions'
 import { invoiceOpen, NO_NOTES } from '@/lib/invoice-open'
+import { inrOf } from '@/lib/fx'
 import { noteTotals } from '@/server/services/invoicing/notes'
 import type { Period } from './ledger'
 
@@ -74,14 +75,14 @@ export async function clientPnl(ctx: RequestContext, period: Period): Promise<Cl
       status: { in: ['SENT', 'VIEWED', 'PARTIALLY_PAID', 'OVERDUE'] },
       date: { lte: period.to },
     },
-    select: { id: true, customerId: true, grandTotal: true, amountReceived: true, tdsCredited: true, tdsAmount: true },
+    select: { id: true, customerId: true, currency: true, fxRate: true, grandTotal: true, amountReceived: true, tdsCredited: true, tdsAmount: true },
   })
   // 🔴 docs/86 — net of credit notes, so this agrees with the client's own running account
   const notes = await noteTotals(ctx.companyId, invoices.map((i) => i.id))
   const outstandingBy = new Map<string, Decimal>()
   for (const i of invoices) {
     const { outstanding } = invoiceOpen(i, notes.get(i.id) ?? NO_NOTES)
-    outstandingBy.set(i.customerId, (outstandingBy.get(i.customerId) ?? ZERO).plus(outstanding))
+    outstandingBy.set(i.customerId, (outstandingBy.get(i.customerId) ?? ZERO).plus(inrOf(i, outstanding)))
   }
 
   return customers

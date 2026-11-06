@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { requireContext } from '@/server/context'
 import { prisma } from '@/server/db'
 import { Decimal, formatINR, ZERO } from '@/lib/money'
+import { formatDocAmount } from '@/lib/fx'
 import { arSummary } from '@/server/services/sales/receivables'
 import { invoiceOpen, NO_NOTES } from '@/lib/invoice-open'
 import { noteTotals } from '@/server/services/invoicing/notes'
@@ -77,11 +78,16 @@ export default async function ReceiptsPage({ searchParams }: {
     prisma.receipt.count({ where: { ...where, cancelledAt: null } }),
     prisma.receipt.count({ where: { ...where, cancelledAt: { not: null } } }),
     prisma.receipt.aggregate({
-      where: { ...where, cancelledAt: null },
+      where: { ...where, cancelledAt: null, currency: 'INR' },
       _sum: { amount: true, tdsAmount: true },
     }),
   ])
-  const collected = new Decimal(totals._sum.amount?.toString() ?? '0')
+  // docs/91 — a foreign receipt counts as the rupees the bank credited, never as its dollars
+  const foreignTotals = await prisma.receipt.aggregate({
+    where: { ...where, cancelledAt: null, currency: { not: 'INR' } },
+    _sum: { inrAmount: true },
+  })
+  const collected = new Decimal(totals._sum.amount?.toString() ?? '0').plus(foreignTotals._sum.inrAmount?.toString() ?? '0')
   const tdsOnReceipts = new Decimal(totals._sum.tdsAmount?.toString() ?? '0')
 
   type Row = (typeof receipts)[number]
@@ -144,7 +150,12 @@ export default async function ReceiptsPage({ searchParams }: {
     { key: 'amount', header: 'Received', width: '15%', align: 'right', mobile: 'value',
       cell: (r) => <span className="font-semibold tabular"
         style={r.cancelledAt ? { textDecoration: 'line-through', color: 'var(--text-muted)' } : undefined}>
-        {formatINR(r.amount.toString())}
+        {r.currency === 'INR' ? formatINR(r.amount.toString()) : formatDocAmount(r.currency, r.amount.toString())}
+        {r.inrAmount && (
+          <span className="block text-[11px] font-normal" style={{ color: 'var(--text-muted)' }}>
+            {formatINR(r.inrAmount.toString())} credited
+          </span>
+        )}
       </span> },
   ]
 

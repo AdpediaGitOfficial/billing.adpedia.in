@@ -134,19 +134,21 @@ describe('🔴 the months of a financial year', () => {
   })
 
   /**
-   * 🔴 `Invoice.fxRate` is in the schema and read NOWHERE in the application, so it is 1 on
-   * every row including the exports. Adding a USD grand total into a rupee column at a rate
-   * of 1 would be wrong by two orders of magnitude and would look like a number, so an
-   * invoice that is not in rupees is named on the month rather than summed into it.
+   * 🔴 docs/91 — a USD invoice is counted at the rate it was booked at.
+   *
+   * `Invoice.fxRate` used to be read nowhere, so it was 1 on every export and a USD grand total
+   * added into a rupee column was wrong by two orders of magnitude while looking like a
+   * number. The month view named such invoices instead of summing them. It still does for one
+   * with NO rate — a document sent before rates were captured — and converts every other.
    */
-  it('🔴 names an invoice that is not in rupees instead of converting it', async () => {
+  it('🔴 counts a USD invoice at its rate, and names one that has none instead of adding it at face value', async () => {
     // an export needs a LUT for the year or it cannot be zero-rated and will not send
     const lut = await prisma.companyLut.create({
       data: { companyId: ctx.companyId, arn: 'AD320326TEST01', fyLabel: '2026-27',
         validFrom: new Date('2026-04-01'), validTo: new Date('2027-03-31') },
     })
     const usd = await createInvoice(ctx, {
-      customerId: dubai, date: '2026-12-09',
+      customerId: dubai, date: '2026-12-09', fxRate: '84',
       lines: [{ description: 'Brand film', sacCode: '998387', quantity: '1', rate: '6500', gstRatePct: '0' }],
     })
     const sent = await sendInvoice(ctx, usd.id)
@@ -155,10 +157,17 @@ describe('🔴 the months of a financial year', () => {
 
     const dec = await month('2026-12')
     expect(dec.issued).toBe(1)
-    expect(dec.foreignCurrency).toEqual([{ currency: 'USD', count: 1 }])
-    // 🔴 and not a rupee of it in the rupee columns
-    expect(dec.grandTotal.eq(ZERO)).toBe(true)
-    expect(dec.taxableValue.eq(ZERO)).toBe(true)
+    expect(dec.foreignCurrency).toEqual([])
+    // USD 6,500 at ₹84 — in the rupee columns, as rupees
+    expect(dec.grandTotal.toFixed(2)).toBe('546000.00')
+    expect(dec.taxableValue.toFixed(2)).toBe('546000.00')
+
+    // a document that carries no rate is still not added at face value
+    await prisma.invoice.update({ where: { id: sent.id }, data: { fxRate: 1 } })
+    const legacy = await month('2026-12')
+    expect(legacy.foreignCurrency).toEqual([{ currency: 'USD', count: 1 }])
+    expect(legacy.grandTotal.eq(ZERO)).toBe(true)
+    expect(legacy.taxableValue.eq(ZERO)).toBe(true)
   })
 
   it('marks the month the company is actually in, and only that one', async () => {

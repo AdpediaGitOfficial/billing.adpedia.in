@@ -72,6 +72,8 @@ export default async function EditInvoicePage({ params }: { params: Promise<{ id
           customerRef: invoice.customerRef ?? '',
           milestone: invoice.milestone ?? '',
           tdsSection: invoice.tdsSection ?? '',
+          // the default 1 is "not entered yet" for a foreign invoice, so it is not shown as a rate
+          fxRate: invoice.currency !== 'INR' && !invoice.fxRate.eq(1) ? invoice.fxRate.toString() : '',
           lines: invoice.lines.map((l) => ({
             description: l.description,
             sacCode: l.sacCode ?? '',

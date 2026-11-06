@@ -185,12 +185,18 @@ describe('a personal account bills without GST, a SAC code or a LUT', () => {
   })
 
   it('🔴 saves and sends an overseas invoice with no SAC code at all', async () => {
-    const draft = await createInvoice(ctxB, { customerId: overseasId, date: '2026-11-06', lines: [personalLine] })
+    const draft = await createInvoice(ctxB, { customerId: overseasId, date: '2026-11-06', fxRate: '84', lines: [personalLine] })
     const sent = await sendInvoice(ctxB, draft.id)
     expect(sent.docType).toBe('BILL_OF_SUPPLY')
     expect(sent.currency).toBe('USD')
     expect(Number(sent.grandTotal)).toBe(250)
     expect(sent.lutId).toBeNull()
+    // 🔴 docs/91 — USD 250 at ₹84 is ₹21,000 in the books. The personal account is the entity
+    // this matters most to: the rupee figure is the whole point of keeping its income.
+    const arLine = await prisma.journalLine.findFirstOrThrow({
+      where: { account: { code: '1100' }, journalEntry: { sourceId: sent.id } },
+    })
+    expect(Number(arLine.debit)).toBe(21000)
 
     const html = await renderInvoiceHtml(ctxB.companyId, sent.id)
     // no column of dashes where a SAC would be, and no HSN summary under it
@@ -210,7 +216,7 @@ describe('a personal account bills without GST, a SAC code or a LUT', () => {
 
   it('a line that DOES carry a SAC still prints it', async () => {
     const draft = await createInvoice(ctxB, {
-      customerId: overseasId, date: '2026-11-07',
+      customerId: overseasId, date: '2026-11-07', fxRate: '84',
       lines: [{ ...personalLine, sacCode: '998314' }],
     })
     const sent = await sendInvoice(ctxB, draft.id)
@@ -225,7 +231,7 @@ describe('a personal account bills without GST, a SAC code or a LUT', () => {
   })
 
   it('🔴 refuses a GSTR-1 amendment — it corrects a return this entity does not file', async () => {
-    const draft = await createInvoice(ctxB, { customerId: overseasId, date: '2026-11-09', lines: [personalLine] })
+    const draft = await createInvoice(ctxB, { customerId: overseasId, date: '2026-11-09', fxRate: '84', lines: [personalLine] })
     const sent = await sendInvoice(ctxB, draft.id)
     // the button is hidden for this entity, and the server refuses what the UI hides
     await expect(recordAmendment(ctxB, {

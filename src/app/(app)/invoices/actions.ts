@@ -23,6 +23,8 @@ const Schema = z.object({
   customerRef: z.string().optional(),
   milestone: z.string().optional(),
   tdsSection: z.enum(['194J', '194C']).or(z.literal('')).optional(),
+  // docs/91 — rupees per one unit of a foreign invoice's currency; absent for a rupee invoice
+  fxRate: z.string().optional(),
   lines: z.string(),
 })
 
@@ -47,6 +49,7 @@ export async function createInvoiceAction(_prev: { error?: string } | null, form
       customerRef: parsed.data.customerRef || undefined,
       milestone: parsed.data.milestone || undefined,
       tdsSection: (parsed.data.tdsSection || null) as '194J' | '194C' | null,
+      fxRate: parsed.data.fxRate || undefined,
       lines,
     })
     id = inv.id
@@ -81,6 +84,7 @@ export async function updateInvoiceAction(invoiceId: string, _prev: { error?: st
       customerRef: parsed.data.customerRef || undefined,
       milestone: parsed.data.milestone || undefined,
       tdsSection: (parsed.data.tdsSection || null) as '194J' | '194C' | null,
+      fxRate: parsed.data.fxRate || undefined,
       lines,
     })
   } catch (e) {

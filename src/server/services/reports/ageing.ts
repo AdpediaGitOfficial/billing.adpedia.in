@@ -4,6 +4,7 @@ import type { RequestContext } from '@/server/context'
 import { assertCan } from '@/server/auth/permissions'
 import { invoiceOpen, NO_NOTES } from '@/lib/invoice-open'
 import { noteTotals } from '@/server/services/invoicing/notes'
+import { inrOf } from '@/lib/fx'
 
 export const BUCKETS = ['Not due', '1–30', '31–60', '61–90', '90+'] as const
 export type Bucket = typeof BUCKETS[number]
@@ -103,7 +104,8 @@ export async function receivablesAgeing(ctx: RequestContext, asOf: Date = new Da
     return [{
       id: i.id, number: i.number, partyId: i.customer.id, partyName: i.customer.name,
       date: i.date, dueDate: i.dueDate, daysOverdue, bucket: bucketFor(daysOverdue),
-      outstanding: open.collectible, tdsWithheld: open.tdsExpected,
+      // docs/91 — rupees at the invoice's rate, so this adds up to 1100 and not to dollars + rupees
+      outstanding: inrOf(i, open.collectible), tdsWithheld: inrOf(i, open.tdsExpected),
     }]
   })
 

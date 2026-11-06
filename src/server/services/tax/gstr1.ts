@@ -2,6 +2,7 @@ import { prisma } from '@/server/db'
 import { assertFilesGstr1And3b } from './gst-registration'
 import { refundsInPeriod } from '@/server/services/sales/refund'
 import { noteAmendmentsForPeriod } from './gst-note-amendment'
+import { inrOf } from '@/lib/fx'
 import { Decimal, ZERO } from '@/lib/money'
 import { amendmentsForPeriod } from './gst-amendment'
 import { advanceTaxPosted } from '@/server/services/sales/advance'
@@ -176,10 +177,12 @@ export async function buildGstr1(companyId: string, from: Date, to: Date, label:
       return {
         invoiceNumber: inv.number,
         invoiceDate: inv.date,
-        invoiceValue: new Decimal(inv.grandTotal.toString()),
+        // 🔴 docs/91 — rupees: the return is filed in rupees, and these were the invoice's own
+        // currency (USD 6,500 reported as 6,500). `currency` stays the invoice's, for the reader.
+        invoiceValue: inrOf(inv, inv.grandTotal.toString()),
         exportType: inv.lut ? 'WOPAY' as const : 'WPAY' as const,
-        taxableValue: new Decimal(inv.taxableValue.toString()),
-        igst: new Decimal(inv.igst.toString()),
+        taxableValue: inrOf(inv, inv.taxableValue.toString()),
+        igst: inrOf(inv, inv.igst.toString()),
         currency: inv.currency,
         customerName: inv.customer.name,
         lutArn: inv.lut?.arn ?? null,
@@ -348,10 +351,11 @@ export async function buildGstr1(companyId: string, from: Date, to: Date, label:
       hsnMap.set(sac, {
         ...acc,
         quantity: acc.quantity.plus(l.quantity.toString()),
-        taxableValue: acc.taxableValue.plus(l.taxableValue.toString()),
-        cgst: acc.cgst.plus(l.cgst.toString()),
-        sgst: acc.sgst.plus(l.sgst.toString()),
-        igst: acc.igst.plus(l.igst.toString()),
+        // docs/91 — rupees at the invoice's rate
+        taxableValue: acc.taxableValue.plus(inrOf(inv, l.taxableValue.toString())),
+        cgst: acc.cgst.plus(inrOf(inv, l.cgst.toString())),
+        sgst: acc.sgst.plus(inrOf(inv, l.sgst.toString())),
+        igst: acc.igst.plus(inrOf(inv, l.igst.toString())),
       })
     }
   }
@@ -370,11 +374,11 @@ export async function buildGstr1(companyId: string, from: Date, to: Date, label:
 
   const totals = live.reduce(
     (a, i) => ({
-      taxableValue: a.taxableValue.plus(i.taxableValue.toString()),
-      cgst: a.cgst.plus(i.cgst.toString()),
-      sgst: a.sgst.plus(i.sgst.toString()),
-      igst: a.igst.plus(i.igst.toString()),
-      invoiceValue: a.invoiceValue.plus(i.grandTotal.toString()),
+      taxableValue: a.taxableValue.plus(inrOf(i, i.taxableValue.toString())),
+      cgst: a.cgst.plus(inrOf(i, i.cgst.toString())),
+      sgst: a.sgst.plus(inrOf(i, i.sgst.toString())),
+      igst: a.igst.plus(inrOf(i, i.igst.toString())),
+      invoiceValue: a.invoiceValue.plus(inrOf(i, i.grandTotal.toString())),
     }),
     { taxableValue: ZERO, cgst: ZERO, sgst: ZERO, igst: ZERO, invoiceValue: ZERO },
   )

@@ -797,10 +797,15 @@ model Receipt {
   number           String
   date             DateTime
   mode             PaymentMode
-  amount           Decimal             @db.Decimal(18, 2) // cash actually received
+  amount           Decimal             @db.Decimal(18, 2) // cash actually received, in `currency`
+  /// docs/91 — the currency `amount` and the allocations are in. The ledger is always rupees.
+  currency         String              @default("INR")
+  /// docs/91 — for a foreign-currency receipt, the RUPEES the bank credited. Null for INR.
+  /// `fxGainLoss` is derived from this, not typed.
+  inrAmount        Decimal?            @db.Decimal(18, 2)
   tdsAmount        Decimal             @default(0) @db.Decimal(18, 2)
-  bankChargeAmount Decimal             @default(0) @db.Decimal(18, 2)
-  fxGainLoss       Decimal             @default(0) @db.Decimal(18, 2)
+  bankChargeAmount Decimal             @default(0) @db.Decimal(18, 2) // rupees
+  fxGainLoss       Decimal             @default(0) @db.Decimal(18, 2) // rupees
   reference        String? // UTR — feeds bank matching Tier 0
   bankAccountId    String?
   isAdvance        Boolean             @default(false)

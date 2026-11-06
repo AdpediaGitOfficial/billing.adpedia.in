@@ -216,12 +216,12 @@ export default async function InvoicesPage({ searchParams }: {
       cell: (m) => (
         <>
           <span className="block font-semibold">{m.issued ? formatINR(m.grandTotal) : '—'}</span>
-          {/* 🔴 named, not converted — `Invoice.fxRate` is read nowhere, so there is no rate
-              to convert at and a USD total added to a rupee column would be wrong by two
-              orders of magnitude while looking like a number */}
+          {/* docs/91 — foreign invoices are counted at their booked rate. Only one with no rate
+              entered (sent before rates were captured) is named and left out, rather than
+              added at face value: a USD total in a rupee column is wrong by two orders of magnitude */}
           {m.foreignCurrency.map((f) => (
             <span key={f.currency} className="block text-[11px]" style={{ color: 'var(--warn)' }}>
-              + {f.count} in {f.currency}
+              + {f.count} in {f.currency}, no rate
             </span>
           ))}
         </>

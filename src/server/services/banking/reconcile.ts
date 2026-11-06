@@ -24,7 +24,10 @@ export interface TxnWithSuggestions {
 async function loadCandidates(companyId: string) {
   const [invoices, bills, rules] = await Promise.all([
     prisma.invoice.findMany({
-      where: { companyId, status: { in: ['SENT', 'VIEWED', 'PARTIALLY_PAID', 'OVERDUE'] } },
+      // 🔴 docs/91 — rupee invoices only. A bank line is in rupees and a foreign invoice is in
+      // its own currency, so comparing 21,000 against 250 offered nonsense matches; a foreign
+      // payment is recorded as a receipt with the rupees credited typed in.
+      where: { companyId, currency: 'INR', status: { in: ['SENT', 'VIEWED', 'PARTIALLY_PAID', 'OVERDUE'] } },
       include: { customer: { select: { id: true, name: true, aliases: true } } },
     }),
     prisma.vendorBill.findMany({

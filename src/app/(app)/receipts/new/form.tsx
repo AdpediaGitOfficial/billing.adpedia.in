@@ -4,9 +4,10 @@ import Link from 'next/link'
 import { Card, Button, Field, Pill, Alert, inputClass, inputStyle } from '@/components/ui/kit'
 import { createReceiptAction } from '../actions'
 import { settleInFull as proposeSettlement } from '@/lib/settlement'
+import { formatDocAmount } from '@/lib/fx'
 
 interface OpenInvoice {
-  id: string; number: string
+  id: string; number: string; currency: string
   customerId: string; customerName: string
   date: string; dueDate: string
   outstanding: string; tdsExpected: string; tdsSection: string | null
@@ -37,6 +38,7 @@ export function ReceiptForm({ invoices, banks, preselect }: {
   const [mode, setMode] = useState<string>('NEFT')
   const [reference, setReference] = useState('')
   const [bankCharge, setBankCharge] = useState('')
+  const [inrAmount, setInrAmount] = useState('')
   const [rows, setRows] = useState<Record<string, { amount: string; tds: string }>>(() => {
     if (!chosen) return {}
     const s = proposeSettlement(chosen.outstanding, chosen.tdsExpected)
@@ -60,6 +62,12 @@ export function ReceiptForm({ invoices, banks, preselect }: {
     set(i.id, { amount: s.amount.toFixed(2), tds: s.tds.toFixed(2) })
   }
 
+  /** docs/91 — the invoices this payment settles are in another currency: the bank credited rupees */
+  const settling = mine.filter((i) => n(get(i.id).amount) + n(get(i.id).tds) > 0)
+  const foreignCurrency = settling.find((i) => i.currency !== 'INR')?.currency ?? null
+  const mixedCurrencies = new Set(settling.map((i) => i.currency)).size > 1
+  const money = (cur: string, v: number) => (cur === 'INR' ? inr(v) : formatDocAmount(cur, v))
+
   const totalCash = mine.reduce((a, i) => a + n(get(i.id).amount), 0)
   const totalTds = mine.reduce((a, i) => a + n(get(i.id).tds), 0)
 
@@ -73,6 +81,7 @@ export function ReceiptForm({ invoices, banks, preselect }: {
     <form action={action} className="space-y-4">
       <input type="hidden" name="allocations" value={payload} />
       <input type="hidden" name="customerId" value={customerId} />
+      {foreignCurrency && <input type="hidden" name="inrAmount" value={inrAmount} />}
 
       <Card className="space-y-4 p-5">
         <Field label="Client">
@@ -100,7 +109,14 @@ export function ReceiptForm({ invoices, banks, preselect }: {
             <input name="reference" value={reference} onChange={(e) => setReference(e.target.value)}
               className={inputClass} style={inputStyle} />
           </Field>
-          <Field label="Bank charge" hint="Optional — deducted by the bank on the way in">
+          {foreignCurrency && (
+            <Field label="Rupees credited by the bank"
+              hint={`The ₹ amount that actually reached the account for this ${foreignCurrency} payment — see the statement or the FIRC. The difference from the invoice's rate is booked as forex gain or loss.`}>
+              <input inputMode="decimal" value={inrAmount} onChange={(e) => setInrAmount(e.target.value)}
+                placeholder="e.g. 20,950.00" className={inputClass} style={inputStyle} />
+            </Field>
+          )}
+          <Field label="Bank charge" hint="Optional — deducted by the bank on the way in (in rupees)">
             <input name="bankCharge" inputMode="decimal" value={bankCharge}
               onChange={(e) => setBankCharge(e.target.value)} placeholder="0.00"
               className={inputClass} style={inputStyle} />
@@ -128,11 +144,11 @@ export function ReceiptForm({ invoices, banks, preselect }: {
                 <div className="min-w-0">
                   <Link href={`/invoices/${i.id}`} className="text-[13px] font-semibold hover:underline">{i.number}</Link>
                   <span className="ml-2 text-[11.5px]" style={{ color: 'var(--text-muted)' }}>
-                    due {i.dueDate} · outstanding {inr(n(i.outstanding))}
+                    due {i.dueDate} · outstanding {money(i.currency, n(i.outstanding))}
                   </span>
                 </div>
                 {n(i.tdsExpected) > 0 && (
-                  <Pill tone="warn">TDS {inr(n(i.tdsExpected))} u/s {i.tdsSection ?? '194J'}</Pill>
+                  <Pill tone="warn">TDS {money(i.currency, n(i.tdsExpected))} u/s {i.tdsSection ?? '194J'}</Pill>
                 )}
               </div>
 
@@ -158,8 +174,8 @@ export function ReceiptForm({ invoices, banks, preselect }: {
                   {Math.abs(left) < 0.5
                     ? 'Settles this invoice in full'
                     : left < 0
-                      ? `Over-allocated by ${inr(Math.abs(left))}`
-                      : `${inr(left)} would remain outstanding`}
+                      ? `Over-allocated by ${money(i.currency, Math.abs(left))}`
+                      : `${money(i.currency, left)} would remain outstanding`}
                 </p>
               )}
             </div>
@@ -172,6 +188,12 @@ export function ReceiptForm({ invoices, banks, preselect }: {
           That is tax the client pays to the government on your behalf. It is only claimable
           once it appears in <strong>Form 26AS</strong> &mdash; recording it here is what puts it on
           the TDS receivable screen to be chased.
+        </Alert>
+      )}
+
+      {mixedCurrencies && (
+        <Alert tone="critical" title="Two currencies on one receipt">
+          A receipt is one payment in one currency. Allocate the {settling.map((i) => i.currency).filter((c, k, a) => a.indexOf(c) === k).join(' and ')} invoices on separate receipts.
         </Alert>
       )}
 
@@ -190,7 +212,7 @@ export function ReceiptForm({ invoices, banks, preselect }: {
       <Card className="flex flex-wrap items-center justify-between gap-3 p-4">
         <div className="text-[13px]">
           <span style={{ color: 'var(--text-muted)' }}>Cash received </span>
-          <strong className="tabular">{inr(totalCash)}</strong>
+          <strong className="tabular">{foreignCurrency ? formatDocAmount(foreignCurrency, totalCash) : inr(totalCash)}</strong>
           {totalTds > 0 && (
             <>
               <span className="ml-3" style={{ color: 'var(--text-muted)' }}>plus TDS </span>
@@ -200,7 +222,7 @@ export function ReceiptForm({ invoices, banks, preselect }: {
         </div>
         <div className="flex flex-wrap gap-2">
           <Link href="/receipts"><Button variant="ghost" type="button">Cancel</Button></Link>
-          <Button disabled={pending || totalCash + totalTds <= 0 || overAllocated.length > 0}>
+          <Button disabled={pending || totalCash + totalTds <= 0 || overAllocated.length > 0 || mixedCurrencies || (!!foreignCurrency && n(inrAmount) <= 0)}>
             {pending ? 'Recording…' : 'Record receipt'}
           </Button>
         </div>

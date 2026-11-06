@@ -54,8 +54,9 @@ const LINES = [
   { description: 'Staff augmentation', sacCode: '998314', quantity: '1', rate: '100000', gstRatePct: '18' },
 ]
 
+// docs/91 — a rate for the exports; a rupee invoice ignores it
 async function issuedInvoice(customerId: string, date: string, lines = LINES) {
-  return sendInvoice(ctx, (await createInvoice(ctx, { customerId, date, lines })).id)
+  return sendInvoice(ctx, (await createInvoice(ctx, { customerId, date, fxRate: '84', lines })).id)
 }
 
 describe('the credit note as a document — rule 53(1A)', () => {

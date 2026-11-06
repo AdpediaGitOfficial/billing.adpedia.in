@@ -8,6 +8,7 @@ import { assertCan } from '@/server/auth/permissions'
 import { audit } from '@/server/audit'
 import { AppError, NotFound } from '@/server/errors'
 import { postJournal } from '@/server/services/accounting/journal'
+import { isForeign, toInr } from '@/lib/fx'
 import { assertPostable } from '@/server/services/accounting/period'
 import { allocateNumber } from './numbering'
 import { notesFor } from './notes'
@@ -210,17 +211,27 @@ export async function createCreditNote(ctx: RequestContext, input: CreditNoteInp
     // 🔴 The invoice posting in reverse, for the credited portion only. Crediting AR is what
     // reduces what the client owes; debiting output GST is what reduces the liability — and
     // the latter is exactly what s.34(2) governs.
+    // 🔴 docs/91 — a note against a foreign invoice reverses it at the INVOICE's rate, not
+    // today's: the receivable being reduced was carried at that rate, and a different one would
+    // leave a rupee residue in 1100 that no receipt could ever clear. Receivables is the sum of
+    // the converted parts so the entry balances to the paisa.
+    const fx = isForeign(inv.currency) ? new Decimal(inv.fxRate.toString()) : null
+    const c = (v: Decimal) => (fx ? toInr(v, fx) : v)
+    const revenueDebit = c(preview.taxableValue.plus(preview.taxNotAdjusted))
+    const cgstDebit = c(preview.cgst), sgstDebit = c(preview.sgst), igstDebit = c(preview.igst)
+    const receivableCredit = fx ? revenueDebit.plus(cgstDebit).plus(sgstDebit).plus(igstDebit) : preview.grandTotal
+
     await postJournal(ctx, {
       date, narration: `Credit note ${number} against ${inv.number} — ${input.reason.trim()}`,
       sourceType: 'CREDIT_NOTE', sourceId: note.id,
       postings: [
-        { accountCode: '1100', credit: preview.grandTotal, customerId: inv.customerId, projectId: inv.projectId ?? undefined },
+        { accountCode: '1100', credit: receivableCredit, customerId: inv.customerId, projectId: inv.projectId ?? undefined },
         // 🔴 Where the GST cannot be recovered it is NOT debited back to the tax accounts —
         // that would reduce a liability the return still has to carry. The whole gross comes
         // off revenue instead, which is what the company actually gave back.
         {
           accountCode: '4010',
-          debit: preview.taxableValue.plus(preview.taxNotAdjusted),
+          debit: revenueDebit,
           customerId: inv.customerId, projectId: inv.projectId ?? undefined,
           narration: preview.taxNotAdjusted.gt(0)
             ? `includes ${preview.taxNotAdjusted.toFixed(2)} of GST that cannot be recovered — s.34(2) deadline passed`
@@ -229,9 +240,9 @@ export async function createCreditNote(ctx: RequestContext, input: CreditNoteInp
         // 🔴 the tax lines carry the PROJECT too. The invoice credited 2110/2120 against it;
         // a reversal that drops the dimension leaves per-project output GST permanently
         // overstated — it would only ever go up.
-        ...(preview.cgst.gt(0) ? [{ accountCode: '2110', debit: preview.cgst, customerId: inv.customerId, projectId: inv.projectId ?? undefined }] : []),
-        ...(preview.sgst.gt(0) ? [{ accountCode: '2120', debit: preview.sgst, customerId: inv.customerId, projectId: inv.projectId ?? undefined }] : []),
-        ...(preview.igst.gt(0) ? [{ accountCode: '2130', debit: preview.igst, customerId: inv.customerId, projectId: inv.projectId ?? undefined }] : []),
+        ...(cgstDebit.gt(0) ? [{ accountCode: '2110', debit: cgstDebit, customerId: inv.customerId, projectId: inv.projectId ?? undefined }] : []),
+        ...(sgstDebit.gt(0) ? [{ accountCode: '2120', debit: sgstDebit, customerId: inv.customerId, projectId: inv.projectId ?? undefined }] : []),
+        ...(igstDebit.gt(0) ? [{ accountCode: '2130', debit: igstDebit, customerId: inv.customerId, projectId: inv.projectId ?? undefined }] : []),
       ],
     }, tx)
 

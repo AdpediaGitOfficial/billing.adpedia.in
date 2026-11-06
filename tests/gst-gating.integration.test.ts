@@ -208,7 +208,7 @@ describe('🔴 an unregistered entity can bill abroad', () => {
       companyId: ctxB.companyId, name: 'Dubai client', country: 'AE', stateCode: null,
       customerType: 'EXPORT', currency: 'USD', paymentTermDays: 30, billingAddress: {},
     } })
-    const draft = await createInvoice(ctxB, { customerId: cust.id, date: '2026-10-02',
+    const draft = await createInvoice(ctxB, { customerId: cust.id, date: '2026-10-02', fxRate: '84',
       lines: [{ description: 'Edit and grade', sacCode: '998314', quantity: '1', rate: '2000', gstRatePct: '0' }] })
 
     expect(draft.taxMode).toBe('EXPORT')
@@ -227,7 +227,7 @@ describe('🔴 an unregistered entity can bill abroad', () => {
       companyId: ctxA.companyId, name: 'Overseas client of A', country: 'AE', stateCode: null,
       customerType: 'EXPORT', currency: 'USD', paymentTermDays: 30, billingAddress: {},
     } })
-    const draft = await createInvoice(ctxA, { customerId: cust.id, date: '2026-10-02',
+    const draft = await createInvoice(ctxA, { customerId: cust.id, date: '2026-10-02', fxRate: '84',
       lines: [{ description: 'Edit and grade', sacCode: '998314', quantity: '1', rate: '2000', gstRatePct: '0' }] })
     expect(draft.docType).toBe('EXPORT_INVOICE')
     await expect(sendInvoice(ctxA, draft.id)).rejects.toThrow(/Form RFD-11/)

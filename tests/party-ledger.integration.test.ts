@@ -114,14 +114,14 @@ describe('🔴 the client ledger', () => {
   })
 
   /**
-   * 🔴 A document in another currency is posted to a RUPEE control account at face value.
+   * 🔴 docs/91 — a USD invoice posts rupees at its rate, and the statement warns only about a
+   * document that was booked with none.
    *
-   * `Invoice.fxRate` is in the schema and read nowhere, so a USD 6,500 invoice books 6,500
-   * into 1100. That is a defect in the posting — older and larger than this statement, since
-   * it misstates the trial balance and revenue the same way — and it is not fixed here. What
-   * this asserts is that the ledger REPORTS it instead of presenting the sum as rupees.
+   * It used to post USD 6,500 into 1100 as 6,500, so every foreign client's statement was
+   * flagged as mixed. A rate fixes the posting; what is left to flag is a document sent before
+   * rates were captured, which is still in the account at face value.
    */
-  it('🔴 says so when the statement is not entirely in rupees', async () => {
+  it('🔴 carries a USD client in rupees, and warns only about a document booked with no rate', async () => {
     const dubai = await prisma.customer.create({
       data: { companyId: ctx.companyId, name: 'Nuvé Holdings FZ-LLC', country: 'AE', stateCode: null,
         customerType: 'EXPORT', currency: 'USD', paymentTermDays: 30, billingAddress: {} },
@@ -131,16 +131,19 @@ describe('🔴 the client ledger', () => {
         validFrom: new Date('2026-04-01'), validTo: new Date('2027-03-31') },
     })
     const usd = await sendInvoice(ctx, (await createInvoice(ctx, {
-      customerId: dubai.id, date: '2026-08-20',
+      customerId: dubai.id, date: '2026-08-20', fxRate: '84',
       lines: [{ description: 'Brand film', sacCode: '998387', quantity: '1', rate: '6500', gstRatePct: '0' }],
     })).id)
     expect(usd.currency).toBe('USD')
 
     const led = (await clientLedger(ctx, dubai.id, PERIOD))!
-    expect(led.foreignCurrency).toEqual([{ currency: 'USD', count: 1 }])
-    // 🔴 the 6,500 is in the rupee account, unconverted — the statement does not hide it,
-    // it names it
-    expect(led.closing.toString()).toBe('6500')
+    // USD 6,500 at ₹84 is in the account as rupees, and nothing about it is mixed
+    expect(led.closing.toString()).toBe('546000')
+    expect(led.foreignCurrency).toEqual([])
+
+    // a document with no rate is the one case left to name
+    await prisma.invoice.update({ where: { id: usd.id }, data: { fxRate: 1 } })
+    expect((await clientLedger(ctx, dubai.id, PERIOD))!.foreignCurrency).toEqual([{ currency: 'USD', count: 1 }])
 
     // and a rupee-only client is not warned about something that is not true of them
     expect((await clientLedger(ctx, customerId, PERIOD))!.foreignCurrency).toEqual([])

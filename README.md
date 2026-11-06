@@ -94,9 +94,10 @@ payroll, projects and bank reconciliation on a double-entry ledger.
 | [87 · The lists nothing could choose from](docs/87-the-lists-nothing-could-choose-from.md) | Every country, every GST state and a billing currency a client can actually be set to — and the SWIFT code and "US Dollars" that two invoice lines printed wrongly because of it |
 | [88 · The personal account](docs/88-the-personal-account.md) | One person's own books: an invoice form that could not save, a bank account nothing could create, and a receipt that threw — found by sending an invoice as that entity and reading what the client got |
 | [89 · The tax an unregistered entity cannot claim](docs/89-the-tax-an-unregistered-entity-cannot-claim.md) | A bill from a GST-registered vendor, booked by an entity with no registration, debited the vendor's GST to input-credit accounts it can never use — the suspicion in docs/88 §6, exercised and fixed |
+| [91 · The dollars in a rupee ledger](docs/91-the-dollars-in-a-rupee-ledger.md) | A USD 250 invoice posted ₹250. Invoices now carry a typed rate and book rupees; receipts take the rupees the bank credited and derive the forex difference; every total that added invoices up converts at the invoice's rate |
 | [90 · Deployment](docs/90-deployment.md) | Step by step on a plain Ubuntu box — npm, pm2, Postgres, nginx, Chromium, the daily run, backups. No Docker |
 
-**1,352 tests passing** · typecheck and lint clean · production build passes.
+**1,376 tests passing** · typecheck and lint clean · production build passes.
 
 ```bash
 cp .env.example .env     # set DATABASE_URL and JWT_SECRET

@@ -5,6 +5,7 @@ import { assertCan } from '@/server/auth/permissions'
 import { fyBounds } from '@/lib/fy'
 import { invoiceOpen, NO_NOTES } from '@/lib/invoice-open'
 import { noteTotals } from '@/server/services/invoicing/notes'
+import { inrOf, rateIsSet } from '@/lib/fx'
 
 /**
  * What was billed, month by month — docs/83 §7.
@@ -87,7 +88,7 @@ export async function invoicesByMonth(
   const invoices = await prisma.invoice.findMany({
     where: { companyId: ctx.companyId, date: { gte: startsOn, lte: endsOn } },
     select: {
-      id: true, date: true, status: true, cancelledAt: true, currency: true,
+      id: true, date: true, status: true, cancelledAt: true, currency: true, fxRate: true,
       taxableValue: true, cgst: true, sgst: true, igst: true, grandTotal: true,
       amountReceived: true, tdsCredited: true, tdsAmount: true,
     },
@@ -124,7 +125,9 @@ export async function invoicesByMonth(
 
     row.issued++
 
-    if (inv.currency !== 'INR') {
+    // docs/91 — a foreign invoice is counted at the rate it was booked at. One that has no rate
+    // yet (sent before rates were captured) is still named and left out, not added at face value.
+    if (!rateIsSet(inv.currency, inv.fxRate.toString())) {
       const byCur = foreign.get(row.key) ?? new Map<string, number>()
       byCur.set(inv.currency, (byCur.get(inv.currency) ?? 0) + 1)
       foreign.set(row.key, byCur)
@@ -133,11 +136,11 @@ export async function invoicesByMonth(
 
     const open = invoiceOpen(inv, notes.get(inv.id) ?? NO_NOTES)
 
-    row.taxableValue = row.taxableValue.plus(inv.taxableValue.toString())
-    row.gst = row.gst.plus(inv.cgst.toString()).plus(inv.sgst.toString()).plus(inv.igst.toString())
-    row.grandTotal = row.grandTotal.plus(open.issued)
-    row.received = row.received.plus(open.received)
-    row.outstanding = row.outstanding.plus(open.collectible)
+    row.taxableValue = row.taxableValue.plus(inrOf(inv, inv.taxableValue.toString()))
+    row.gst = row.gst.plus(inrOf(inv, new Decimal(inv.cgst.toString()).plus(inv.sgst.toString()).plus(inv.igst.toString())))
+    row.grandTotal = row.grandTotal.plus(inrOf(inv, open.issued))
+    row.received = row.received.plus(inrOf(inv, open.received))
+    row.outstanding = row.outstanding.plus(inrOf(inv, open.collectible))
   }
 
   for (const [key, byCur] of foreign) {

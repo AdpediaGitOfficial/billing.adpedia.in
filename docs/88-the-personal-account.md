@@ -97,12 +97,8 @@ The list was committed in `0211615` looking right in the source and wrong on the
 ## 6. What this does not do
 
 - **Vendor bills and input credit** — exercised and fixed in docs/89. The hidden 18 on the bill form is the rate the vendor charges, which is a legitimate default; the defect was where the tax was posted.
-- **USD income is booked at face value in rupees.** The ledger entry for a USD 250 invoice
-  reads ₹250.00. This is docs/84 §5 and docs/86 §6 again, and it matters most for exactly this
-  entity: a personal account recording what a freelancer actually earned from overseas clients
-  is the case where the rupee figure is the whole point. It needs an exchange-rate source and
-  the CA's policy.
-- **A USD bank account can be added but is booked in rupees,** for the same reason.
+- **USD income** — fixed in docs/91: invoices carry a typed rate, the ledger holds rupees, and a receipt takes the rupees credited and books the forex difference.
+- **A USD bank account** still has only a rupee ledger account: what it holds is the rupees credited, not a dollar balance (docs/91 §5).
 - **The document's terms are Adpedia's.** "Interest @18% p.a. applies on overdue amounts" is
   in the template for every entity; `Company.defaultTerms` exists and nothing binds it.
 - **Credit and debit notes are still offered.** They are s.34 instruments; a personal account

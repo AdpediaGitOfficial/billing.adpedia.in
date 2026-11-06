@@ -41,7 +41,8 @@ beforeAll(async () => {
     await sendInvoice(ctx, d.id)
   }
   await addLut(ctx, { arn: 'AD320326123456Z', fyLabel: '2026-27', filedOn: '2026-03-20' })
-  const exp = await createInvoice(ctx, { customerId: dubai, date: INVOICE_DATE, lines })
+  // docs/91 — a USD invoice is booked in rupees at a rate; 84 makes USD 85,000 into ₹71,40,000
+  const exp = await createInvoice(ctx, { customerId: dubai, date: INVOICE_DATE, fxRate: '84', lines })
   await sendInvoice(ctx, exp.id)
 })
 afterAll(async () => { await prisma.$disconnect() })
@@ -65,7 +66,7 @@ describe('GST position is read from the ledger', () => {
   it('splits taxable from zero-rated turnover', async () => {
     const s = await outwardSupplies(ctx.companyId, FROM, TO)
     expect(s.taxable.taxable.toFixed(2)).toBe('255000.00')   // 3 × 85,000
-    expect(s.zeroRated.taxable.toFixed(2)).toBe('85000.00')  // the export
+    expect(s.zeroRated.taxable.toFixed(2)).toBe('7140000.00')  // the export: USD 85,000 at ₹84
     expect(s.zeroRated.igst.toFixed(2)).toBe('0.00')
   })
 })
@@ -95,8 +96,8 @@ describe('GSTR-1', () => {
     const r = await buildGstr1(ctx.companyId, FROM, TO, '2026-Q1')
     const sacs = r.hsn.map((h) => h.sac).sort()
     expect(sacs).toEqual(['998314', '998391'])
-    expect(r.hsn.find((h) => h.sac === '998314')!.taxableValue.toFixed(2)).toBe('280000.00')  // 4 × 70,000
-    expect(r.hsn.find((h) => h.sac === '998391')!.taxableValue.toFixed(2)).toBe('60000.00')   // 4 × 15,000
+    expect(r.hsn.find((h) => h.sac === '998314')!.taxableValue.toFixed(2)).toBe('6090000.00')  // 3 × 70,000 in rupees + the export's 70,000 USD at ₹84
+    expect(r.hsn.find((h) => h.sac === '998391')!.taxableValue.toFixed(2)).toBe('1305000.00')   // 3 × 15,000 + the export's 15,000 USD at ₹84
   })
 
   it('reports the document series actually issued', async () => {
@@ -108,7 +109,7 @@ describe('GSTR-1', () => {
 
   it('totals reconcile to the sum of the invoices', async () => {
     const r = await buildGstr1(ctx.companyId, FROM, TO, '2026-Q1')
-    expect(r.totals.taxableValue.toFixed(2)).toBe('340000.00')   // 4 × 85,000
+    expect(r.totals.taxableValue.toFixed(2)).toBe('7395000.00')   // 3 × 85,000 + the export's USD 85,000 at ₹84
     expect(r.totals.cgst.plus(r.totals.sgst).plus(r.totals.igst).toFixed(2)).toBe('45900.00')
   })
 })
@@ -117,7 +118,7 @@ describe('GSTR-3B', () => {
   it('maps to the right tables', async () => {
     const r = await buildGstr3b(ctx.companyId, FROM, TO, '2026-Q1')
     expect(r.t31a.taxable.toFixed(2)).toBe('255000.00')
-    expect(r.t31b.taxable.toFixed(2)).toBe('85000.00')   // zero-rated
+    expect(r.t31b.taxable.toFixed(2)).toBe('7140000.00')   // zero-rated: USD 85,000 at ₹84
     expect(r.t4c.toFixed(2)).toBe('0.00')                // no ITC yet
     expect(r.payable.inCash.toFixed(2)).toBe('45900.00') // all of it in cash
     expect(r.payable.throughItc.toFixed(2)).toBe('0.00')

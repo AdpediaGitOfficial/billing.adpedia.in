@@ -6,6 +6,7 @@ import { assertFilesGstr1And3b } from './gst-registration'
 import { audit } from '@/server/audit'
 import { AppError, NotFound } from '@/server/errors'
 import { postJournal } from '@/server/services/accounting/journal'
+import { isForeign, toInr } from '@/lib/fx'
 import { assertPostable } from '@/server/services/accounting/period'
 import { periodFor } from './periods'
 import type { TaxMode } from '@prisma/client'
@@ -265,7 +266,18 @@ export async function recordAmendment(ctx: RequestContext, input: AmendmentInput
       },
     })
 
-    const d = p.delta
+    /**
+     * 🔴 docs/91 — the delta is in the invoice's currency. The ledger is rupees, at the rate the
+     * invoice was booked at; receivables is the sum of the converted parts so the entry balances.
+     */
+    const rate = isForeign(inv.currency) ? new Decimal(inv.fxRate.toString()) : null
+    const d = rate
+      ? (() => {
+          const revenue = toInr(p.delta.revenue, rate), cgst = toInr(p.delta.cgst, rate)
+          const sgst = toInr(p.delta.sgst, rate), igst = toInr(p.delta.igst, rate)
+          return { revenue, cgst, sgst, igst, receivable: revenue.plus(cgst).plus(sgst).plus(igst) }
+        })()
+      : p.delta
     // 🔴 one dimension object for every line. Spelled out per posting, four lines carried the
     // project and six did not, and the six were the tax — so an amended invoice moved its
     // project's output GST without the project ever hearing about it.

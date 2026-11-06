@@ -85,19 +85,18 @@ export function PartyLedgerView({ led, period, back, csvHref, periodHref }: {
         </div>
       )}
 
-      {/* 🔴 docs/84 — this balance is not entirely in rupees, and the statement says so before
-          anybody reads a total off it. The cause is in the POSTING, not here: `fxRate` is read
-          nowhere, so a USD 6,500 invoice books 6,500 into a rupee control account. Inventing a
-          rate at this end would turn a wrong number into a confident one. */}
+      {/* 🔴 docs/84, narrowed by docs/91 — only documents booked WITHOUT a rate land here: ones
+          sent before rates were captured, which posted their dollars at face value. A foreign
+          invoice with a rate is rupees in the ledger and is not mixed. */}
       {led.foreignCurrency.length > 0 && (
         <div className="mb-5">
           <Alert tone="critical" title="This balance mixes currencies">
             {led.foreignCurrency.map((f) => `${f.count} document${f.count === 1 ? '' : 's'} in ${f.currency}`).join(', ')}
-            {' '}in {period.label}. A document raised in another currency is posted to the rupee
-            control account at its own face value — no conversion is applied anywhere in this
-            system — so the figures below add dollars to rupees. The same applies to the trial
-            balance and the balance sheet. Treat this statement as a list of entries, not as a
-            total, until a rate policy is agreed.
+            {' '}in {period.label} were booked with no exchange rate, so they were posted to the rupee
+            control account at their own face value — the figures below add dollars to rupees.
+            The same applies to the trial balance and the balance sheet for those documents.
+            Treat this statement as a list of entries, not as a total, until they are re-booked
+            at a rate.
           </Alert>
         </div>
       )}

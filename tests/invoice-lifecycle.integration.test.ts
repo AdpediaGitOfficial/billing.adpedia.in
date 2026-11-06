@@ -86,7 +86,7 @@ describe('inter-state and export', () => {
   })
 
   it('🔴 an export invoice is blocked at send because no LUT covers FY 2026-27', async () => {
-    const inv = await createInvoice(ctx, { customerId: dubaiCustomer, date: today, tdsSection: '194J', lines: LINES })
+    const inv = await createInvoice(ctx, { customerId: dubaiCustomer, date: today, tdsSection: '194J', fxRate: '84', lines: LINES })
     expect(inv.taxMode).toBe('EXPORT')
     expect(inv.cgst.toString()).toBe('0')
     expect(inv.igst.toString()).toBe('0')
@@ -101,7 +101,7 @@ describe('inter-state and export', () => {
       data: { companyId: ctx.companyId, arn: 'AD320326LIVE01', fyLabel: '2026-27',
         validFrom: new Date('2026-04-01'), validTo: new Date('2027-03-31') },
     })
-    const inv = await createInvoice(ctx, { customerId: dubaiCustomer, date: today, lines: LINES })
+    const inv = await createInvoice(ctx, { customerId: dubaiCustomer, date: today, fxRate: '84', lines: LINES })
     const sent = await sendInvoice(ctx, inv.id)
     expect(sent.number).toMatch(/^ADPX\/26-27\/\d{4}$/)
     expect(sent.lutId).toBe(lut.id)

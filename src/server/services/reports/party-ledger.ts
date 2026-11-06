@@ -113,7 +113,8 @@ async function partyLedger(
     ? await prisma.invoice.groupBy({
         by: ['currency'],
         where: {
-          companyId: ctx.companyId, customerId: partyId, currency: { not: 'INR' },
+          // docs/91 — only the ones booked at face value; a foreign invoice with a rate is rupees now
+          companyId: ctx.companyId, customerId: partyId, currency: { not: 'INR' }, fxRate: 1,
           status: { not: 'DRAFT' }, date: { gte: period.from, lte: period.to },
         },
         _count: true,

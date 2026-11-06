@@ -12,6 +12,7 @@ import { noteTotals } from '@/server/services/invoicing/notes'
 import { invoiceOpen, NO_NOTES } from '@/lib/invoice-open'
 import { fyQuarter } from '@/lib/fy'
 import { requireDefaultBank } from '@/server/services/company/bank-account'
+import { isForeign, toInr } from '@/lib/fx'
 
 export interface ReceiptAllocationInput {
   invoiceId: string
@@ -26,7 +27,13 @@ export interface CreateReceiptInput {
   reference?: string
   bankAccountId?: string
   bankCharge?: string
+  /** rupees; typed only for a rupee receipt — a foreign one derives it (docs/91) */
   fxGainLoss?: string
+  /**
+   * docs/91 — for a foreign-currency receipt, the RUPEES the bank actually credited (read it
+   * off the statement or the FIRC). The allocations are in the invoices' own currency.
+   */
+  inrAmount?: string
   allocations: ReceiptAllocationInput[]
 }
 
@@ -50,6 +57,10 @@ export async function createReceipt(ctx: RequestContext, input: CreateReceiptInp
     let cash = ZERO, tdsTotal = ZERO
     let tdsSection: string | null = null
     const touched: { invoiceId: string; amount: Decimal; tds: Decimal }[] = []
+    // docs/91 — the currency every invoice here is in, and the rupees the receivable being
+    // cleared was carried at (invoice rate, not today's)
+    let currency: string | null = null
+    let arCleared = ZERO
 
     // 🔴 docs/86 — what an invoice still asks for is net of its credit notes. This guard read
     // `grandTotal` and so accepted ₹1,18,000 against an invoice the company had already
@@ -83,6 +94,23 @@ export async function createReceipt(ctx: RequestContext, input: CreateReceiptInp
       const amount = round2(new Decimal(a.amount))
       const tds = round2(new Decimal(a.tdsAmount ?? '0'))
 
+      if (currency !== null && currency !== inv.currency) {
+        throw new AppError(
+          `${inv.number} is in ${inv.currency} but the other invoices on this receipt are in ${currency}. ` +
+          'A receipt is one payment in one currency — record a separate one for each.',
+        )
+      }
+      currency = inv.currency
+      if (isForeign(inv.currency)) {
+        if (tds.gt(0)) throw new AppError(`${inv.number} is an export in ${inv.currency}; an overseas client does not deduct Indian TDS, so none can be recorded on it.`)
+        // 🔴 cumulative, not per-receipt: rounding each part separately can leave a paisa in
+        // 1100 when the last receipt closes the invoice. Differencing the running total means
+        // the parts always add up to exactly the rupee value of the whole.
+        const before = new Decimal(inv.amountReceived.toString())
+        const rate = new Decimal(inv.fxRate.toString())
+        arCleared = arCleared.plus(toInr(before.plus(amount), rate).minus(toInr(before, rate)))
+      }
+
       const outstanding = invoiceOpen(inv, notes.get(inv.id) ?? NO_NOTES).outstanding
       if (amount.plus(tds).gt(outstanding.plus('0.5'))) {
         throw new AppError(`Allocating ₹${amount.plus(tds).toFixed(2)} to ${inv.number} exceeds its outstanding ₹${outstanding.toFixed(2)}`)
@@ -96,12 +124,33 @@ export async function createReceipt(ctx: RequestContext, input: CreateReceiptInp
 
     const { number } = await allocateNumber(tx, { companyId: ctx.companyId, financialYearId: fy.id, docType: 'RECEIPT', fyLabel: fy.label })
     const bankCharge = round2(new Decimal(input.bankCharge ?? '0'))
-    const fxGainLoss = round2(new Decimal(input.fxGainLoss ?? '0'))
+    let fxGainLoss = round2(new Decimal(input.fxGainLoss ?? '0'))
+    const foreign = isForeign(currency)
+    let inrAmount: Decimal | null = null
+    if (foreign) {
+      /**
+       * 🔴 docs/91 — the forex difference is DERIVED, never typed. Rupees in the bank plus the
+       * charges the bank took, less the rupees of receivable this payment clears at the
+       * invoice's own rate. Positive is a gain (4920), negative a loss (5900) — and
+       * `postReceipt` turns that back into the receivable it clears.
+       */
+      if (input.fxGainLoss && !round2(new Decimal(input.fxGainLoss)).isZero()) {
+        throw new AppError('The forex gain or loss on a foreign receipt is worked out from the rupees received — do not enter it.')
+      }
+      inrAmount = input.inrAmount ? round2(new Decimal(input.inrAmount)) : null
+      if (!inrAmount || inrAmount.lte(0)) {
+        throw new AppError(`Enter the rupees the bank credited for this ${currency} receipt. The books are kept in rupees, and the difference from the invoice's rate is booked as forex gain or loss.`)
+      }
+      fxGainLoss = inrAmount.plus(bankCharge).minus(arCleared)
+    } else if (input.inrAmount) {
+      throw new AppError('The rupees credited are only for a foreign-currency receipt.')
+    }
 
     const receipt = await tx.receipt.create({
       data: {
         companyId: ctx.companyId, financialYearId: fy.id, customerId: input.customerId,
         number, date, mode: input.mode, amount: cash.toFixed(2), tdsAmount: tdsTotal.toFixed(2),
+        currency: currency ?? 'INR', inrAmount: inrAmount ? inrAmount.toFixed(2) : null,
         bankChargeAmount: bankCharge.toFixed(2), fxGainLoss: fxGainLoss.toFixed(2),
         reference: input.reference, bankAccountId: bank.id,
         allocations: { create: touched.map((t) => ({ invoiceId: t.invoiceId, amount: t.amount.toFixed(2), tdsAmount: t.tds.toFixed(2) })) },
@@ -112,7 +161,7 @@ export async function createReceipt(ctx: RequestContext, input: CreateReceiptInp
       date, narration: `Receipt ${number}`, sourceType: 'RECEIPT', sourceId: receipt.id,
       postings: postReceipt({
         number, customerId: input.customerId,
-        amount: cash, tdsAmount: tdsTotal, tdsSection,
+        amount: inrAmount ?? cash, tdsAmount: tdsTotal, tdsSection,
         bankCharge, fxGainLoss, bankAccountCode: bank.ledgerAccount.code,
       }),
     }, tx)

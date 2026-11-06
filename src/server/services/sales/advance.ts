@@ -6,6 +6,7 @@ import { audit } from '@/server/audit'
 import { AppError, NotFound } from '@/server/errors'
 import { assertPostable } from '@/server/services/accounting/period'
 import { postJournal } from '@/server/services/accounting/journal'
+import { isForeign } from '@/lib/fx'
 import { allocateNumber } from '@/server/services/invoicing/numbering'
 import { notesFor } from '@/server/services/invoicing/notes'
 import { invoiceOpen } from '@/lib/invoice-open'
@@ -262,6 +263,18 @@ export async function adjustAdvance(ctx: RequestContext, input: AdjustAdvanceInp
   if (invoice.status === 'CANCELLED') throw new AppError(`${invoice.number} is cancelled`)
   if (invoice.customerId !== receipt.customerId) {
     throw new AppError('That advance belongs to a different customer')
+  }
+  /**
+   * 🔴 docs/91 — an advance is held in rupees and a foreign invoice is in its own currency.
+   * Adjusting one against the other would clear dollars of receivable with rupees, and there is
+   * no rate here to say how many. Refused rather than guessed; record the payment as a
+   * foreign-currency receipt against the invoice instead.
+   */
+  if (isForeign(invoice.currency)) {
+    throw new AppError(
+      `${invoice.number} is in ${invoice.currency}, and an advance is held in rupees. ` +
+      'Record the payment as a receipt against the invoice, entering the rupees the bank credited.',
+    )
   }
 
   const gross = new Decimal(receipt.amount.toString()).plus(receipt.tdsAmount.toString())

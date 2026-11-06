@@ -99,6 +99,8 @@ the difference to the P&L), it needs a rate source, and it needs the CA.
 
 Inventing a rate at this end would have turned a wrong number into a confident one.
 
+> **Since fixed — docs/91.** Invoices now carry a typed rate and post rupees; the warning above survives only for a document booked with no rate.
+
 ## 6. 🔴 And two numbers with the same name
 
 The balance column went onto the customers and vendors lists as at **today**, while the

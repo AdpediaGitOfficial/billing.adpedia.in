@@ -13,6 +13,8 @@ const Schema = z.object({
   mode: z.enum(['NEFT', 'RTGS', 'IMPS', 'UPI', 'CHEQUE', 'CASH', 'CARD', 'SWIFT', 'OTHER']),
   reference: z.string().optional(),
   bankCharge: z.string().optional(),
+  // docs/91 — rupees the bank credited, for a foreign-currency receipt only
+  inrAmount: z.string().optional(),
   /** JSON: [{ invoiceId, amount, tdsAmount }] */
   allocations: z.string(),
 })
@@ -40,6 +42,7 @@ export async function createReceiptAction(_prev: { error?: string } | null, form
       mode: parsed.data.mode,
       reference: parsed.data.reference || undefined,
       bankCharge: parsed.data.bankCharge || undefined,
+      inrAmount: parsed.data.inrAmount || undefined,
       allocations: used,
     })
   } catch (e) {

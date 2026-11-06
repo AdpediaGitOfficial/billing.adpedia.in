@@ -161,7 +161,7 @@ needs a request context and there is no harness for one here.
 
 ## 6. What is still open
 
-- **The FX posting, still.** A USD invoice books its face value into a rupee control account;
+- **The FX posting, still — fixed in docs/91.** A USD invoice books its face value into a rupee control account;
   `Invoice.fxRate` is read nowhere. `invoiceOpen` does not fix it and does not pretend to —
   the dollars are now netted correctly against dollar-denominated notes, which is as right as
   this layer can be while the posting is wrong. docs/84 §5 and the CA's rate policy.

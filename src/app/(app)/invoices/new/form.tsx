@@ -24,6 +24,9 @@ interface Preview {
   taxMode: string; placeOfSupplyLabel: string; currency: string; requiresLut: boolean; nextNumber: string | null
   /** false for a bill of supply — no GST row, no LUT, no SAC complaint. docs/88 */
   chargesGst?: boolean
+  /** docs/91 — the rupee figure the books will carry, null until a rate is entered */
+  fxRate?: string
+  inrGrandTotal?: string | null
   sacIssues?: { line: number; description: string; level: 'error' | 'warn'; message: string }[]
   totals: { taxableValue: string; cgst: string; sgst: string; igst: string; roundOff: string; grandTotal: string }
   tds: { section: string | null; tdsAmount: string; netPayable: string }
@@ -39,6 +42,8 @@ export interface InvoiceDraft {
   customerRef: string
   milestone: string
   tdsSection: string
+  /** rupees per one unit of the invoice currency; '' until entered. docs/91 */
+  fxRate?: string
   lines: Line[]
 }
 
@@ -62,6 +67,7 @@ export function InvoiceForm({ customers, projects, items, draft, submit, backHre
   const [customerId, setCustomerId] = useState(draft?.customerId ?? '')
   const [date, setDate] = useState(draft?.date ?? new Date().toISOString().slice(0, 10))
   const [tdsSection, setTdsSection] = useState(draft?.tdsSection ?? '')
+  const [fxRate, setFxRate] = useState(draft?.fxRate ?? '')
   const [lines, setLines] = useState<Line[]>(draft?.lines.length ? draft.lines : [blankLine(canChargeGst)])
   const [preview, setPreview] = useState<Preview | null>(null)
 
@@ -87,10 +93,10 @@ export function InvoiceForm({ customers, projects, items, draft, submit, backHre
     if (!customerId || !lines.some((l) => l.rate)) { setPreview(null); return }
     const res = await fetch('/api/invoices/preview', {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ customerId, date, tdsSection: tdsSection || null, lines: withGstRule(lines, canChargeGst) }),
+      body: JSON.stringify({ customerId, date, tdsSection: tdsSection || null, fxRate: fxRate || undefined, lines: withGstRule(lines, canChargeGst) }),
     })
     setPreview(res.ok ? await res.json() : null)
-  }, [customerId, date, tdsSection, lines, canChargeGst])
+  }, [customerId, date, tdsSection, fxRate, lines, canChargeGst])
 
   useEffect(() => { const t = setTimeout(refresh, 250); return () => clearTimeout(t) }, [refresh])
 
@@ -125,6 +131,17 @@ export function InvoiceForm({ customers, projects, items, draft, submit, backHre
           <Field label="Your reference / PO">
             <input name="customerRef" defaultValue={draft?.customerRef ?? ''} className={inputClass} style={inputStyle} />
           </Field>
+
+          {/* docs/91 — the books are in rupees, so a foreign invoice is booked at a rate. There
+              is no rate source in the system; this is typed, and the invoice cannot be sent
+              without it. */}
+          {preview && preview.currency !== 'INR' && (
+            <Field label={`Exchange rate (₹ per 1 ${preview.currency})`}
+              hint="The rate on the invoice date — e.g. the RBI reference rate or your bank's. The invoice is booked in rupees at this rate.">
+              <input name="fxRate" inputMode="decimal" value={fxRate} onChange={(e) => setFxRate(e.target.value)}
+                placeholder="e.g. 84.25" className={inputClass} style={inputStyle} />
+            </Field>
+          )}
         </div>
 
         {preview && (
@@ -238,7 +255,10 @@ export function InvoiceForm({ customers, projects, items, draft, submit, backHre
               </>
             )}
             {preview.totals.roundOff !== '0.00' && <Row k="Round off" v={inr(preview.totals.roundOff)} />}
-            <Row k="Invoice total" v={inr(preview.totals.grandTotal)} strong />
+            <Row k={preview.currency !== 'INR' ? `Invoice total (${preview.currency})` : 'Invoice total'} v={inr(preview.totals.grandTotal)} strong />
+            {preview.currency !== 'INR' && (
+              <Row k="Booked in the ledger as" v={preview.inrGrandTotal ? `₹${inr(preview.inrGrandTotal)}` : 'enter the rate'} />
+            )}
             {preview.tds.section && (
               <>
                 <Row k={`Less TDS u/s ${preview.tds.section}`} v={`(${inr(preview.tds.tdsAmount)})`} />

@@ -41,7 +41,7 @@ export default async function NewReceiptPage({ searchParams }: {
     const { outstanding, tdsExpected } = invoiceOpen(i, notes.get(i.id) ?? NO_NOTES)
     if (outstanding.lte(0)) return []
     return [{
-      id: i.id, number: i.number,
+      id: i.id, number: i.number, currency: i.currency,
       customerId: i.customer.id, customerName: i.customer.name,
       date: i.date.toISOString().slice(0, 10),
       dueDate: i.dueDate.toISOString().slice(0, 10),

@@ -4,6 +4,7 @@ import type { RequestContext } from '@/server/context'
 import { assertCan } from '@/server/auth/permissions'
 import { invoiceOpen, NO_NOTES } from '@/lib/invoice-open'
 import { noteTotals } from '@/server/services/invoicing/notes'
+import { inrOf } from '@/lib/fx'
 
 export interface AgeingRow {
   invoiceId: string
@@ -30,6 +31,13 @@ export interface AgeingRow {
   tdsExpected: Decimal
   /** cash we can still actually collect */
   collectible: Decimal
+  /**
+   * docs/91 — the rupees this invoice is carried at in the books (the figures above are in
+   * `currency`). The summary adds THESE; adding the document-currency ones put dollars into a
+   * rupee total.
+   */
+  collectibleInr: Decimal
+  tdsExpectedInr: Decimal
   daysOverdue: number
   bucket: 'current' | '1-30' | '31-60' | '61-90' | '90+'
 }
@@ -79,6 +87,7 @@ export async function arAgeing(ctx: RequestContext, asOf = new Date()): Promise<
       dueDate: inv.dueDate,
       currency: inv.currency,
       grandTotal, credited, debited, gross, received, tdsCredited, outstanding, tdsExpected, collectible,
+      collectibleInr: inrOf(inv, collectible), tdsExpectedInr: inrOf(inv, tdsExpected),
       daysOverdue,
       bucket: daysOverdue === 0 ? 'current' : daysOverdue <= 30 ? '1-30' : daysOverdue <= 60 ? '31-60' : daysOverdue <= 90 ? '61-90' : '90+',
     }
@@ -92,9 +101,9 @@ export async function arSummary(ctx: RequestContext, asOf = new Date()) {
   }
   let total = ZERO, tdsExpected = ZERO, overdueCount = 0
   for (const r of rows) {
-    buckets[r.bucket] = buckets[r.bucket].plus(r.collectible)
-    total = total.plus(r.collectible)
-    tdsExpected = tdsExpected.plus(r.tdsExpected)
+    buckets[r.bucket] = buckets[r.bucket].plus(r.collectibleInr)
+    total = total.plus(r.collectibleInr)
+    tdsExpected = tdsExpected.plus(r.tdsExpectedInr)
     if (r.daysOverdue > 0) overdueCount++
   }
   return { rows, buckets, total, tdsExpected, overdueCount, invoiceCount: rows.length }

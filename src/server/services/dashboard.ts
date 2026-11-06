@@ -1,5 +1,6 @@
 import { prisma } from '@/server/db'
 import { Decimal, ZERO } from '@/lib/money'
+import { inrOf } from '@/lib/fx'
 import type { RequestContext } from '@/server/context'
 import { arSummary } from '@/server/services/sales/receivables'
 import { currentFinancialYear } from '@/server/services/accounting/period'
@@ -89,7 +90,7 @@ export async function monthlySeries(companyId: string, fyId: string) {
   const fy = await prisma.financialYear.findUniqueOrThrow({ where: { id: fyId } })
   const invoices = await prisma.invoice.findMany({
     where: { companyId, financialYearId: fyId, status: { notIn: ['DRAFT', 'CANCELLED'] } },
-    select: { date: true, taxableValue: true, amountReceived: true },
+    select: { date: true, currency: true, fxRate: true, taxableValue: true, amountReceived: true },
   })
 
   const months: { label: string; values: number[] }[] = []
@@ -100,8 +101,9 @@ export async function monthlySeries(companyId: string, fyId: string) {
     months.push({
       label: d.toLocaleDateString('en-GB', { month: 'short', timeZone: 'UTC' }),
       values: [
-        inMonth.reduce((a, i) => a + Number(i.taxableValue), 0),
-        inMonth.reduce((a, i) => a + Number(i.amountReceived), 0),
+        // docs/91 — rupees at each invoice's own rate; adding dollars to rupees was the defect
+        inMonth.reduce((a, i) => a + Number(inrOf(i, i.taxableValue.toString())), 0),
+        inMonth.reduce((a, i) => a + Number(inrOf(i, i.amountReceived.toString())), 0),
       ],
     })
   }
@@ -109,16 +111,20 @@ export async function monthlySeries(companyId: string, fyId: string) {
 }
 
 export async function revenueByCustomer(companyId: string, fyId: string) {
-  const rows = await prisma.invoice.groupBy({
-    by: ['customerId'],
+  // docs/91 — read per invoice, not grouped in the database: a sum cannot apply each invoice's own rate
+  const invoices = await prisma.invoice.findMany({
     where: { companyId, financialYearId: fyId, status: { notIn: ['DRAFT', 'CANCELLED'] } },
-    _sum: { taxableValue: true },
+    select: { customerId: true, currency: true, fxRate: true, taxableValue: true },
   })
-  if (rows.length === 0) return []
-  const names = await prisma.customer.findMany({ where: { id: { in: rows.map((r) => r.customerId) } }, select: { id: true, name: true } })
+  if (invoices.length === 0) return []
+  const totals = new Map<string, number>()
+  for (const i of invoices) {
+    totals.set(i.customerId, (totals.get(i.customerId) ?? 0) + Number(inrOf(i, i.taxableValue.toString())))
+  }
+  const names = await prisma.customer.findMany({ where: { id: { in: [...totals.keys()] } }, select: { id: true, name: true } })
   const byId = new Map(names.map((n) => [n.id, n.name]))
-  return rows
-    .map((r) => ({ label: byId.get(r.customerId) ?? 'Unknown', value: Number(r._sum.taxableValue ?? 0) }))
+  return [...totals]
+    .map(([customerId, value]) => ({ label: byId.get(customerId) ?? 'Unknown', value }))
     .sort((a, b) => b.value - a.value)
     .slice(0, 6)
 }
@@ -129,29 +135,34 @@ export async function dashboardSummary(ctx: RequestContext) {
 
   const [ar, invoices, receipts, bank, series, byCustomer, alerts] = await Promise.all([
     arSummary(ctx),
-    prisma.invoice.aggregate({
+    prisma.invoice.findMany({
       where: { companyId: ctx.companyId, financialYearId: fy.id, status: { notIn: ['DRAFT', 'CANCELLED'] } },
-      _sum: { taxableValue: true, grandTotal: true, cgst: true, sgst: true, igst: true }, _count: true,
+      select: { currency: true, fxRate: true, taxableValue: true, grandTotal: true, cgst: true, sgst: true, igst: true },
     }),
     // 🔴 cancelled receipts are excluded, or money that was reversed still reads as collected
-    prisma.receipt.aggregate({ where: { companyId: ctx.companyId, financialYearId: fy.id, cancelledAt: null }, _sum: { amount: true, tdsAmount: true } }),
+    // docs/91 — a foreign receipt counts as the rupees the bank credited, not its dollars
+    prisma.receipt.findMany({
+      where: { companyId: ctx.companyId, financialYearId: fy.id, cancelledAt: null },
+      select: { amount: true, inrAmount: true, tdsAmount: true },
+    }),
     prisma.companyBankAccount.findFirst({ where: { companyId: ctx.companyId, isDefault: true }, select: { label: true, accountNo: true } }),
     monthlySeries(ctx.companyId, fy.id),
     revenueByCustomer(ctx.companyId, fy.id),
     complianceAlerts(ctx.companyId),
   ])
 
-  const outputGst = new Decimal(invoices._sum.cgst?.toString() ?? 0)
-    .plus(invoices._sum.sgst?.toString() ?? 0)
-    .plus(invoices._sum.igst?.toString() ?? 0)
+  // docs/91 — every invoice figure in rupees at its own rate
+  const sumInr = (pick: (i: (typeof invoices)[number]) => Decimal.Value) =>
+    invoices.reduce((a, i) => a.plus(inrOf(i, pick(i))), ZERO)
+  const outputGst = sumInr((i) => new Decimal(i.cgst.toString()).plus(i.sgst.toString()).plus(i.igst.toString()))
 
   return {
     fy,
-    revenue: new Decimal(invoices._sum.taxableValue?.toString() ?? 0),
-    invoiced: new Decimal(invoices._sum.grandTotal?.toString() ?? 0),
-    invoiceCount: invoices._count,
-    collected: new Decimal(receipts._sum.amount?.toString() ?? 0),
-    tdsCredited: new Decimal(receipts._sum.tdsAmount?.toString() ?? 0),
+    revenue: sumInr((i) => i.taxableValue.toString()),
+    invoiced: sumInr((i) => i.grandTotal.toString()),
+    invoiceCount: invoices.length,
+    collected: receipts.reduce((a, r) => a.plus((r.inrAmount ?? r.amount).toString()), ZERO),
+    tdsCredited: receipts.reduce((a, r) => a.plus(r.tdsAmount.toString()), ZERO),
     outputGst,
     receivable: ar.total,
     tdsExpected: ar.tdsExpected,

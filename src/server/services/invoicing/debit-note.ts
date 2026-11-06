@@ -8,6 +8,7 @@ import { assertCan } from '@/server/auth/permissions'
 import { audit } from '@/server/audit'
 import { AppError, NotFound } from '@/server/errors'
 import { postJournal } from '@/server/services/accounting/journal'
+import { isForeign, toInr } from '@/lib/fx'
 import { assertPostable } from '@/server/services/accounting/period'
 import { allocateNumber } from './numbering'
 
@@ -175,15 +176,23 @@ export async function createDebitNote(ctx: RequestContext, input: DebitNoteInput
       },
     })
 
+    // 🔴 docs/91 — at the invoice's rate, as the credit note does; receivables is the sum of
+    // the converted parts.
+    const fx = isForeign(inv.currency) ? new Decimal(inv.fxRate.toString()) : null
+    const c = (v: Decimal) => (fx ? toInr(v, fx) : v)
+    const revenueCredit = c(p.taxableValue)
+    const cgstCredit = c(p.cgst), sgstCredit = c(p.sgst), igstCredit = c(p.igst)
+    const receivableDebit = fx ? revenueCredit.plus(cgstCredit).plus(sgstCredit).plus(igstCredit) : p.grandTotal
+
     await postJournal(ctx, {
       date, narration: `Debit note ${number} against ${inv.number} — ${input.reason.trim()}`,
       sourceType: 'CREDIT_NOTE', sourceId: note.id,
       postings: [
-        { accountCode: '1100', debit: p.grandTotal, customerId: inv.customerId, projectId: inv.projectId ?? undefined },
-        { accountCode: '4010', credit: p.taxableValue, customerId: inv.customerId, projectId: inv.projectId ?? undefined },
-        ...(p.cgst.gt(0) ? [{ accountCode: '2110', credit: p.cgst, customerId: inv.customerId, projectId: inv.projectId ?? undefined }] : []),
-        ...(p.sgst.gt(0) ? [{ accountCode: '2120', credit: p.sgst, customerId: inv.customerId, projectId: inv.projectId ?? undefined }] : []),
-        ...(p.igst.gt(0) ? [{ accountCode: '2130', credit: p.igst, customerId: inv.customerId, projectId: inv.projectId ?? undefined }] : []),
+        { accountCode: '1100', debit: receivableDebit, customerId: inv.customerId, projectId: inv.projectId ?? undefined },
+        { accountCode: '4010', credit: revenueCredit, customerId: inv.customerId, projectId: inv.projectId ?? undefined },
+        ...(cgstCredit.gt(0) ? [{ accountCode: '2110', credit: cgstCredit, customerId: inv.customerId, projectId: inv.projectId ?? undefined }] : []),
+        ...(sgstCredit.gt(0) ? [{ accountCode: '2120', credit: sgstCredit, customerId: inv.customerId, projectId: inv.projectId ?? undefined }] : []),
+        ...(igstCredit.gt(0) ? [{ accountCode: '2130', credit: igstCredit, customerId: inv.customerId, projectId: inv.projectId ?? undefined }] : []),
       ],
     }, tx)
 

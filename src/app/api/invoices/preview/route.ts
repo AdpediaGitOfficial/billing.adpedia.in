@@ -8,6 +8,7 @@ const Body = z.object({
   customerId: z.string().min(1),
   date: z.string().min(1),
   tdsSection: z.enum(['194J', '194C']).nullable().optional(),
+  fxRate: z.string().optional(),
   lines: z.array(z.object({
     description: z.string().default(''),
     sacCode: z.string().optional(),
@@ -34,6 +35,9 @@ export async function POST(req: Request) {
       // unless it is added here too. `chargesGst` is what turns the GST rows off.
       docType: p.docType,
       chargesGst: p.chargesGst,
+      // docs/91 — copied field by field like the rest: the form shows the rupee figure from these
+      fxRate: p.fxRate,
+      inrGrandTotal: p.inrGrandTotal,
       nextNumber: p.nextNumber,
       sacIssues: p.sacIssues,
       totals: {

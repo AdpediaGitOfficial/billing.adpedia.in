@@ -5,6 +5,7 @@ import { assertCan } from '@/server/auth/permissions'
 import { audit } from '@/server/audit'
 import { AppError, NotFound } from '@/server/errors'
 import { postJournal } from '@/server/services/accounting/journal'
+import { isForeign, toInr } from '@/lib/fx'
 import { assertPostable } from '@/server/services/accounting/period'
 import { gstAdjustmentDeadline } from '@/server/services/invoicing/credit-note'
 import { amendmentDeadline } from './gst-amendment'
@@ -260,7 +261,7 @@ export async function recordNoteAmendment(ctx: RequestContext, input: NoteAmendm
 
   const note = await prisma.creditNote.findFirstOrThrow({
     where: { id: input.noteId, companyId: ctx.companyId },
-    include: { invoice: { select: { customerId: true, projectId: true } } },
+    include: { invoice: { select: { customerId: true, projectId: true, currency: true, fxRate: true } } },
   })
 
   return prisma.$transaction(async (tx) => {
@@ -284,31 +285,41 @@ export async function recordNoteAmendment(ctx: RequestContext, input: NoteAmendm
     // 🔴 the project travels with every line, not just revenue. A note amendment moves the
     // same output tax the invoice booked against the project, so dropping the dimension on
     // the tax and the receivable leaves the project's own figures behind.
+    // 🔴 docs/91 — the delta is in the invoice's currency; the ledger is rupees at the rate the
+    // invoice was booked at, and receivables is the sum of the converted parts.
+    const rate = note.invoice && isForeign(note.invoice.currency) ? new Decimal(note.invoice.fxRate.toString()) : null
+    const delta = rate
+      ? (() => {
+          const revenue = toInr(p.delta.revenue, rate), cgst = toInr(p.delta.cgst, rate)
+          const sgst = toInr(p.delta.sgst, rate), igst = toInr(p.delta.igst, rate)
+          return { revenue, cgst, sgst, igst, receivable: revenue.plus(cgst).plus(sgst).plus(igst) }
+        })()
+      : p.delta
     const dim = { customerId: note.invoice?.customerId, projectId: note.invoice?.projectId ?? undefined }
     const postings = [
-      ...(p.delta.revenue.isZero() ? [] : [{
+      ...(delta.revenue.isZero() ? [] : [{
         accountCode: '4010',
-        ...(p.delta.revenue.gt(0) ? { debit: p.delta.revenue } : { credit: p.delta.revenue.abs() }),
+        ...(delta.revenue.gt(0) ? { debit: delta.revenue } : { credit: delta.revenue.abs() }),
         ...dim,
       }]),
-      ...(p.delta.cgst.isZero() ? [] : [{
+      ...(delta.cgst.isZero() ? [] : [{
         accountCode: '2110',
-        ...(p.delta.cgst.gt(0) ? { debit: p.delta.cgst } : { credit: p.delta.cgst.abs() }),
+        ...(delta.cgst.gt(0) ? { debit: delta.cgst } : { credit: delta.cgst.abs() }),
         ...dim,
       }]),
-      ...(p.delta.sgst.isZero() ? [] : [{
+      ...(delta.sgst.isZero() ? [] : [{
         accountCode: '2120',
-        ...(p.delta.sgst.gt(0) ? { debit: p.delta.sgst } : { credit: p.delta.sgst.abs() }),
+        ...(delta.sgst.gt(0) ? { debit: delta.sgst } : { credit: delta.sgst.abs() }),
         ...dim,
       }]),
-      ...(p.delta.igst.isZero() ? [] : [{
+      ...(delta.igst.isZero() ? [] : [{
         accountCode: '2130',
-        ...(p.delta.igst.gt(0) ? { debit: p.delta.igst } : { credit: p.delta.igst.abs() }),
+        ...(delta.igst.gt(0) ? { debit: delta.igst } : { credit: delta.igst.abs() }),
         ...dim,
       }]),
-      ...(p.delta.receivable.isZero() ? [] : [{
+      ...(delta.receivable.isZero() ? [] : [{
         accountCode: '1100',
-        ...(p.delta.receivable.gt(0) ? { credit: p.delta.receivable } : { debit: p.delta.receivable.abs() }),
+        ...(delta.receivable.gt(0) ? { credit: delta.receivable } : { debit: delta.receivable.abs() }),
         ...dim,
       }]),
     ]
