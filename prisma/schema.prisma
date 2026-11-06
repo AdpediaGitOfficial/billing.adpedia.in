@@ -487,6 +487,9 @@ enum SourceType {
   YEAR_END_CLOSE
   /// docs/82 §4 — a proprietor's or partner's own money in or out. EQUITY, never the P&L.
   OWNER_MOVEMENT
+  /// docs/92 — the difference between an invoice booked at face value and the same invoice at
+  /// its exchange rate. Its own type so cancelling the invoice can find it and reverse it too.
+  FX_REBOOK
 }
 
 model JournalLine {

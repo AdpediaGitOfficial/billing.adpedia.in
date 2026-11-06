@@ -13,6 +13,7 @@ import { invoiceOpen, NO_NOTES } from '@/lib/invoice-open'
 import { fyQuarter } from '@/lib/fy'
 import { requireDefaultBank } from '@/server/services/company/bank-account'
 import { isForeign, toInr } from '@/lib/fx'
+import { assertBookedAtRate } from '@/server/services/invoicing/rebook'
 
 export interface ReceiptAllocationInput {
   invoiceId: string
@@ -101,6 +102,7 @@ export async function createReceipt(ctx: RequestContext, input: CreateReceiptInp
         )
       }
       currency = inv.currency
+      assertBookedAtRate(inv)
       if (isForeign(inv.currency)) {
         if (tds.gt(0)) throw new AppError(`${inv.number} is an export in ${inv.currency}; an overseas client does not deduct Indian TDS, so none can be recorded on it.`)
         // 🔴 cumulative, not per-receipt: rounding each part separately can leave a paisa in

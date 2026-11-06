@@ -9,6 +9,7 @@ import { audit } from '@/server/audit'
 import { AppError, NotFound } from '@/server/errors'
 import { postJournal } from '@/server/services/accounting/journal'
 import { isForeign, toInr } from '@/lib/fx'
+import { assertBookedAtRate } from './rebook'
 import { assertPostable } from '@/server/services/accounting/period'
 import { allocateNumber } from './numbering'
 
@@ -156,6 +157,7 @@ export async function createDebitNote(ctx: RequestContext, input: DebitNoteInput
 
   const note = await prisma.$transaction(async (tx) => {
     const inv = await tx.invoice.findFirstOrThrow({ where: { id: input.invoiceId, companyId: ctx.companyId } })
+    assertBookedAtRate(inv)   // docs/92
 
     const { number } = await allocateNumber(tx, {
       companyId: ctx.companyId, financialYearId: fy.id, docType: 'DEBIT_NOTE', fyLabel: fy.label,

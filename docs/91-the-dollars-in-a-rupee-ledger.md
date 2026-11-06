@@ -95,11 +95,7 @@ reader.
 
 ## 5. What is still open
 
-- **Invoices sent before this change are still booked at face value.** Their rate is 1 and the
-  statement still warns about them ("booked with no exchange rate"); the month view names them
-  rather than adding them. Re-booking one means cancelling it and issuing it again at a rate —
-  there is no correcting entry yet. Any receipt already recorded against such an invoice makes
-  that harder. **Nothing in the development database matters here; the live box may hold some.**
+- **Invoices sent before this change** were booked at face value. docs/92 adds the correcting entry for them: it shows the difference and posts only that.
 - **No revaluation at the balance-sheet date.** Ind AS 21 restates open foreign-currency
   receivables at the closing rate and takes the difference to the P&L (unrealised). Only
   realised differences are booked, at receipt.

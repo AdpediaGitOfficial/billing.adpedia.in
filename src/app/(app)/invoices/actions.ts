@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { requireContext } from '@/server/context'
 import { createInvoice, updateInvoiceDraft, sendInvoice, cancelInvoice } from '@/server/services/invoicing/invoice'
+import { rebookInvoiceAtRate } from '@/server/services/invoicing/rebook'
 import { AppError } from '@/server/errors'
 
 const LineSchema = z.object({
@@ -117,4 +118,24 @@ export async function cancelInvoiceAction(invoiceId: string, reason: string) {
   } catch (e) {
     return { ok: false as const, error: e instanceof AppError ? e.message : 'Could not cancel the invoice' }
   }
+}
+
+/**
+ * docs/92 — book an issued foreign invoice that was posted at face value at its real rate.
+ * Bound to the invoice id by the page; the rate and date come from the confirm form.
+ */
+export async function rebookInvoiceAction(invoiceId: string, _prev: { error?: string } | null, formData: FormData) {
+  const ctx = await requireContext()
+  try {
+    await rebookInvoiceAtRate(ctx, {
+      invoiceId,
+      fxRate: String(formData.get('fxRate') ?? ''),
+      date: String(formData.get('date') ?? '') || undefined,
+    })
+  } catch (e) {
+    return { error: e instanceof AppError ? e.message : 'Could not re-book that invoice' }
+  }
+  revalidatePath('/invoices')
+  revalidatePath(`/invoices/${invoiceId}`)
+  redirect(`/invoices/${invoiceId}`)
 }

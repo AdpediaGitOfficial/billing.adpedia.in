@@ -543,8 +543,14 @@ export async function cancelInvoice(ctx: RequestContext, invoiceId: string, reas
       throw new AppError('Cannot cancel an invoice with receipts against it — raise a credit note instead')
 
     if (inv.status !== 'DRAFT') {
-      const entry = await tx.journalEntry.findFirst({ where: { companyId: ctx.companyId, sourceType: 'INVOICE', sourceId: inv.id } })
-      if (entry) await reverseJournal(ctx, entry.id, on, reason, tx)
+      // 🔴 docs/92 — the invoice's own entry AND any re-booking correction posted against it. A
+      // cancel that reversed only the first would leave the correction standing alone: the
+      // rupee difference in receivables and income for an invoice that no longer exists.
+      const entries = await tx.journalEntry.findMany({
+        where: { companyId: ctx.companyId, sourceType: { in: ['INVOICE', 'FX_REBOOK'] }, sourceId: inv.id, reversalOfId: null },
+        orderBy: { entryNo: 'asc' },
+      })
+      for (const e of entries) await reverseJournal(ctx, e.id, on, reason, tx)
     }
 
     const cancelled = await tx.invoice.update({

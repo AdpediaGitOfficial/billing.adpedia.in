@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireContext } from '@/server/context'
+import { can } from '@/server/auth/permissions'
 import { archivedDocument } from '@/server/services/storage/document-archive'
 import { prisma } from '@/server/db'
 import { formatINR, amountInWords, Decimal } from '@/lib/money'
@@ -45,10 +46,14 @@ export default async function InvoiceDetail({ params }: { params: Promise<{ id: 
   const lut = inv.taxMode === 'EXPORT' && carriesTax(inv.docType)
     ? await lutStatus(prisma, ctx.companyId, inv.financialYear.label)
     : null
-  const journal = await prisma.journalEntry.findFirst({
-    where: { companyId: ctx.companyId, sourceType: 'INVOICE', sourceId: inv.id },
+  // docs/92 — the invoice's own entry, and any correction posted when it was re-booked at a rate
+  const journals = await prisma.journalEntry.findMany({
+    where: { companyId: ctx.companyId, sourceType: { in: ['INVOICE', 'FX_REBOOK'] }, sourceId: inv.id, reversalOfId: null },
     include: { lines: { include: { account: true } } },
+    orderBy: { entryNo: 'asc' },
   })
+  // an issued foreign invoice with no rate is booked at face value — docs/92
+  const needsRebook = !isDraft && inv.status !== 'CANCELLED' && inv.currency !== 'INR' && !rateIsSet(inv.currency, inv.fxRate.toString())
 
   const live = inv.creditNotes.filter((c) => !c.cancelledAt)
   const credited = live
@@ -106,6 +111,19 @@ export default async function InvoiceDetail({ params }: { params: Promise<{ id: 
           </div>
         }
       />
+
+      {/* docs/92 — issued before exchange rates were captured: the ledger holds the foreign amount
+          as if it were rupees. The fix is a correcting entry, not a new invoice. */}
+      {needsRebook && (
+        <div className="mb-4">
+          <Alert tone="warn" title="Booked at face value, not at an exchange rate"
+            action={can(ctx.role, 'invoices.cancel', 'approve')
+              ? <Link href={`/invoices/${inv.id}/rebook`}><Button variant="soft" size="sm">Book at a rate</Button></Link> : undefined}>
+            This invoice is in {inv.currency}, but the ledger holds {inv.currency} {Number(inv.grandTotal).toFixed(2)} in a
+            rupee account as though it were rupees. The invoice itself is right; only the books are not.
+          </Alert>
+        </div>
+      )}
 
       {/* 🔴 docs/59 — an invoice sent before the archive existed, or whose render failed, has
           no copy of what the client received. Reprinting it uses today's template and today's
@@ -308,10 +326,10 @@ export default async function InvoiceDetail({ params }: { params: Promise<{ id: 
         blockedReason={lut && !lut.ok ? `No LUT for FY ${inv.financialYear.label}` : undefined}
       />
 
-      {journal && (
-        <Card className="mt-4 p-4">
+      {journals.map((journal) => (
+        <Card key={journal.id} className="mt-4 p-4">
           <p className="text-[10px] font-semibold uppercase tracking-[0.1em]" style={{ color: 'var(--text-muted)' }}>
-            Ledger entry #{journal.entryNo}
+            Ledger entry #{journal.entryNo}{journal.sourceType === 'FX_REBOOK' ? ' · correction for the exchange rate' : ''}
           </p>
           <table className="mt-2 w-full text-[12.5px]">
             <tbody>
@@ -325,7 +343,7 @@ export default async function InvoiceDetail({ params }: { params: Promise<{ id: 
             </tbody>
           </table>
         </Card>
-      )}
+      ))}
     </div>
   )
 }

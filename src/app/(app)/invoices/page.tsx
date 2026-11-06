@@ -5,7 +5,8 @@ import { arSummary } from '@/server/services/sales/receivables'
 import { invoicesByMonth, monthBounds, monthLabel } from '@/server/services/sales/invoice-months'
 import { formatINR } from '@/lib/money'
 import { peekNextNumber } from '@/server/services/invoicing/numbering'
-import { Card, CardHeader, PageHeader, StatCard, Pill, Empty, Button, DataTable, type Column, statGrid, tapTarget } from '@/components/ui/kit'
+import { Card, CardHeader, PageHeader, StatCard, Pill, Empty, Button, Alert, DataTable, type Column, statGrid, tapTarget } from '@/components/ui/kit'
+import { invoicesNeedingRebook } from '@/server/services/invoicing/rebook'
 import { Icon } from '@/components/shell/icon'
 import type { InvoiceStatus } from '@prisma/client'
 import type { Tone } from '@/components/ui/kit'
@@ -51,6 +52,7 @@ export default async function InvoicesPage({ searchParams }: {
    * dashboard untrustworthy.
    */
   const page = paginate(await prisma.invoice.count({ where }), sp.page)
+  const rebookCount = (await invoicesNeedingRebook(ctx)).length
 
   const [invoices, ar, fy] = await Promise.all([
     prisma.invoice.findMany({
@@ -249,6 +251,16 @@ export default async function InvoicesPage({ searchParams }: {
           ? `${monthLabel(month)} · ${page.total} ${page.total === 1 ? 'invoice' : 'invoices'}`
           : fy ? `FY ${fy.label} · ${page.total} on record` : undefined}
         action={<Link href="/invoices/new"><Button icon="Plus">New invoice</Button></Link>} />
+
+      {/* docs/92 — issued foreign invoices the ledger still holds at face value */}
+      {rebookCount > 0 && (
+        <div className="mb-4">
+          <Alert tone="warn" title={`${rebookCount} foreign-currency invoice${rebookCount === 1 ? ' is' : 's are'} booked at face value`}
+            action={<Link href="/invoices/rebook"><Button variant="soft" size="sm">Review</Button></Link>}>
+            Issued before exchange rates were captured, so the ledger holds their dollars as if they were rupees.
+          </Alert>
+        </div>
+      )}
 
       {/* 🔴 docs/83 §7 — two views of the same year, and the URL says which. Links rather
           than a `Segmented`, because this is navigation: it has to survive a bookmark, a

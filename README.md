@@ -95,9 +95,10 @@ payroll, projects and bank reconciliation on a double-entry ledger.
 | [88 · The personal account](docs/88-the-personal-account.md) | One person's own books: an invoice form that could not save, a bank account nothing could create, and a receipt that threw — found by sending an invoice as that entity and reading what the client got |
 | [89 · The tax an unregistered entity cannot claim](docs/89-the-tax-an-unregistered-entity-cannot-claim.md) | A bill from a GST-registered vendor, booked by an entity with no registration, debited the vendor's GST to input-credit accounts it can never use — the suspicion in docs/88 §6, exercised and fixed |
 | [91 · The dollars in a rupee ledger](docs/91-the-dollars-in-a-rupee-ledger.md) | A USD 250 invoice posted ₹250. Invoices now carry a typed rate and book rupees; receipts take the rupees the bank credited and derive the forex difference; every total that added invoices up converts at the invoice's rate |
+| [92 · Booking an old invoice at its rate](docs/92-booking-an-old-invoice-at-its-rate.md) | A correcting entry for a foreign invoice issued at face value: shows the difference, posts only that, leaves the invoice and its number alone; cancel reverses it too; nothing can be posted against an unrated one |
 | [90 · Deployment](docs/90-deployment.md) | Step by step on a plain Ubuntu box — npm, pm2, Postgres, nginx, Chromium, the daily run, backups. No Docker |
 
-**1,376 tests passing** · typecheck and lint clean · production build passes.
+**1,387 tests passing** · typecheck and lint clean · production build passes.
 
 ```bash
 cp .env.example .env     # set DATABASE_URL and JWT_SECRET
