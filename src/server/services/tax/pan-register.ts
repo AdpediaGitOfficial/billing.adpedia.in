@@ -285,7 +285,7 @@ export async function savePans(ctx: RequestContext, assignments: PanAssignment[]
         continue
       }
       await prisma.employee.update({
-        where: { id: a.id },
+        where: { companyId: ctx.companyId, id: a.id },
         data: { pan, ...(emp.panEvidence === 'CARD_ON_FILE' ? {} : { panEvidence: 'DECLARED' as const }) },
       })
       await audit(ctx, { entity: 'Employee', entityId: a.id, action: 'UPDATE', after: { pan } })
@@ -304,7 +304,7 @@ export async function savePans(ctx: RequestContext, assignments: PanAssignment[]
       // The evidence level records what actually stands behind it; a card copy raises it to
       // CARD_ON_FILE, and never lowers it back from here.
       await prisma.vendor.update({
-        where: { id: a.id },
+        where: { companyId: ctx.companyId, id: a.id },
         data: {
           pan, panVerified: true,
           ...(ven.panEvidence === 'CARD_ON_FILE' ? {} : { panEvidence: 'DECLARED' as const }),

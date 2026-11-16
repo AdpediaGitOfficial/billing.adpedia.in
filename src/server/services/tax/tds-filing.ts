@@ -316,7 +316,7 @@ export async function recordTdsCorrection(ctx: RequestContext, input: RecordCorr
     // figure the cancellation guards read has to be the CURRENT state of the return, because
     // that is what the deductees' 26AS now shows.
     await tx.tdsReturnFiling.update({
-      where: { id: filing.id },
+      where: { companyId: ctx.companyId, id: filing.id },
       data: { tdsDeducted: deducted.toFixed(2), tdsDeposited: deposited.toFixed(2) },
     })
 

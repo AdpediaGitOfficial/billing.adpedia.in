@@ -31,7 +31,7 @@ export async function projectPnl(ctx: RequestContext, financialYearId?: string):
   assertCan(ctx.role, 'reports', 'read')
 
   const fy = financialYearId
-    ? await prisma.financialYear.findUniqueOrThrow({ where: { id: financialYearId } })
+    ? await prisma.financialYear.findUniqueOrThrow({ where: { companyId: ctx.companyId, id: financialYearId } })
     : await currentFinancialYearOrThrow(ctx.companyId)
 
   const projects = await prisma.project.findMany({

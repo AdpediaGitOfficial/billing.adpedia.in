@@ -138,7 +138,7 @@ export async function registerEInvoice(ctx: RequestContext, invoiceId: string) {
   const ack = await irpAdapter().generate(payload)
 
   const updated = await prisma.invoice.update({
-    where: { id: invoiceId },
+    where: { companyId: ctx.companyId, id: invoiceId },
     // 🔴 docs/75 — record WHICH IRP said so. A mock registration is otherwise indistinguishable
     // from a real one, in the same four columns, and the document would print either.
     data: {
@@ -182,7 +182,7 @@ export async function cancelEInvoice(ctx: RequestContext, invoiceId: string, rea
   await irpAdapter().cancel(inv.irn, reason, remark)
 
   const updated = await prisma.invoice.update({
-    where: { id: invoiceId },
+    where: { companyId: ctx.companyId, id: invoiceId },
     data: { irn: null, ackNo: null, ackDate: null, signedQr: null, irpSource: null, status: 'CANCELLED' },
   })
 

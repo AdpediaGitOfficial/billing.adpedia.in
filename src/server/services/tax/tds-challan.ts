@@ -182,7 +182,7 @@ export async function createChallan(ctx: RequestContext, input: ChallanInput) {
       },
     })
 
-    await tx.tdsDeduction.updateMany({ where: { id: { in: input.deductionIds } }, data: { challanId: challan.id } })
+    await tx.tdsDeduction.updateMany({ where: { companyId: ctx.companyId, id: { in: input.deductionIds } }, data: { challanId: challan.id } })
 
     await postJournal(ctx, {
       date: depositedOn,

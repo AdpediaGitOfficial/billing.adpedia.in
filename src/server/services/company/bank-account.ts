@@ -92,7 +92,7 @@ export async function addBankAccount(ctx: RequestContext, input: BankAccountInpu
 
     let ledgerAccountId: string
     if (!gl1010Taken) {
-      await tx.account.update({ where: { id: gl1010.id }, data: { name: label } })
+      await tx.account.update({ where: { companyId: ctx.companyId, id: gl1010.id }, data: { name: label } })
       ledgerAccountId = gl1010.id
     } else {
       const used = new Set((await tx.account.findMany({

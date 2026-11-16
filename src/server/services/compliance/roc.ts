@@ -74,7 +74,7 @@ export async function recordRocDates(ctx: RequestContext, input: {
   }
 
   const updated = await prisma.financialYear.update({
-    where: { id: fy.id },
+    where: { companyId: ctx.companyId, id: fy.id },
     data: {
       ...(agmHeldOn !== undefined ? { agmHeldOn } : {}),
       ...(input.agmSource !== undefined ? { agmSource: input.agmSource.trim() || null } : {}),

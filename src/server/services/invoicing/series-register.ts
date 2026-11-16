@@ -274,7 +274,7 @@ export async function setSeriesPattern(
     )
   }
 
-  await prisma.documentSeries.update({ where: { id: series.id }, data: { pattern } })
+  await prisma.documentSeries.update({ where: { companyId: ctx.companyId, id: series.id }, data: { pattern } })
   await audit(ctx, {
     entity: 'DocumentSeries', entityId: series.id, action: 'UPDATE',
     before: { pattern: series.pattern }, after: { pattern },

@@ -81,7 +81,7 @@ export async function updateProjectAction(_prev: { error?: string } | null, form
   if (clash) return { error: `A project already uses the code ${code} — ${clash.name}` }
 
   await prisma.project.update({
-    where: { id },
+    where: { id, companyId: ctx.companyId },
     data: {
       customerId: v.customerId, code, name: v.name,
       contractValue: v.contractValue ? v.contractValue : null,

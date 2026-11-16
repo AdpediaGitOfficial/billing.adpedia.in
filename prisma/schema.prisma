@@ -370,6 +370,18 @@ model RefreshToken {
   @@index([expiresAt])
 }
 
+/// docs/95 — failed password sign-ins, keyed by the lower-cased email WHETHER OR NOT it names a
+/// user, so that throttling cannot be used to find out which addresses have accounts.
+model LoginThrottle {
+  key         String    @id
+  failures    Int       @default(0)
+  windowStart DateTime
+  lockedUntil DateTime?
+  updatedAt   DateTime  @default(now()) @updatedAt
+
+  @@index([updatedAt])
+}
+
 model UserCompany {
   id        String  @id @default(cuid())
   userId    String

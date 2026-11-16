@@ -1,6 +1,6 @@
 # 00 · Handover — read this first
 
-Adpedia Films Private Limited's internal finance ERP. **1,028 tests** (421 unit + 607
+Adpedia Films Private Limited's internal finance ERP. **1,453 tests** (610 unit + 843
 integration), typecheck and lint clean, production build passes.
 
 Everything below is either hard-won or non-obvious. The per-module detail is in `docs/20`

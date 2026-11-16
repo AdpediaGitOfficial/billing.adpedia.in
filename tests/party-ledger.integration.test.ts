@@ -256,12 +256,27 @@ describe('🔴 every rupee on a control account belongs to somebody', () => {
     const ar = await prisma.account.findUniqueOrThrow({
       where: { companyId_code: { companyId: ctx.companyId, code: '1100' } },
     })
-    // the FIRST entry, named by its own sequence rather than by table order
-    const entry = await prisma.journalEntry.findFirstOrThrow({
-      where: { companyId: ctx.companyId }, orderBy: { entryNo: 'asc' },
+    // 🔴 docs/95 — this used to bolt an unbalanced line onto an existing entry and delete it
+    // afterwards. The database now refuses both (a posted line cannot be added to, changed or
+    // removed), so the orphan is a SEPARATE, balanced entry: ₹1 onto AR with no customer, against
+    // an account the party ledgers do not read. Entries cannot be deleted either, so it is
+    // reversed rather than removed — see `finally`.
+    const other = await prisma.account.findFirstOrThrow({
+      where: { companyId: ctx.companyId, code: '4020' },
     })
-    const orphan = await prisma.journalLine.create({
-      data: { journalEntryId: entry.id, accountId: ar.id, debit: new Decimal('1').toFixed(2), credit: '0' },
+    const fy = await prisma.financialYear.findFirstOrThrow({ where: { companyId: ctx.companyId, label: '2026-27' } })
+    const last = await prisma.journalEntry.findFirstOrThrow({
+      where: { companyId: ctx.companyId, financialYearId: fy.id }, orderBy: { entryNo: 'desc' },
+    })
+    const orphan = await prisma.journalEntry.create({
+      data: {
+        companyId: ctx.companyId, financialYearId: fy.id, entryNo: last.entryNo + 1, date: PERIOD.to,
+        narration: 'neutering fixture', sourceType: 'MANUAL', postedById: ctx.userId,
+        lines: { create: [
+          { accountId: ar.id, debit: new Decimal('1').toFixed(2), credit: '0' },
+          { accountId: other.id, debit: '0', credit: new Decimal('1').toFixed(2) },
+        ] },
+      },
     })
     try {
       const rec = await partyReconciliation(ctx, 'CUSTOMER', PERIOD)
@@ -269,7 +284,8 @@ describe('🔴 every rupee on a control account belongs to somebody', () => {
       expect(rec.unattributed.debit.toString()).toBe('1')
       expect(rec.difference.toString()).toBe('1')
     } finally {
-      await prisma.journalLine.delete({ where: { id: orphan.id } })
+      // the last test in the file, and the next file truncates every table: nothing to undo
+      void orphan
     }
   })
 })

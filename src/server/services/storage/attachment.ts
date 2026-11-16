@@ -153,7 +153,7 @@ export async function detachAttachment(ctx: RequestContext, id: string, reason?:
   const row = await prisma.attachment.findFirst({ where: { id, companyId: ctx.companyId, detachedAt: null } })
   if (!row) throw new NotFound('Attachment not found')
 
-  await prisma.attachment.update({ where: { id: row.id }, data: { detachedAt: new Date() } })
+  await prisma.attachment.update({ where: { companyId: ctx.companyId, id: row.id }, data: { detachedAt: new Date() } })
   await audit(ctx, { entity: 'Attachment', entityId: id, action: 'CANCEL',
     before: { filename: row.filename }, after: { reason: reason ?? null } })
   return { ok: true }

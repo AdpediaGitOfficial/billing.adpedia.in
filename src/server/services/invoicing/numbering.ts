@@ -55,7 +55,7 @@ export async function allocateNumber(
     )
   }
 
-  await tx.documentSeries.update({ where: { id: series.id }, data: { nextSeq: seq + 1 } })
+  await tx.documentSeries.update({ where: { companyId: args.companyId, id: series.id }, data: { nextSeq: seq + 1 } })
   return { number, seq }
 }
 

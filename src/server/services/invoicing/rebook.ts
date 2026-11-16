@@ -100,7 +100,7 @@ export async function previewRebook(ctx: RequestContext, input: RebookInput): Pr
   if (inv.creditNotes.length > 0) {
     blockers.push(`${inv.creditNotes.map((n) => n.number).join(', ')} ${inv.creditNotes.length > 1 ? 'were' : 'was'} raised against ${inv.number} at face value. Cancel ${inv.creditNotes.length > 1 ? 'them' : 'it'} first, then re-book.`)
   }
-  const amendments = await prisma.gstAmendment.count({ where: { invoiceId: inv.id } })
+  const amendments = await prisma.gstAmendment.count({ where: { companyId: ctx.companyId, invoiceId: inv.id } })
   if (amendments > 0) blockers.push(`${inv.number} has a GSTR-1 amendment recorded against it at face value, which cannot be un-recorded here — ask the CA.`)
 
   // what was actually posted, as the invoice itself: the live INVOICE entry, not its reversal
@@ -228,7 +228,7 @@ export async function rebookInvoiceAtRate(ctx: RequestContext, input: RebookInpu
       postings,
     }, tx)
 
-    await tx.invoice.update({ where: { id: inv.id }, data: { fxRate: p.fxRate.toFixed(6) } })
+    await tx.invoice.update({ where: { companyId: ctx.companyId, id: inv.id }, data: { fxRate: p.fxRate.toFixed(6) } })
     await audit(ctx, {
       entity: 'Invoice', entityId: inv.id, action: 'UPDATE',
       before: { fxRate: inv.fxRate.toString() },

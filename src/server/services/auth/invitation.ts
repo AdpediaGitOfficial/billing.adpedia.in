@@ -107,7 +107,7 @@ export async function revokeInvitation(ctx: RequestContext, id: string, reason: 
   if (invitation.revokedAt) throw new AppError('That invitation is already revoked')
 
   const revoked = await prisma.invitation.update({
-    where: { id: invitation.id },
+    where: { id: invitation.id, companyId: ctx.companyId },
     data: { revokedAt: new Date(), revokeReason: reason.trim() },
   })
   await audit(ctx, {

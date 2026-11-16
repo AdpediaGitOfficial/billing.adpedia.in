@@ -22,7 +22,6 @@ import type { RequestContext } from '@/server/context'
 
 const prisma = new PrismaClient()
 let ctxA: RequestContext, ctxB: RequestContext
-let userId = ''
 const PERIOD = { from: new Date('2026-04-01'), to: new Date('2027-03-31T23:59:59Z') }
 
 const PROP = {
@@ -35,7 +34,7 @@ beforeAll(async () => {
   await resetDb(prisma)
   const a = await prisma.company.findFirstOrThrow({ where: { pan: 'AAUCA9985H' } })
   const user = await prisma.user.findFirstOrThrow()
-  userId = user.id
+
   ctxA = { userId: user.id, companyId: a.id, role: 'OWNER' }
   const b = await createCompany(ctxA, PROP)
   ctxB = { userId: user.id, companyId: b.id, role: 'OWNER' }

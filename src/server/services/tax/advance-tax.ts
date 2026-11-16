@@ -101,7 +101,7 @@ export async function setTaxEstimate(ctx: RequestContext, input: {
       where: { companyId: ctx.companyId, financialYearId: fy.id, supersededAt: null },
     })
     if (previous) {
-      await tx.companyTaxEstimate.update({ where: { id: previous.id }, data: { supersededAt: new Date() } })
+      await tx.companyTaxEstimate.update({ where: { companyId: ctx.companyId, id: previous.id }, data: { supersededAt: new Date() } })
     }
     const created = await tx.companyTaxEstimate.create({
       data: {

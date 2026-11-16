@@ -97,7 +97,7 @@ export async function changeRole(ctx: RequestContext, userId: string, role: Role
   }
 
   const updated = await prisma.userCompany.update({
-    where: { id: target.membershipId },
+    where: { companyId: ctx.companyId, id: target.membershipId },
     data: { role },
   })
 

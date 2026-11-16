@@ -486,7 +486,7 @@ export async function reconcile2b(ctx: RequestContext, statementId?: string): Pr
       await tx.gst2bLine.update({ where: { id: p.lineId }, data: { matchedBillId: p.billId } })
     }
     await tx.portalStatement.update({
-      where: { id: result.statementId! },
+      where: { companyId: ctx.companyId, id: result.statementId! },
       data: {
         verdict: `${result.matched.length} matched, ` +
           `${result.notInPortal.length + result.notInBooks.length + result.taxDiffers.length + result.blocked.length} to look at`,

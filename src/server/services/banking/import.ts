@@ -99,7 +99,7 @@ export async function importStatement(ctx: RequestContext, input: {
   }
 
   await prisma.bankStatementImport.update({
-    where: { id: record.id }, data: { rowsImported: imported, rowsDuplicate: duplicates },
+    where: { companyId: ctx.companyId, id: record.id }, data: { rowsImported: imported, rowsDuplicate: duplicates },
   })
   await audit(ctx, { entity: 'BankStatementImport', entityId: record.id, action: 'CREATE', after: { imported, duplicates } })
 

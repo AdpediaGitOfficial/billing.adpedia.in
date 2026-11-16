@@ -228,7 +228,7 @@ export async function createBill(ctx: RequestContext, input: BillInput) {
   }
   const billDate = new Date(input.billDate)
   const fy = await assertPostable(ctx.companyId, billDate)
-  const vendor = await prisma.vendor.findUniqueOrThrow({ where: { id: input.vendorId } })
+  const vendor = await prisma.vendor.findUniqueOrThrow({ where: { companyId: ctx.companyId, id: input.vendorId } })
 
   const dueDate = input.dueDate
     ? new Date(input.dueDate)
@@ -291,7 +291,7 @@ export async function approveBill(ctx: RequestContext, billId: string) {
     })
     if (!bill) throw new NotFound('Bill not found')
     // VendorBill carries financialYearId as a plain column, not a relation
-    const fy = await tx.financialYear.findUniqueOrThrow({ where: { id: bill.financialYearId } })
+    const fy = await tx.financialYear.findUniqueOrThrow({ where: { companyId: ctx.companyId, id: bill.financialYearId } })
     if (bill.status !== 'DRAFT') throw new AppError(`Bill ${bill.billNumber} has already been approved`)
     await assertPostable(ctx.companyId, bill.billDate, tx)
 
@@ -377,7 +377,7 @@ export async function approveBill(ctx: RequestContext, billId: string) {
     }
 
     const approved = await tx.vendorBill.update({
-      where: { id: bill.id },
+      where: { companyId: ctx.companyId, id: bill.id },
       data: { status: 'APPROVED', selfInvoiceNo },
     })
     await audit(ctx, { entity: 'VendorBill', entityId: bill.id, action: 'APPROVE', after: { status: 'APPROVED', selfInvoiceNo } }, tx)
@@ -425,7 +425,7 @@ export async function payBill(ctx: RequestContext, input: { billId: string; date
       if (!inrAmount || inrAmount.lte(0)) {
         throw new AppError(`Enter the rupees that left the bank for this ${bill.currency} payment. The books are kept in rupees, and the difference from the bill's rate is booked as forex gain or loss.`)
       }
-      const priorPayments = await tx.billPayment.findMany({ where: { billId: bill.id }, select: { id: true } })
+      const priorPayments = await tx.billPayment.findMany({ where: { companyId: ctx.companyId, billId: bill.id }, select: { id: true } })
       const prior = await tx.journalLine.findMany({
         where: { account: { code: '2000', companyId: ctx.companyId }, journalEntry: { sourceType: 'BILL_PAYMENT', sourceId: { in: priorPayments.map((p) => p.id) } } },
         select: { debit: true, credit: true },
@@ -457,7 +457,7 @@ export async function payBill(ctx: RequestContext, input: { billId: string; date
 
     const paid = new Decimal(bill.amountPaid.toString()).plus(amount)
     await tx.vendorBill.update({
-      where: { id: bill.id },
+      where: { companyId: ctx.companyId, id: bill.id },
       data: { amountPaid: paid.toFixed(2), status: paid.gte(owed.plus(bill.amountPaid.toString()).minus('0.5')) ? 'PAID' : 'PARTIALLY_PAID' },
     })
     await audit(ctx, { entity: 'VendorBill', entityId: bill.id, action: 'UPDATE', after: { paid: paid.toFixed(2) } }, tx)
@@ -481,12 +481,12 @@ export async function cancelBill(ctx: RequestContext, billId: string, reason: st
       for (const e of entries) await reverseJournal(ctx, e.id, on, reason, tx)
       // not deleted — the no-hard-delete trigger refuses that, and rightly so
       await tx.tdsDeduction.updateMany({
-        where: { documentId: bill.id, challanId: null, reversedAt: null },
+        where: { companyId: ctx.companyId, documentId: bill.id, challanId: null, reversedAt: null },
         data: { reversedAt: new Date() },
       })
     }
 
-    const cancelled = await tx.vendorBill.update({ where: { id: bill.id }, data: { status: 'CANCELLED' } })
+    const cancelled = await tx.vendorBill.update({ where: { companyId: ctx.companyId, id: bill.id }, data: { status: 'CANCELLED' } })
     await audit(ctx, { entity: 'VendorBill', entityId: bill.id, action: 'CANCEL', after: { reason } }, tx)
     return cancelled
   })

@@ -235,7 +235,7 @@ export async function createInvoice(ctx: RequestContext, input: CreateInvoiceInp
       include: { lines: true },
     })
     // now that we have an id, give it a stable, readable draft marker
-    const withMarker = await tx.invoice.update({ where: { id: created.id }, data: { number: draftNumber(created.id) } })
+    const withMarker = await tx.invoice.update({ where: { companyId: ctx.companyId, id: created.id }, data: { number: draftNumber(created.id) } })
     await audit(ctx, { entity: 'Invoice', entityId: created.id, action: 'CREATE', after: { total: totals.grandTotal.toFixed(2), taxMode } }, tx)
     return { ...created, number: withMarker.number }
   })
@@ -308,7 +308,7 @@ export async function updateInvoiceDraft(ctx: RequestContext, invoiceId: string,
     await tx.invoiceLine.deleteMany({ where: { invoiceId: existing.id } })
 
     const updated = await tx.invoice.update({
-      where: { id: existing.id },
+      where: { companyId: ctx.companyId, id: existing.id },
       data: {
         financialYearId: fy.id,
         customerId: customer.id,
@@ -470,7 +470,7 @@ export async function sendInvoice(ctx: RequestContext, invoiceId: string) {
     }, tx)
 
     const sent = await tx.invoice.update({
-      where: { id: inv.id },
+      where: { companyId: ctx.companyId, id: inv.id },
       data: {
         number, seq, lutId, status: 'SENT', sentAt: new Date(),
         // 🔴 Freeze the bill-to details at the moment of issue. From here the document is
@@ -543,7 +543,7 @@ export async function cancelInvoice(ctx: RequestContext, invoiceId: string, reas
     }
 
     const cancelled = await tx.invoice.update({
-      where: { id: inv.id },
+      where: { companyId: ctx.companyId, id: inv.id },
       data: { status: 'CANCELLED', cancelledAt: new Date(), cancelReason: reason },
     })
     await audit(ctx, { entity: 'Invoice', entityId: inv.id, action: 'CANCEL', before: { status: inv.status }, after: { status: 'CANCELLED', reason } }, tx)

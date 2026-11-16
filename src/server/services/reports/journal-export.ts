@@ -78,9 +78,9 @@ export async function journalExport(
   const vendorIds = [...new Set(rows.map((r) => r.vendorId).filter(Boolean) as string[])]
   const employeeIds = [...new Set(rows.map((r) => r.employeeId).filter(Boolean) as string[])]
   const [customers, vendors, employees] = await Promise.all([
-    customerIds.length ? prisma.customer.findMany({ where: { id: { in: customerIds } }, select: { id: true, name: true } }) : [],
-    vendorIds.length ? prisma.vendor.findMany({ where: { id: { in: vendorIds } }, select: { id: true, name: true } }) : [],
-    employeeIds.length ? prisma.employee.findMany({ where: { id: { in: employeeIds } }, select: { id: true, name: true } }) : [],
+    customerIds.length ? prisma.customer.findMany({ where: { companyId: ctx.companyId, id: { in: customerIds } }, select: { id: true, name: true } }) : [],
+    vendorIds.length ? prisma.vendor.findMany({ where: { companyId: ctx.companyId, id: { in: vendorIds } }, select: { id: true, name: true } }) : [],
+    employeeIds.length ? prisma.employee.findMany({ where: { companyId: ctx.companyId, id: { in: employeeIds } }, select: { id: true, name: true } }) : [],
   ])
   const nameOf = new Map<string, string>([
     ...customers.map((c) => [c.id, c.name] as [string, string]),

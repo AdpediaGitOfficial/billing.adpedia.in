@@ -162,7 +162,7 @@ export async function approvePayroll(ctx: RequestContext, month: number, year: n
     if (existing && existing.status !== 'DRAFT') throw new AppError(`${preview.label} payroll has already been approved`)
 
     const run = existing
-      ? await tx.payrollRun.update({ where: { id: existing.id }, data: { status: 'APPROVED', grossTotal: preview.grossTotal.toFixed(2), tdsTotal: preview.tdsTotal.toFixed(2), netTotal: preview.netTotal.toFixed(2) } })
+      ? await tx.payrollRun.update({ where: { companyId: ctx.companyId, id: existing.id }, data: { status: 'APPROVED', grossTotal: preview.grossTotal.toFixed(2), tdsTotal: preview.tdsTotal.toFixed(2), netTotal: preview.netTotal.toFixed(2) } })
       : await tx.payrollRun.create({
           data: {
             companyId: ctx.companyId, financialYearId: fy.id, month, year, status: 'APPROVED',
@@ -258,7 +258,7 @@ export async function paySalaries(ctx: RequestContext, runId: string, date: stri
       }),
     }, tx)
 
-    const paid = await tx.payrollRun.update({ where: { id: run.id }, data: { status: 'PAID' } })
+    const paid = await tx.payrollRun.update({ where: { companyId: ctx.companyId, id: run.id }, data: { status: 'PAID' } })
     await audit(ctx, { entity: 'PayrollRun', entityId: run.id, action: 'UPDATE', after: { status: 'PAID' } }, tx)
     return paid
   })

@@ -12,7 +12,7 @@ export default async function EditProjectPage({ params }: { params: Promise<{ id
   const [project, customers, invoiced] = await Promise.all([
     prisma.project.findFirst({ where: { id, companyId: ctx.companyId } }),
     prisma.customer.findMany({ where: { companyId: ctx.companyId }, select: { id: true, name: true }, orderBy: { name: 'asc' } }),
-    prisma.invoice.count({ where: { projectId: id, status: { notIn: ['DRAFT', 'CANCELLED'] } } }),
+    prisma.invoice.count({ where: { companyId: ctx.companyId, projectId: id, status: { notIn: ['DRAFT', 'CANCELLED'] } } }),
   ])
   if (!project) notFound()
 

@@ -35,7 +35,7 @@ export async function receivableAgeing(ctx: RequestContext, financialYearId?: st
   assertCan(ctx.role, 'tax', 'read')
 
   const fy = financialYearId
-    ? await prisma.financialYear.findUniqueOrThrow({ where: { id: financialYearId } })
+    ? await prisma.financialYear.findUniqueOrThrow({ where: { companyId: ctx.companyId, id: financialYearId } })
     : await currentFinancialYearOrThrow(ctx.companyId)
 
   const rows = await prisma.tdsReceivable.findMany({
@@ -45,7 +45,7 @@ export async function receivableAgeing(ctx: RequestContext, financialYearId?: st
   })
 
   const customers = await prisma.customer.findMany({
-    where: { id: { in: [...new Set(rows.map((r) => r.customerId))] } },
+    where: { companyId: ctx.companyId, id: { in: [...new Set(rows.map((r) => r.customerId))] } },
     select: { id: true, name: true, tan: true },
   })
   const byId = new Map(customers.map((c) => [c.id, c]))
@@ -121,7 +121,7 @@ export async function receivableSummary(ctx: RequestContext, financialYearId?: s
 export async function form16aChaseList(ctx: RequestContext, financialYearId?: string) {
   const { rows } = await receivableSummary(ctx, financialYearId)
   const fy = financialYearId
-    ? await prisma.financialYear.findUniqueOrThrow({ where: { id: financialYearId } })
+    ? await prisma.financialYear.findUniqueOrThrow({ where: { companyId: ctx.companyId, id: financialYearId } })
     : await currentFinancialYearOrThrow(ctx.companyId)
   const fyStartYear = Number(fy.label.split('-')[0])
   const today = new Date()

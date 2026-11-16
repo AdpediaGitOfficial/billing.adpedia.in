@@ -160,7 +160,7 @@ chmod 600 /srv/adpedia/app/.env
 
 | Variable | What breaks if it is wrong |
 |---|---|
-| `JWT_SECRET` | `env()` throws at first use below 32 characters — `src/lib/env.ts` |
+| `JWT_SECRET` and every variable below | validated when the server **starts** (`src/instrumentation.ts`, docs/95 §1): a bad value stops it with the reason in the pm2 log, instead of failing feature by feature. Below 32 characters `JWT_SECRET` is refused — `src/lib/env.ts` |
 | `NODE_ENV=production` | 🔴 this is what sets `secure` on the session cookie (`auth/service.ts:12`). Over plain HTTP **nobody can log in at all** — which is why TLS (Step 14) comes before the first login, not after |
 | `WEBAUTHN_ORIGIN` | exactly the https origin, no trailing slash |
 | `WEBAUTHN_RP_ID` | the bare domain. 🔴 A mismatch does not warn — every passkey assertion simply fails. The RP ID is baked into each credential, so changing the domain later invalidates every passkey already enrolled |
@@ -452,6 +452,9 @@ pm2 start adpedia && pm2 save
   is running whatever is happening underneath. `GET /api/health?deep=1`, signed in as the
   OWNER, additionally **renders a PDF and writes a file**, which is the one way to tell a
   broken invoice from a box that cannot produce any document at all.
+- **Failed logins lock the address** (docs/95 §2): eight in fifteen minutes, then fifteen minutes
+  locked, keyed by email because the first `X-Forwarded-For` entry is client-controlled. If the owner
+  is locked out by somebody else's guessing, it clears itself; nothing needs resetting.
 - **One process only.** If a second instance is ever added behind nginx, the notify endpoint
   must still be called once a day in total; the per-notification idempotency key is the only
   thing standing between a double call and a double send.

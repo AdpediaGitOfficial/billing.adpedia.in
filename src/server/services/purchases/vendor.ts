@@ -80,7 +80,7 @@ export async function updateVendor(ctx: RequestContext, id: string, input: Vendo
 
   const country = input.country ?? 'IN'
   const vendor = await prisma.vendor.update({
-    where: { id },
+    where: { companyId: ctx.companyId, id },
     data: {
       name: input.name.trim(), vendorType: input.vendorType,
       email: input.email, phone: input.phone,

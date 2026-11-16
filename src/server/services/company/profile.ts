@@ -135,7 +135,7 @@ export async function setBankSwift(ctx: RequestContext, bankAccountId: string, s
   })
   if (!account) throw new AppError('That account is not one of this company’s')
 
-  await prisma.companyBankAccount.update({ where: { id: account.id }, data: { swift: code || null } })
+  await prisma.companyBankAccount.update({ where: { companyId: ctx.companyId, id: account.id }, data: { swift: code || null } })
   await audit(ctx, {
     entity: 'CompanyBankAccount', entityId: account.id, action: 'UPDATE',
     before: { swift: account.swift }, after: { swift: code || null },

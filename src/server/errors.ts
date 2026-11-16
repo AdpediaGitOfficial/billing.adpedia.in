@@ -14,6 +14,10 @@ export class Forbidden extends AppError {
 export class NotFound extends AppError {
   constructor(m = 'Not found') { super(m, 404, 'NOT_FOUND') }
 }
+/** Too many failed sign-ins — docs/95. `retryAfterSeconds` becomes the Retry-After header. */
+export class TooManyAttempts extends AppError {
+  constructor(m: string, readonly retryAfterSeconds: number) { super(m, 429, 'TOO_MANY_ATTEMPTS') }
+}
 /** Posting into a locked or closed period. Corrections go in an open period as reversals. */
 export class PeriodLocked extends AppError {
   constructor(m: string) { super(m, 409, 'PERIOD_LOCKED') }

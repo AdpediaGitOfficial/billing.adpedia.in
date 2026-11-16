@@ -100,7 +100,7 @@ export async function cancelReceipt(ctx: RequestContext, receiptId: string, reas
     for (const e of entries) await reverseJournal(ctx, e.id, on, reason, tx)
 
     for (const a of receipt.allocations) {
-      const inv = await tx.invoice.findUniqueOrThrow({ where: { id: a.invoiceId } })
+      const inv = await tx.invoice.findUniqueOrThrow({ where: { companyId: ctx.companyId, id: a.invoiceId } })
       const received = Decimal.max(new Decimal(inv.amountReceived.toString()).minus(a.amount.toString()), ZERO)
       const credited = Decimal.max(new Decimal(inv.tdsCredited.toString()).minus(a.tdsAmount.toString()), ZERO)
 
@@ -114,7 +114,7 @@ export async function cancelReceipt(ctx: RequestContext, receiptId: string, reas
           : inv.dueDate < on ? 'OVERDUE' : 'SENT'
 
       await tx.invoice.update({
-        where: { id: inv.id },
+        where: { companyId: ctx.companyId, id: inv.id },
         data: { amountReceived: received.toFixed(2), tdsCredited: credited.toFixed(2), status },
       })
     }
@@ -129,7 +129,7 @@ export async function cancelReceipt(ctx: RequestContext, receiptId: string, reas
     })
 
     const cancelled = await tx.receipt.update({
-      where: { id: receipt.id },
+      where: { companyId: ctx.companyId, id: receipt.id },
       data: { cancelledAt: new Date(), cancelReason: reason.trim() },
     })
 
@@ -168,13 +168,13 @@ export async function cancelBillPayment(ctx: RequestContext, paymentId: string, 
     const owed = new Decimal(payment.bill.grandTotal.toString()).minus(payment.bill.tdsAmount.toString())
 
     await tx.vendorBill.update({
-      where: { id: payment.billId },
+      where: { companyId: ctx.companyId, id: payment.billId },
       data: {
         amountPaid: paid.toFixed(2),
         status: paid.gte(owed.minus('0.5')) ? 'PAID' : paid.gt(0) ? 'PARTIALLY_PAID' : 'APPROVED',
       },
     })
-    await tx.billPayment.update({ where: { id: payment.id }, data: { cancelledAt: new Date() } })
+    await tx.billPayment.update({ where: { companyId: ctx.companyId, id: payment.id }, data: { cancelledAt: new Date() } })
 
     await tx.bankTransaction.updateMany({
       where: { companyId: ctx.companyId, billPaymentId: payment.id },
@@ -212,7 +212,7 @@ export async function cancelExpense(ctx: RequestContext, expenseId: string, reas
     for (const e of entries) await reverseJournal(ctx, e.id, on, reason, tx)
 
     const cancelled = await tx.expense.update({
-      where: { id: expense.id },
+      where: { companyId: ctx.companyId, id: expense.id },
       data: { cancelledAt: new Date(), cancelReason: reason.trim(), status: 'REJECTED' },
     })
     await audit(ctx, { entity: 'Expense', entityId: expense.id, action: 'CANCEL', after: { reason } }, tx)
@@ -251,7 +251,7 @@ export async function unmatchBankTransaction(ctx: RequestContext, txnId: string,
 
   // an EXCLUDED contra pair has no document behind it — both legs simply go back
   const restored = await prisma.bankTransaction.update({
-    where: { id: txn.id },
+    where: { companyId: ctx.companyId, id: txn.id },
     data: {
       status: 'UNMATCHED',
       receiptId: null, billPaymentId: null, journalEntryId: null,
@@ -355,7 +355,7 @@ export async function cancelPayrollRun(ctx: RequestContext, runId: string, reaso
     })
 
     const cancelled = await tx.payrollRun.update({
-      where: { id: run.id },
+      where: { companyId: ctx.companyId, id: run.id },
       data: { status: 'CANCELLED', cancelledAt: on, cancelReason: reason.trim() },
     })
 
@@ -422,11 +422,11 @@ export async function cancelTdsChallan(ctx: RequestContext, challanId: string, r
     // the challan queue, with their interest clock still running from the day they were
     // deducted — which is the true position.
     await tx.tdsDeduction.updateMany({
-      where: { challanId: challan.id }, data: { challanId: null },
+      where: { companyId: ctx.companyId, challanId: challan.id }, data: { challanId: null },
     })
 
     const cancelled = await tx.tdsChallan.update({
-      where: { id: challan.id },
+      where: { companyId: ctx.companyId, id: challan.id },
       data: { cancelledAt: on, cancelReason: reason.trim() },
     })
 
@@ -509,7 +509,7 @@ export async function cancelCreditNote(ctx: RequestContext, noteId: string, reas
     if (note.invoice) {
       const inv = note.invoice
       const otherCredits = await tx.creditNote.aggregate({
-        where: { invoiceId: inv.id, cancelledAt: null, id: { not: note.id } },
+        where: { companyId: ctx.companyId, invoiceId: inv.id, cancelledAt: null, id: { not: note.id } },
         _sum: { grandTotal: true },
       })
       const settled = new Decimal(inv.amountReceived.toString())
@@ -520,11 +520,11 @@ export async function cancelCreditNote(ctx: RequestContext, noteId: string, reas
       const status = settled.gte(grand.minus('0.5'))
         ? 'PAID' as const
         : settled.gt(0) ? 'PARTIALLY_PAID' as const : inv.dueDate < on ? 'OVERDUE' as const : 'SENT' as const
-      await tx.invoice.update({ where: { id: inv.id }, data: { status } })
+      await tx.invoice.update({ where: { companyId: ctx.companyId, id: inv.id }, data: { status } })
     }
 
     const cancelled = await tx.creditNote.update({
-      where: { id: note.id },
+      where: { companyId: ctx.companyId, id: note.id },
       data: { cancelledAt: on, cancelReason: reason.trim() },
     })
 
@@ -584,7 +584,7 @@ export async function cancelGstSetOff(ctx: RequestContext, setOffId: string, rea
     }
 
     const cancelled = await tx.gstSetOff.update({
-      where: { id: setOff.id },
+      where: { companyId: ctx.companyId, id: setOff.id },
       data: { cancelledAt: on, cancelReason: reason.trim() },
     })
 
@@ -651,7 +651,7 @@ export async function cancelRefundVoucher(ctx: RequestContext, voucherId: string
      * itself, and there is no stored figure to drift.
      */
     const cancelled = await tx.refundVoucher.update({
-      where: { id: voucher.id },
+      where: { companyId: ctx.companyId, id: voucher.id },
       data: { cancelledAt: on, cancelReason: reason.trim() },
     })
 
@@ -702,7 +702,7 @@ export async function cancelAdvanceTaxPayment(
     for (const e of entries) await reverseJournal(ctx, e.id, on, reason, tx)
 
     const cancelled = await tx.advanceTaxPayment.update({
-      where: { id: payment.id },
+      where: { companyId: ctx.companyId, id: payment.id },
       data: { cancelledAt: on, cancelReason: reason.trim() },
     })
 

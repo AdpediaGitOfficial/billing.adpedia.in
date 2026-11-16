@@ -20,7 +20,7 @@ export default async function EditVendorPage({ params }: { params: Promise<{ id:
   if (!vendor) notFound()
 
   const bills = await prisma.vendorBill.count({
-    where: { vendorId: vendor.id, status: { notIn: ['DRAFT', 'CANCELLED'] } },
+    where: { companyId: ctx.companyId, vendorId: vendor.id, status: { notIn: ['DRAFT', 'CANCELLED'] } },
   })
 
   return (

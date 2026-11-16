@@ -37,7 +37,7 @@ export async function lockPeriod(ctx: RequestContext, fyId: string, upTo: Date) 
     )
   }
 
-  await prisma.financialYear.update({ where: { id: fy.id }, data: { lockedUpTo: upTo } })
+  await prisma.financialYear.update({ where: { companyId: ctx.companyId, id: fy.id }, data: { lockedUpTo: upTo } })
   await audit(ctx, { entity: 'FinancialYear', entityId: fy.id, action: 'UPDATE',
     before: { lockedUpTo: fy.lockedUpTo }, after: { lockedUpTo: upTo } })
   return { lockedUpTo: upTo }
@@ -54,7 +54,7 @@ export async function unlockPeriod(ctx: RequestContext, fyId: string, upTo: Date
   if (!fy) throw new NotFound('Financial year not found')
   if (fy.status === 'CLOSED') throw new AppError(`FY ${fy.label} is closed — reopen the year first`)
 
-  await prisma.financialYear.update({ where: { id: fy.id }, data: { lockedUpTo: upTo } })
+  await prisma.financialYear.update({ where: { companyId: ctx.companyId, id: fy.id }, data: { lockedUpTo: upTo } })
   await audit(ctx, { entity: 'FinancialYear', entityId: fy.id, action: 'UPDATE',
     before: { lockedUpTo: fy.lockedUpTo }, after: { lockedUpTo: upTo, reason } })
   return { lockedUpTo: upTo }
@@ -210,7 +210,7 @@ export async function closeYear(ctx: RequestContext, fyId: string) {
     }, tx)
 
     await tx.financialYear.update({
-      where: { id: fy.id },
+      where: { companyId: ctx.companyId, id: fy.id },
       data: { status: 'CLOSED', lockedUpTo: fy.endsOn },
     })
     return e
@@ -245,7 +245,7 @@ export async function reopenYear(ctx: RequestContext, fyId: string, reason: stri
   if (!closing) throw new AppError('No closing entry found for that year')
 
   // unlock first, or postJournal refuses to write the reversal into the year it is reopening
-  await prisma.financialYear.update({ where: { id: fy.id }, data: { status: 'OPEN', lockedUpTo: null } })
+  await prisma.financialYear.update({ where: { companyId: ctx.companyId, id: fy.id }, data: { status: 'OPEN', lockedUpTo: null } })
 
   const reversal = await reverseJournal(ctx, closing.id, fy.endsOn, reason.trim())
 

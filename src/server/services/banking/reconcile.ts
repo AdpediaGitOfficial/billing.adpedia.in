@@ -123,17 +123,17 @@ export async function applyMatch(ctx: RequestContext, txnId: string, suggestion:
       allocations: s.allocations.map((a) => ({ invoiceId: a.invoiceId, amount: a.amount.toFixed(2), tdsAmount: a.tds.toFixed(2) })),
     })
     await prisma.bankTransaction.update({
-      where: { id: txn.id },
+      where: { companyId: ctx.companyId, id: txn.id },
       data: { status: 'MATCHED', receiptId: receipt.id, confidence: suggestion.confidence.toString(), matchReason: suggestion.reason },
     })
   } else if (s.kind === 'BILL_PAYMENT') {
     const payment = await payBill(ctx, { billId: s.billId, date, amount: s.amount.toFixed(2), mode: 'NEFT', reference: txn.utr ?? undefined, bankAccountId: txn.bankAccountId })
     await prisma.bankTransaction.update({
-      where: { id: txn.id },
+      where: { companyId: ctx.companyId, id: txn.id },
       data: { status: 'MATCHED', billPaymentId: payment.id, confidence: suggestion.confidence.toString(), matchReason: suggestion.reason },
     })
   } else if (s.kind === 'LEDGER') {
-    const bank = await prisma.companyBankAccount.findFirstOrThrow({ where: { id: txn.bankAccountId }, include: { ledgerAccount: true } })
+    const bank = await prisma.companyBankAccount.findFirstOrThrow({ where: { companyId: ctx.companyId, id: txn.bankAccountId }, include: { ledgerAccount: true } })
     if (!bank.ledgerAccount) throw new AppError(`Bank account ${bank.label} is not mapped to a ledger account`)
     const amount = new Decimal(txn.amount.toString())
     const entry = await postJournal(ctx, {
@@ -146,7 +146,7 @@ export async function applyMatch(ctx: RequestContext, txnId: string, suggestion:
            { accountCode: s.accountCode, credit: amount, customerId: s.customerId, vendorId: s.vendorId, employeeId: s.employeeId }],
     })
     await prisma.bankTransaction.update({
-      where: { id: txn.id },
+      where: { companyId: ctx.companyId, id: txn.id },
       data: { status: 'MATCHED', journalEntryId: entry.id, confidence: suggestion.confidence.toString(), matchReason: suggestion.reason },
     })
   } else if (s.kind === 'CONTRA') {
@@ -185,7 +185,7 @@ export async function learnFrom(ctx: RequestContext, narration: string, directio
   if (existing) {
     const count = existing.confirmCount + 1
     await prisma.bankRule.update({
-      where: { id: existing.id },
+      where: { companyId: ctx.companyId, id: existing.id },
       data: { ...data, confirmCount: count, autoApply: count >= 2 },
     })
   } else {

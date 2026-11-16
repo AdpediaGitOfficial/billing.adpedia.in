@@ -171,7 +171,7 @@ export async function createReceipt(ctx: RequestContext, input: CreateReceiptInp
     // update each invoice's position and, where TDS was deducted, create the
     // TdsReceivable row that will later reconcile against Form 26AS
     for (const t of touched) {
-      const inv = await tx.invoice.findUniqueOrThrow({ where: { id: t.invoiceId } })
+      const inv = await tx.invoice.findUniqueOrThrow({ where: { companyId: ctx.companyId, id: t.invoiceId } })
       const received = new Decimal(inv.amountReceived.toString()).plus(t.amount)
       const credited = new Decimal(inv.tdsCredited.toString()).plus(t.tds)
       // 🔴 against the invoice NET of its notes — otherwise a credited invoice paid in full
@@ -182,7 +182,7 @@ export async function createReceipt(ctx: RequestContext, input: CreateReceiptInp
       )
 
       await tx.invoice.update({
-        where: { id: t.invoiceId },
+        where: { companyId: ctx.companyId, id: t.invoiceId },
         data: {
           amountReceived: received.toFixed(2),
           tdsCredited: credited.toFixed(2),
@@ -218,7 +218,7 @@ export async function createReceipt(ctx: RequestContext, input: CreateReceiptInp
 
 async function notifyPaymentReceived(ctx: RequestContext, receiptId: string) {
   const receipt = await prisma.receipt.findUnique({
-    where: { id: receiptId },
+    where: { companyId: ctx.companyId, id: receiptId },
     select: {
       amount: true, customer: { select: { name: true } },
       allocations: { select: { invoiceId: true }, take: 1 },

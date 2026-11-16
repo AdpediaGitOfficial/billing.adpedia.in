@@ -145,11 +145,11 @@ export async function confirmPanCard(ctx: RequestContext, kind: PartyKind, id: s
     panEvidenceById: ctx.userId,
   }
   if (kind === 'EMPLOYEE') {
-    await prisma.employee.update({ where: { id }, data })
+    await prisma.employee.update({ where: { companyId: ctx.companyId, id }, data })
   } else {
     // the number is what s.206AA turns on, and it is already on file — this only records
     // that the card behind it has been seen
-    await prisma.vendor.update({ where: { id }, data: { ...data, panVerified: true } })
+    await prisma.vendor.update({ where: { companyId: ctx.companyId, id }, data: { ...data, panVerified: true } })
   }
 
   await audit(ctx, {
@@ -176,8 +176,8 @@ export async function unconfirmPanCard(ctx: RequestContext, kind: PartyKind, id:
     panEvidenceAt: null,
     panEvidenceById: null,
   }
-  if (kind === 'EMPLOYEE') await prisma.employee.update({ where: { id }, data })
-  else await prisma.vendor.update({ where: { id }, data })
+  if (kind === 'EMPLOYEE') await prisma.employee.update({ where: { companyId: ctx.companyId, id }, data })
+  else await prisma.vendor.update({ where: { companyId: ctx.companyId, id }, data })
 
   await audit(ctx, {
     entity: kind === 'EMPLOYEE' ? 'Employee' : 'Vendor', entityId: id, action: 'UPDATE',

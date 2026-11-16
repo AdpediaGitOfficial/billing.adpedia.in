@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { PrismaClient } from '@prisma/client'
 import { resetDb } from './helpers/db'
-import { Decimal, ZERO } from '@/lib/money'
+import { ZERO } from '@/lib/money'
 import { createInvoice, sendInvoice, updateInvoiceDraft, previewInvoice } from '@/server/services/invoicing/invoice'
 import { createReceipt } from '@/server/services/sales/receipt'
 import { createCreditNote } from '@/server/services/invoicing/credit-note'

@@ -196,7 +196,7 @@ export async function outstandingChases(ctx: RequestContext): Promise<Chase[]> {
   const customerIds = [...new Set(missing.map((m) => m.customerId))]
   const customers = customerIds.length
     ? await prisma.customer.findMany({
-        where: { id: { in: customerIds } }, select: { id: true, name: true, email: true, phone: true },
+        where: { companyId: ctx.companyId, id: { in: customerIds } }, select: { id: true, name: true, email: true, phone: true },
       })
     : []
   const custById = new Map(customers.map((c) => [c.id, c]))
@@ -232,7 +232,7 @@ export async function outstandingChases(ctx: RequestContext): Promise<Chase[]> {
     const vendorNames = itc.notInPortal.filter((x) => x.gstin !== null)
     const bills = vendorNames.length
       ? await prisma.vendorBill.findMany({
-          where: { id: { in: vendorNames.map((x) => x.billId) } },
+          where: { companyId: ctx.companyId, id: { in: vendorNames.map((x) => x.billId) } },
           select: { id: true, vendor: { select: { id: true, email: true, phone: true } } },
         })
       : []

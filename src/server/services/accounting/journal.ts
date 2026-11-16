@@ -122,6 +122,6 @@ export async function reverseJournal(ctx: RequestContext, journalEntryId: string
     { date: on, narration: `Reversal: ${original.narration} — ${reason}`, sourceType: original.sourceType, sourceId: original.sourceId ?? undefined, postings },
     tx,
   )
-  await tx.journalEntry.update({ where: { id: entry.id }, data: { reversalOfId: original.id } })
+  await tx.journalEntry.update({ where: { companyId: ctx.companyId, id: entry.id }, data: { reversalOfId: original.id } })
   return entry
 }

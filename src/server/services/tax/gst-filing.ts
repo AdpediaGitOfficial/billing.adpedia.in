@@ -132,9 +132,9 @@ export async function recordGstFiling(ctx: RequestContext, input: RecordFilingIn
     // 🔴 Lock the period. From here, a change to anything dated inside it would make the
     // filed return wrong without anything saying so. Only ever forward — a later filing
     // never un-locks an earlier one.
-    const current = await tx.financialYear.findUniqueOrThrow({ where: { id: fy.id } })
+    const current = await tx.financialYear.findUniqueOrThrow({ where: { companyId: ctx.companyId, id: fy.id } })
     if (!current.lockedUpTo || period.to > current.lockedUpTo) {
-      await tx.financialYear.update({ where: { id: fy.id }, data: { lockedUpTo: period.to } })
+      await tx.financialYear.update({ where: { companyId: ctx.companyId, id: fy.id }, data: { lockedUpTo: period.to } })
     }
 
     return saved
@@ -156,7 +156,7 @@ export async function unrecordGstFiling(ctx: RequestContext, id: string, reason:
   if (!row) throw new NotFound('Filing record not found')
 
   await prisma.gstReturnPeriod.update({
-    where: { id }, data: { status: 'PREPARED', filedOn: null, arn: null },
+    where: { companyId: ctx.companyId, id }, data: { status: 'PREPARED', filedOn: null, arn: null },
   })
   // 🔴 Deliberately NOT unlocking the period. The return may genuinely have been filed on the
   // portal even if this record was wrong, and quietly reopening a month is how a filed return

@@ -795,11 +795,11 @@ export async function reconcileChallans(
           portalConfirmedAt: new Date(), portalConfirmedVia: via,
         }
         if (m.portalCin) data.cin = m.portalCin
-        if (isTds) await tx.tdsChallan.update({ where: { id: m.challanId }, data })
-        else await tx.gstChallan.update({ where: { id: m.challanId }, data })
+        if (isTds) await tx.tdsChallan.update({ where: { companyId: ctx.companyId, id: m.challanId }, data })
+        else await tx.gstChallan.update({ where: { companyId: ctx.companyId, id: m.challanId }, data })
       }
       const verdict = `${confirmed.length} confirmed, ${mismatched.length} mismatched, ${notOnPortal.length} not on the portal, ${notInBooks.length} not in the books`
-      await tx.portalStatement.update({ where: { id: statement.id }, data: { verdict } })
+      await tx.portalStatement.update({ where: { companyId: ctx.companyId, id: statement.id }, data: { verdict } })
     })
     await audit(ctx, {
       entity: 'PortalStatement', entityId: statement.id, action: 'UPDATE',

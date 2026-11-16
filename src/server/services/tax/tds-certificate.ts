@@ -219,7 +219,7 @@ export async function recordCertificateDownload(ctx: RequestContext, input: Reco
 
   const saved = existing
     ? await prisma.tdsCertificate.update({
-        where: { id: existing.id },
+        where: { companyId: ctx.companyId, id: existing.id },
         data: {
           downloadedOn, tracesRequestNo: input.tracesRequestNo?.trim() || null,
           tdsAmount: row.tdsAmount.toFixed(2), pan: row.pan,
@@ -279,7 +279,7 @@ export async function recordCertificateIssued(
   }
 
   const saved = await prisma.tdsCertificate.update({
-    where: { id }, data: { issuedOn: on, issuedTo: issuedTo.trim() },
+    where: { companyId: ctx.companyId, id }, data: { issuedOn: on, issuedTo: issuedTo.trim() },
   })
   await audit(ctx, {
     entity: 'TdsCertificate', entityId: id, action: 'APPROVE',

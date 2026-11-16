@@ -202,7 +202,7 @@ export async function createDebitNote(ctx: RequestContext, input: DebitNoteInput
     const settled = new Decimal(inv.amountReceived.toString()).plus(inv.tdsCredited.toString())
     if (inv.status === 'PAID' && settled.lt(p.invoiceTotalAfter.minus('0.5'))) {
       await tx.invoice.update({
-        where: { id: inv.id },
+        where: { companyId: ctx.companyId, id: inv.id },
         data: { status: settled.gt(0) ? 'PARTIALLY_PAID' : 'SENT' },
       })
     }

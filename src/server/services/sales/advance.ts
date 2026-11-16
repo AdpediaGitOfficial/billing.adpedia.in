@@ -336,7 +336,7 @@ export async function adjustAdvance(ctx: RequestContext, input: AdjustAdvanceInp
 
     const received = new Decimal(invoice.amountReceived.toString()).plus(amount)
     await tx.invoice.update({
-      where: { id: invoice.id },
+      where: { companyId: ctx.companyId, id: invoice.id },
       data: {
         amountReceived: received.toFixed(2),
         status: received.plus(invoice.tdsCredited.toString()).gte(open.gross.minus('0.5'))

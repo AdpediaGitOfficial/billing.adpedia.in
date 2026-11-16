@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { AppError } from '@/server/errors'
+import { AppError, TooManyAttempts } from '@/server/errors'
 import { ZodError } from 'zod'
 
 /** Wraps a route handler so domain errors become clean JSON instead of stack traces. */
@@ -23,7 +23,11 @@ export function handler<T>(fn: () => Promise<T>) {
         )
       }
       if (e instanceof AppError) {
-        return NextResponse.json({ error: e.message, code: e.code }, { status: e.status })
+        return NextResponse.json(
+          { error: e.message, code: e.code }, {
+            status: e.status,
+            headers: e instanceof TooManyAttempts ? { 'retry-after': String(e.retryAfterSeconds) } : undefined,
+          })
       }
       console.error('unhandled route error', e)
       return NextResponse.json({ error: 'Something went wrong', code: 'INTERNAL' }, { status: 500 })

@@ -259,7 +259,7 @@ export async function createCreditNote(ctx: RequestContext, input: CreditNoteInp
      */
     const open = invoiceOpen(inv, await notesFor(ctx.companyId, inv.id, tx))
 
-    await tx.invoice.update({ where: { id: inv.id }, data: { status: open.settled ? 'PAID' : inv.status } })
+    await tx.invoice.update({ where: { companyId: ctx.companyId, id: inv.id }, data: { status: open.settled ? 'PAID' : inv.status } })
 
     await audit(ctx, {
       entity: 'CreditNote', entityId: note.id, action: 'CREATE',

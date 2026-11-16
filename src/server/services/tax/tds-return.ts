@@ -137,7 +137,7 @@ export async function buildTdsReturn(
   // ── challans in this quarter, and whether each reconciles ──
   const challanIds = [...new Set(deductions.map((d) => d.challanId).filter(Boolean) as string[])]
   const challanRows = await prisma.tdsChallan.findMany({
-    where: { id: { in: challanIds } },
+    where: { companyId: ctx.companyId, id: { in: challanIds } },
     include: { deductions: { where: { reversedAt: null } } },
   })
 

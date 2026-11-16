@@ -1,0 +1,66 @@
+# docs/95 — nothing ran the checks unless somebody remembered to. Typecheck, lint, the unit tests
+# (which include the company-scope sweep, docs/82) and the integration tests against a real Postgres.
+name: CI
+
+on:
+  push:
+    branches: [main, 'claude/**']
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      # `npm run test:db` talks to localhost:5461 as adpedia/adpedia (scripts/pg-admin.mjs and the
+      # db:test:setup script) — the project-local dev cluster's address. The service is made to
+      # look like it. POSTGRES_USER is a superuser, which pg-admin needs to drop and create databases.
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: adpedia
+          POSTGRES_PASSWORD: adpedia
+          POSTGRES_DB: postgres
+        ports: ['5461:5432']
+        options: >-
+          --health-cmd "pg_isready -U adpedia"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # not a secret: it only has to pass env()'s length check on a database that is thrown away
+      JWT_SECRET: ci-only-not-a-secret-0123456789abcdefghijklmnop
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npx prisma generate
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm test
+
+      # the PDF renderer tests launch a real Chromium (docs/33)
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Integration tests
+        run: npm run test:db

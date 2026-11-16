@@ -47,7 +47,7 @@ export async function listServiceItems(ctx: RequestContext): Promise<ServiceItem
   })
   const accountIds = [...new Set(items.map((i) => i.incomeAccountId).filter(Boolean) as string[])]
   const accounts = accountIds.length
-    ? await prisma.account.findMany({ where: { id: { in: accountIds } }, select: { id: true, code: true, name: true } })
+    ? await prisma.account.findMany({ where: { companyId: ctx.companyId, id: { in: accountIds } }, select: { id: true, code: true, name: true } })
     : []
   const byId = new Map(accounts.map((a) => [a.id, `${a.code} ${a.name}`]))
 
@@ -165,7 +165,7 @@ export async function updateServiceItem(ctx: RequestContext, id: string, input: 
   if (!existing) throw new NotFound('Service not found')
 
   const data = await validate(ctx, input, id)
-  const item = await prisma.serviceItem.update({ where: { id }, data })
+  const item = await prisma.serviceItem.update({ where: { companyId: ctx.companyId, id }, data })
   await audit(ctx, {
     entity: 'ServiceItem', entityId: id, action: 'UPDATE',
     before: { name: existing.name, sacCode: existing.sacCode, gstRatePct: existing.gstRatePct.toString() },
@@ -187,7 +187,7 @@ export async function setServiceItemActive(ctx: RequestContext, id: string, isAc
   const existing = await prisma.serviceItem.findFirst({ where: { id, companyId: ctx.companyId } })
   if (!existing) throw new NotFound('Service not found')
 
-  const item = await prisma.serviceItem.update({ where: { id }, data: { isActive } })
+  const item = await prisma.serviceItem.update({ where: { companyId: ctx.companyId, id }, data: { isActive } })
   await audit(ctx, {
     entity: 'ServiceItem', entityId: id, action: 'UPDATE',
     before: { isActive: existing.isActive }, after: { isActive },

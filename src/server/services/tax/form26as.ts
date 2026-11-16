@@ -216,14 +216,14 @@ export async function reconcile26as(ctx: RequestContext, financialYearId: string
     for (const m of matched) {
       const e = entries.find((x) => x.id === m.entryId)!
       await tx.tdsReceivable.update({
-        where: { id: m.receivableId },
+        where: { companyId: ctx.companyId, id: m.receivableId },
         data: { status: 'MATCHED_26AS', form26asAmount: e.tdsDeducted, deductorTan: e.deductorTan },
       })
       await tx.form26asEntry.update({ where: { id: m.entryId }, data: { matchedReceivableId: m.receivableId } })
     }
     const unmatchedIds = receivables.filter((r) => !usedReceivables.has(r.id)).map((r) => r.id)
     if (unmatchedIds.length > 0) {
-      await tx.tdsReceivable.updateMany({ where: { id: { in: unmatchedIds } }, data: { status: 'MISSING_IN_26AS', form26asAmount: null } })
+      await tx.tdsReceivable.updateMany({ where: { companyId: ctx.companyId, id: { in: unmatchedIds } }, data: { status: 'MISSING_IN_26AS', form26asAmount: null } })
     }
   })
 

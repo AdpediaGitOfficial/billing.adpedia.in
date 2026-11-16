@@ -87,7 +87,7 @@ export async function complianceAlerts(companyId: string): Promise<ComplianceAle
 
 /** Monthly revenue and cash received, for the trend chart. Real postings only. */
 export async function monthlySeries(companyId: string, fyId: string) {
-  const fy = await prisma.financialYear.findUniqueOrThrow({ where: { id: fyId } })
+  const fy = await prisma.financialYear.findUniqueOrThrow({ where: { companyId: companyId, id: fyId } })
   const invoices = await prisma.invoice.findMany({
     where: { companyId, financialYearId: fyId, status: { notIn: ['DRAFT', 'CANCELLED'] } },
     select: { date: true, currency: true, fxRate: true, taxableValue: true, amountReceived: true },
@@ -121,7 +121,7 @@ export async function revenueByCustomer(companyId: string, fyId: string) {
   for (const i of invoices) {
     totals.set(i.customerId, (totals.get(i.customerId) ?? 0) + Number(inrOf(i, i.taxableValue.toString())))
   }
-  const names = await prisma.customer.findMany({ where: { id: { in: [...totals.keys()] } }, select: { id: true, name: true } })
+  const names = await prisma.customer.findMany({ where: { companyId: companyId, id: { in: [...totals.keys()] } }, select: { id: true, name: true } })
   const byId = new Map(names.map((n) => [n.id, n.name]))
   return [...totals]
     .map(([customerId, value]) => ({ label: byId.get(customerId) ?? 'Unknown', value }))

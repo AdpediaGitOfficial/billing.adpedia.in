@@ -22,7 +22,7 @@ export async function amendNoteAction(_prev: { error?: string } | null, form: Fo
   try {
     const a = await recordNoteAmendment(ctx, parsed.data)
     const note = await (await import('@/server/db')).prisma.creditNote.findUnique({
-      where: { id: a.noteId }, select: { invoiceId: true },
+      where: { id: a.noteId, companyId: ctx.companyId }, select: { invoiceId: true },
     })
     invoiceId = note?.invoiceId ?? null
   } catch (e) {

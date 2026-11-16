@@ -65,7 +65,7 @@ export async function createExpense(ctx: RequestContext, input: ExpenseInput) {
   const category = await prisma.expenseCategory.findFirst({ where: { id: input.categoryId, companyId: ctx.companyId } })
   if (!category) throw new NotFound('Expense category not found')
   // ExpenseCategory carries accountId as a plain column, not a relation
-  const account = await prisma.account.findUniqueOrThrow({ where: { id: category.accountId } })
+  const account = await prisma.account.findUniqueOrThrow({ where: { companyId: ctx.companyId, id: category.accountId } })
 
   const taxable = round2(new Decimal(input.taxableValue))
   if (taxable.lte(0)) throw new AppError('An expense needs a positive amount')

@@ -91,7 +91,7 @@ export async function updateCustomer(ctx: RequestContext, id: string, input: Cus
   if (!existing) throw new NotFound('Customer not found')
 
   const customer = await prisma.customer.update({
-    where: { id },
+    where: { companyId: ctx.companyId, id },
     data: {
       name: input.name.trim(),
       contactPerson: input.contactPerson,

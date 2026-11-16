@@ -13,6 +13,10 @@ import { setTaxEstimate, recordAdvanceTax } from '../src/server/services/tax/adv
 import { recordRocDates } from '../src/server/services/compliance/roc'
 import { createInvitation } from '../src/server/services/auth/invitation'
 import { closePdfBrowser } from '../src/server/services/invoicing/pdf'
+import { assertScratchDatabase } from './lib/scratch-db-guard'
+
+// 🔴 docs/95 — writes dozens of documents into the live GST series if pointed at production
+assertScratchDatabase()
 
 const prisma = new PrismaClient()
 const company = await prisma.company.findFirstOrThrow({ where: { pan: 'AAUCA9985H' } })
@@ -62,8 +66,8 @@ async function inv(customerId: string, date: string, rate: string, opts: { send?
 
 const a = await inv(kerala.id, '2026-05-10', '400000', { tds: '194J' })
 const b = await inv(kerala.id, '2026-06-02', '250000', { tds: '194J' })
-const c = await inv(tn.id, '2026-06-20', '180000')
-const d = await inv(us.id, '2026-07-05', '9000')
+await inv(tn.id, '2026-06-20', '180000')
+await inv(us.id, '2026-07-05', '9000')
 await inv(kerala.id, '2026-09-01', '75000', { send: false })
 const e = await inv(kerala.id, '2026-04-02', '120000')
 await cancelInvoice(ctx, e.id, 'Raised against the wrong customer')

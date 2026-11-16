@@ -94,13 +94,14 @@ payroll, projects and bank reconciliation on a double-entry ledger.
 | [87 · The lists nothing could choose from](docs/87-the-lists-nothing-could-choose-from.md) | Every country, every GST state and a billing currency a client can actually be set to — and the SWIFT code and "US Dollars" that two invoice lines printed wrongly because of it |
 | [88 · The personal account](docs/88-the-personal-account.md) | One person's own books: an invoice form that could not save, a bank account nothing could create, and a receipt that threw — found by sending an invoice as that entity and reading what the client got |
 | [89 · The tax an unregistered entity cannot claim](docs/89-the-tax-an-unregistered-entity-cannot-claim.md) | A bill from a GST-registered vendor, booked by an entity with no registration, debited the vendor's GST to input-credit accounts it can never use — the suspicion in docs/88 §6, exercised and fixed |
+| [90 · Deployment](docs/90-deployment.md) | Step by step on a plain Ubuntu box — npm, pm2, Postgres, nginx, Chromium, the daily run, backups. No Docker |
 | [91 · The dollars in a rupee ledger](docs/91-the-dollars-in-a-rupee-ledger.md) | A USD 250 invoice posted ₹250. Invoices now carry a typed rate and book rupees; receipts take the rupees the bank credited and derive the forex difference; every total that added invoices up converts at the invoice's rate |
 | [92 · Booking an old invoice at its rate](docs/92-booking-an-old-invoice-at-its-rate.md) | A correcting entry for a foreign invoice issued at face value: shows the difference, posts only that, leaves the invoice and its number alone; cancel reverses it too; nothing can be posted against an unrated one |
 | [93 · Foreign vendor bills in rupees](docs/93-foreign-vendor-bills-in-rupees.md) | A vendor bill had no currency: a $100 bill was keyed as 100 and posted ₹100. Bills now carry a currency and a typed rate; TDS and reverse charge are worked out on rupees; a payment takes the rupees paid and derives the forex |
 | [94 · The live exchange rate](docs/94-the-live-exchange-rate.md) | The rate field fills itself from ECB reference rates (and a second source for currencies the ECB lacks), for the document's own date; cached, overridable, and frozen on the document when saved |
-| [90 · Deployment](docs/90-deployment.md) | Step by step on a plain Ubuntu box — npm, pm2, Postgres, nginx, Chromium, the daily run, backups. No Docker |
+| [95 · Hardening](docs/95-hardening.md) | What a review of the whole repository found: a deleted `.env.example`, no login limit, a ledger check that covered the entry and not its lines, 106 queries with no company filter that nothing ran a sweep for, and a seed script that could write into the live books |
 
-**1,415 tests passing** · typecheck and lint clean · production build passes.
+**1,453 tests passing** (610 unit + 843 integration) · typecheck and lint clean · production build passes.
 
 ```bash
 cp .env.example .env     # set DATABASE_URL and JWT_SECRET
@@ -113,7 +114,7 @@ npm run dev
 
 ## Assets
 
-- `prisma/schema.prisma` — 42 models, validated
+- `prisma/schema.prisma` — 67 models, validated
 - `templates/invoice/tax-invoice.html` — GST invoice, three tax modes, print-correct A4
 - `templates/invoice/assets/` — logo (SVG), signature (transparent PNG)
 

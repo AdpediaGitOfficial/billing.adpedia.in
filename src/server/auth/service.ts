@@ -7,6 +7,7 @@ import { issueRefreshToken, rotateRefreshToken, revokeFamily, hashToken } from '
 import { ACCESS_COOKIE, REFRESH_COOKIE } from '@/server/context'
 import { Unauthorized } from '@/server/errors'
 import { chooseCompany } from './company-choice'
+import { assertNotLocked, recordFailure, clearFailures } from './throttle'
 
 const baseCookie = {
   httpOnly: true,
@@ -43,6 +44,9 @@ export async function clearAuthCookies() {
 }
 
 export async function login(email: string, password: string, meta?: { ip?: string; userAgent?: string }) {
+  // 🔴 docs/95 — before any work is done on the password, so a locked address costs nothing
+  await assertNotLocked(email)
+
   const user = await prisma.user.findUnique({
     where: { email: email.toLowerCase().trim() },
     include: { companies: { include: { company: { select: { id: true, legalName: true } } } } },
@@ -50,12 +54,16 @@ export async function login(email: string, password: string, meta?: { ip?: strin
 
   // Constant-ish work whether or not the user exists, so timing does not leak membership.
   const ok = user ? await verifyPassword(user.passwordHash, password) : await verifyPassword('$argon2id$v=19$m=19456,t=2,p=1$c29tZXNhbHQ$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', password)
-  if (!user || !ok || !user.isActive) throw new Unauthorized('Incorrect email or password')
+  if (!user || !ok || !user.isActive) {
+    await recordFailure(email)
+    throw new Unauthorized('Incorrect email or password')
+  }
 
   // 🔴 docs/82 §3 — not `companies[0]`. See `company-choice.ts` for why that was a bug
   // waiting for a second membership.
   const membership = chooseCompany(user.companies, user.lastCompanyId)
   if (!membership) throw new Unauthorized('This account is not linked to a company')
+  await clearFailures(email)
 
   const accessToken = await signAccessToken({
     sub: user.id, companyId: membership.companyId, role: membership.role, tokenVersion: user.tokenVersion,
